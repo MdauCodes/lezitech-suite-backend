@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: lezitech-suite-api
+  datasource:
+    # The app connects as suite_app, a non-owner role, so Row-Level Security applies.
+    url: ${DATABASE_URL:jdbc:postgresql://127.0.0.1:54329/suite}
+    username: ${DATABASE_USERNAME:suite_app}
+    password: ${DATABASE_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Migrations run as the schema owner on their own connection.
+    url: ${FLYWAY_URL:${DATABASE_URL:jdbc:postgresql://127.0.0.1:54329/suite}}
+    user: ${FLYWAY_USERNAME:postgres}
+    password: ${FLYWAY_PASSWORD:}
+  jackson:
+    default-property-inclusion: always
+
+server:
+  port: ${PORT:8090}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+suite:
+  jwt:
+    secret: ${JWT_SECRET:local-dev-secret-change-me-before-any-real-deploy-0123456789}
+    ttl-hours: 72
+  trial-days: ${TRIAL_DAYS:7}
+  operator-key: ${OPERATOR_KEY:local-operator-key}
+  cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320}
+  # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.
+  embedded-db:
+    enabled: ${EMBEDDED_DB:true}
+    port: 54329
+    data-dir: ${EMBEDDED_DB_DIR:.localdb}

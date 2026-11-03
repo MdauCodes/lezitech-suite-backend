@@ -1,0 +1,4 @@
+target/
+.localdb/
+*.log
+.idea/
