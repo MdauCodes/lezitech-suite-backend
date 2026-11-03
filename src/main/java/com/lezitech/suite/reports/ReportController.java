@@ -59,6 +59,26 @@ public class ReportController {
                 SELECT coalesce(sum(d.value), 0) FROM deals d JOIN pipeline_stages s ON s.id = d.stage_id
                 WHERE s.is_won AND d.closed_at >= :month""", java.math.BigDecimal.class, "month", month));
         k.put("tasks_due", db.value("SELECT count(*) FROM activities WHERE NOT done AND due_at <= now() + interval '1 day'", Long.class));
+        // Hotels
+        Long rooms = db.value("SELECT count(*) FROM spaces WHERE active AND kind IN ('ROOM','COTTAGE','TENT','APARTMENT')", Long.class);
+        Long occupied = db.value("SELECT count(*) FROM stays WHERE status = 'IN_HOUSE'", Long.class);
+        k.put("occupancy_today", rooms == null || rooms == 0 ? "—" : Math.round(100.0 * occupied / rooms) + "% (" + occupied + "/" + rooms + ")");
+        k.put("arrivals_today", db.value("SELECT count(*) FROM stays WHERE status = 'RESERVED' AND check_in <= current_date", Long.class));
+        k.put("departures_today", db.value("SELECT count(*) FROM stays WHERE status = 'IN_HOUSE' AND check_out <= current_date", Long.class));
+        // Tours
+        k.put("departures_next_30", db.value("SELECT count(*) FROM trips WHERE status IN ('OPEN','FULL') AND starts_on BETWEEN current_date AND current_date + 30", Long.class));
+        k.put("seats_booked", db.value("""
+                SELECT coalesce(sum(b.pax), 0) FROM trip_bookings b JOIN trips t ON t.id = b.trip_id
+                WHERE b.status <> 'CANCELLED' AND t.starts_on >= current_date""", Long.class));
+        k.put("balances_due", db.value("SELECT coalesce(sum(total - paid), 0) FROM orders WHERE status = 'OPEN' AND channel IN ('TOUR','ROOM')", java.math.BigDecimal.class));
+        // Property
+        Long units = db.value("SELECT count(*) FROM spaces WHERE active AND kind IN ('SHOP','STALL','OFFICE','APARTMENT')", Long.class);
+        Long let = db.value("SELECT count(DISTINCT space_id) FROM leases WHERE status = 'ACTIVE'", Long.class);
+        k.put("occupancy_rate", units == null || units == 0 ? "—" : Math.round(100.0 * let / units) + "% (" + let + "/" + units + ")");
+        String period = java.time.YearMonth.now(NAIROBI).toString();
+        k.put("rent_billed_month", db.value("SELECT coalesce(sum(total), 0) FROM orders WHERE period = :p AND status <> 'VOID'", java.math.BigDecimal.class, "p", period));
+        k.put("rent_collected_month", db.value("SELECT coalesce(sum(paid), 0) FROM orders WHERE period = :p AND status <> 'VOID'", java.math.BigDecimal.class, "p", period));
+        k.put("arrears", db.value("SELECT coalesce(sum(total - paid), 0) FROM orders WHERE lease_id IS NOT NULL AND status = 'OPEN' AND due_on < current_date", java.math.BigDecimal.class));
         k.put("top_staff", db.find("""
                 SELECT u.name, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
                 JOIN users u ON u.id = coalesce(l.staff_id, o.user_id)

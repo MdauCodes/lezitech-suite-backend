@@ -136,6 +136,7 @@ public class OrderController {
                   AND (cast(:course as int) IS NULL OR course = cast(:course as int))
                   AND EXISTS (SELECT 1 FROM items i WHERE i.id = order_lines.item_id AND (i.kind = 'MENU' OR i.station IS NOT NULL))""",
                 "id", id, "course", course);
+        orders.markReadyIfDone(id);
         Map<String, Object> out = new java.util.LinkedHashMap<>(orders.detail(id));
         out.put("sent", n);
         return out;
@@ -165,6 +166,12 @@ public class OrderController {
         orders.recalc(id);
         orders.recalc(newId);
         return orders.detail(newId);
+    }
+
+    @PostMapping("/{id}/charge-to-stay")
+    public Map<String, Object> chargeToStay(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        UUID folio = orders.chargeToStay(id, UUID.fromString(new Body(raw).str("stayId")));
+        return orders.detail(folio);
     }
 
     @PostMapping("/{id}/void")

@@ -5,61 +5,708 @@
     "tagline": "Tables, kitchen tickets, add-ons and split bills",
     "icon": "utensils",
     "color": "#c2410c",
-    "subSectors": ["Restaurant", "Café", "Bar & lounge", "Fast food", "Bakery", "Hotel kitchen"],
-    "products": ["POS", "ERP"],
+    "subSectors": [
+      "Restaurant",
+      "Café",
+      "Bar & lounge",
+      "Fast food",
+      "Bakery",
+      "Restaurant with rooms"
+    ],
+    "products": [
+      "POS",
+      "ERP"
+    ],
     "posMode": "RESTAURANT",
     "home": "/floor",
-    "modules": ["dashboard", "floor", "pos", "kitchen", "items", "stock", "purchasing", "customers", "reports", "team", "settings"],
-    "terms": { "customer": "Guest", "customers": "Guests", "item": "Menu item", "items": "Menu", "order": "Bill", "orders": "Bills", "staff": "Waiter", "location": "Branch" },
-    "features": { "tables": true, "kitchen": true, "courses": true, "splitBill": true, "tips": true, "barcode": false, "expiry": false, "prescriptions": false, "wholesalePricing": false, "credit": false, "loyalty": true, "appointments": false, "commissions": false, "storeFeedsShops": false, "channels": ["DINE_IN", "TAKEAWAY", "DELIVERY"] },
-    "kpis": ["sales_today", "open_bills", "avg_ticket", "kitchen_queue"],
+    "modules": [
+      "dashboard",
+      "floor",
+      "pos",
+      "kitchen",
+      "items",
+      "stock",
+      "purchasing",
+      "customers",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Guest",
+      "customers": "Guests",
+      "item": "Menu item",
+      "items": "Menu",
+      "order": "Bill",
+      "orders": "Bills",
+      "staff": "Waiter",
+      "location": "Branch"
+    },
+    "features": {
+      "tables": true,
+      "kitchen": true,
+      "courses": true,
+      "splitBill": true,
+      "tips": true,
+      "barcode": false,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": false,
+      "loyalty": true,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": false,
+      "channels": [
+        "DINE_IN",
+        "TAKEAWAY",
+        "DELIVERY"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": false,
+      "deposits": false,
+      "orderBoard": true,
+      "publicMenu": true
+    },
+    "kpis": [
+      "sales_today",
+      "open_bills",
+      "avg_ticket",
+      "kitchen_queue"
+    ],
     "stages": [
-      { "name": "Enquiry", "probability": 10 },
-      { "name": "Menu sent", "probability": 30 },
-      { "name": "Deposit paid", "probability": 70 },
-      { "name": "Event done", "probability": 100, "won": true },
-      { "name": "Lost", "probability": 0, "lost": true }
+      {
+        "name": "Enquiry",
+        "probability": 10
+      },
+      {
+        "name": "Menu sent",
+        "probability": 30
+      },
+      {
+        "name": "Deposit paid",
+        "probability": 70
+      },
+      {
+        "name": "Event done",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
     ],
     "seed": {
-      "locations": [{ "name": "Main restaurant", "kind": "SHOP" }, { "name": "Kitchen store", "kind": "STORE" }],
-      "floors": [{ "name": "Main hall", "tables": 8 }, { "name": "Terrace", "tables": 4 }],
-      "categories": [
-        { "name": "Breakfast", "color": "#f59e0b", "items": [
-          { "name": "Full English breakfast", "price": 750, "cost": 320, "station": "Kitchen" },
-          { "name": "Spanish omelette", "price": 450, "cost": 160, "station": "Kitchen" },
-          { "name": "Pancakes & honey", "price": 400, "cost": 120, "station": "Kitchen" }
-        ]},
-        { "name": "Mains", "color": "#dc2626", "items": [
-          { "name": "Nyama choma (½ kg)", "price": 1100, "cost": 550, "station": "Grill", "options": [
-            { "name": "Side", "required": true, "multi": false, "choices": [{ "name": "Ugali", "price": 0 }, { "name": "Chips", "price": 100 }, { "name": "Rice", "price": 50 }] },
-            { "name": "Extras", "required": false, "multi": true, "choices": [{ "name": "Kachumbari", "price": 80 }, { "name": "Sukuma wiki", "price": 100 }] }
-          ]},
-          { "name": "Chicken biryani", "price": 850, "cost": 350, "station": "Kitchen" },
-          { "name": "Beef burger", "price": 750, "cost": 300, "station": "Grill", "options": [
-            { "name": "Cooking", "required": true, "multi": false, "choices": [{ "name": "Medium", "price": 0 }, { "name": "Well done", "price": 0 }] },
-            { "name": "Add-ons", "required": false, "multi": true, "choices": [{ "name": "Cheese", "price": 80 }, { "name": "Bacon", "price": 120 }, { "name": "Egg", "price": 50 }] }
-          ]},
-          { "name": "Tilapia fry", "price": 1200, "cost": 600, "station": "Kitchen" },
-          { "name": "Vegetable curry", "price": 650, "cost": 220, "station": "Kitchen" }
-        ]},
-        { "name": "Drinks", "color": "#2563eb", "items": [
-          { "name": "Fresh passion juice", "price": 250, "cost": 70, "station": "Bar" },
-          { "name": "Dawa cocktail", "price": 550, "cost": 180, "station": "Bar" },
-          { "name": "Soda 500ml", "price": 120, "cost": 65, "station": "Bar", "kind": "PRODUCT", "stock": 96 },
-          { "name": "Mineral water 1L", "price": 150, "cost": 60, "station": "Bar", "kind": "PRODUCT", "stock": 60 },
-          { "name": "Kenyan tea", "price": 150, "cost": 30, "station": "Bar" },
-          { "name": "Cappuccino", "price": 300, "cost": 90, "station": "Bar", "options": [
-            { "name": "Milk", "required": false, "multi": false, "choices": [{ "name": "Oat milk", "price": 60 }, { "name": "Extra shot", "price": 80 }] }
-          ]}
-        ]},
-        { "name": "Desserts", "color": "#db2777", "items": [
-          { "name": "Chocolate cake slice", "price": 400, "cost": 140, "station": "Kitchen" },
-          { "name": "Fruit salad", "price": 300, "cost": 100, "station": "Kitchen" }
-        ]}
+      "locations": [
+        {
+          "name": "Main restaurant",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Kitchen store",
+          "kind": "STORE"
+        }
       ],
-      "customers": [{ "name": "Walk-in guest" }, { "name": "Wanjiru Kamau", "phone": "0712345678" }],
-      "suppliers": [{ "name": "Fresh Farm Produce", "phone": "0722000111" }, { "name": "City Butchery", "phone": "0733000222" }],
-      "deals": [{ "title": "Company end-year party (60 pax)", "value": 180000, "contact": "Grace Achieng" }]
+      "floors": [
+        {
+          "name": "Main hall",
+          "tables": 8
+        },
+        {
+          "name": "Terrace",
+          "tables": 4
+        }
+      ],
+      "categories": [
+        {
+          "name": "Breakfast",
+          "color": "#f59e0b",
+          "items": [
+            {
+              "name": "Full English breakfast",
+              "price": 750,
+              "cost": 320,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Spanish omelette",
+              "price": 450,
+              "cost": 160,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Pancakes & honey",
+              "price": 400,
+              "cost": 120,
+              "station": "Kitchen"
+            }
+          ]
+        },
+        {
+          "name": "Mains",
+          "color": "#dc2626",
+          "items": [
+            {
+              "name": "Nyama choma (½ kg)",
+              "price": 1100,
+              "cost": 550,
+              "station": "Grill",
+              "options": [
+                {
+                  "name": "Side",
+                  "required": true,
+                  "multi": false,
+                  "choices": [
+                    {
+                      "name": "Ugali",
+                      "price": 0
+                    },
+                    {
+                      "name": "Chips",
+                      "price": 100
+                    },
+                    {
+                      "name": "Rice",
+                      "price": 50
+                    }
+                  ]
+                },
+                {
+                  "name": "Extras",
+                  "required": false,
+                  "multi": true,
+                  "choices": [
+                    {
+                      "name": "Kachumbari",
+                      "price": 80
+                    },
+                    {
+                      "name": "Sukuma wiki",
+                      "price": 100
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Chicken biryani",
+              "price": 850,
+              "cost": 350,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Beef burger",
+              "price": 750,
+              "cost": 300,
+              "station": "Grill",
+              "options": [
+                {
+                  "name": "Cooking",
+                  "required": true,
+                  "multi": false,
+                  "choices": [
+                    {
+                      "name": "Medium",
+                      "price": 0
+                    },
+                    {
+                      "name": "Well done",
+                      "price": 0
+                    }
+                  ]
+                },
+                {
+                  "name": "Add-ons",
+                  "required": false,
+                  "multi": true,
+                  "choices": [
+                    {
+                      "name": "Cheese",
+                      "price": 80
+                    },
+                    {
+                      "name": "Bacon",
+                      "price": 120
+                    },
+                    {
+                      "name": "Egg",
+                      "price": 50
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Tilapia fry",
+              "price": 1200,
+              "cost": 600,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Vegetable curry",
+              "price": 650,
+              "cost": 220,
+              "station": "Kitchen"
+            }
+          ]
+        },
+        {
+          "name": "Drinks",
+          "color": "#2563eb",
+          "items": [
+            {
+              "name": "Fresh passion juice",
+              "price": 250,
+              "cost": 70,
+              "station": "Bar"
+            },
+            {
+              "name": "Dawa cocktail",
+              "price": 550,
+              "cost": 180,
+              "station": "Bar"
+            },
+            {
+              "name": "Soda 500ml",
+              "price": 120,
+              "cost": 65,
+              "station": "Bar",
+              "kind": "PRODUCT",
+              "stock": 96
+            },
+            {
+              "name": "Mineral water 1L",
+              "price": 150,
+              "cost": 60,
+              "station": "Bar",
+              "kind": "PRODUCT",
+              "stock": 60
+            },
+            {
+              "name": "Kenyan tea",
+              "price": 150,
+              "cost": 30,
+              "station": "Bar"
+            },
+            {
+              "name": "Cappuccino",
+              "price": 300,
+              "cost": 90,
+              "station": "Bar",
+              "options": [
+                {
+                  "name": "Milk",
+                  "required": false,
+                  "multi": false,
+                  "choices": [
+                    {
+                      "name": "Oat milk",
+                      "price": 60
+                    },
+                    {
+                      "name": "Extra shot",
+                      "price": 80
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Desserts",
+          "color": "#db2777",
+          "items": [
+            {
+              "name": "Chocolate cake slice",
+              "price": 400,
+              "cost": 140,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Fruit salad",
+              "price": 300,
+              "cost": 100,
+              "station": "Kitchen"
+            }
+          ]
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in guest"
+        },
+        {
+          "name": "Wanjiru Kamau",
+          "phone": "0712345678"
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Fresh Farm Produce",
+          "phone": "0722000111"
+        },
+        {
+          "name": "City Butchery",
+          "phone": "0733000222"
+        }
+      ],
+      "deals": [
+        {
+          "title": "Company end-year party (60 pax)",
+          "value": 180000,
+          "contact": "Grace Achieng"
+        }
+      ]
+    },
+    "extras": [
+      {
+        "key": "rooms",
+        "question": "Do you also let rooms, cottages or a hall?",
+        "modules": [
+          "rooms"
+        ],
+        "features": {
+          "rooms": true
+        }
+      }
+    ]
+  },
+  {
+    "key": "hotel",
+    "name": "Hotels, lodges & guest houses",
+    "tagline": "Room chart, check-in and check-out, folios, housekeeping, plus your restaurant and bar",
+    "icon": "bed",
+    "color": "#0e7490",
+    "subSectors": [
+      "Hotel",
+      "Safari lodge or camp",
+      "Guest house / B&B",
+      "Serviced apartments",
+      "Airbnb host",
+      "Conference & events venue"
+    ],
+    "products": [
+      "POS",
+      "ERP",
+      "CRM"
+    ],
+    "posMode": "RESTAURANT",
+    "home": "/rooms",
+    "modules": [
+      "dashboard",
+      "rooms",
+      "floor",
+      "pos",
+      "kitchen",
+      "customers",
+      "crm",
+      "items",
+      "stock",
+      "purchasing",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Guest",
+      "customers": "Guests",
+      "item": "Menu item",
+      "items": "Menu & services",
+      "order": "Bill",
+      "orders": "Bills",
+      "staff": "Staff",
+      "location": "Property"
+    },
+    "features": {
+      "tables": true,
+      "kitchen": true,
+      "courses": true,
+      "splitBill": true,
+      "tips": true,
+      "barcode": false,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": true,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": false,
+      "channels": [
+        "DINE_IN",
+        "TAKEAWAY"
+      ],
+      "rooms": true,
+      "trips": false,
+      "property": false,
+      "deposits": true,
+      "orderBoard": true,
+      "publicMenu": true
+    },
+    "kpis": [
+      "occupancy_today",
+      "arrivals_today",
+      "departures_today",
+      "sales_today"
+    ],
+    "stages": [
+      {
+        "name": "Enquiry",
+        "probability": 10
+      },
+      {
+        "name": "Quote sent",
+        "probability": 35
+      },
+      {
+        "name": "Deposit paid",
+        "probability": 80
+      },
+      {
+        "name": "Confirmed",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
+    ],
+    "extras": [],
+    "seed": {
+      "locations": [
+        {
+          "name": "Main property",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Main store",
+          "kind": "STORE"
+        }
+      ],
+      "spaces": [
+        {
+          "names": [
+            "101",
+            "102",
+            "103",
+            "104"
+          ],
+          "kind": "ROOM",
+          "type": "Standard double",
+          "capacity": 2,
+          "rate": 6500,
+          "floor": "1"
+        },
+        {
+          "names": [
+            "201",
+            "202",
+            "203"
+          ],
+          "kind": "ROOM",
+          "type": "Deluxe king",
+          "capacity": 2,
+          "rate": 9500,
+          "floor": "2"
+        },
+        {
+          "names": [
+            "Family suite"
+          ],
+          "kind": "ROOM",
+          "type": "Family suite",
+          "capacity": 4,
+          "rate": 14000,
+          "floor": "2"
+        },
+        {
+          "names": [
+            "Garden cottage"
+          ],
+          "kind": "COTTAGE",
+          "type": "Cottage",
+          "capacity": 3,
+          "rate": 12000
+        },
+        {
+          "names": [
+            "Conference hall"
+          ],
+          "kind": "HALL",
+          "type": "Hall (per day)",
+          "capacity": 80,
+          "rate": 25000
+        }
+      ],
+      "stays": [
+        {
+          "space": "101",
+          "guest": "Daniel Mwangi",
+          "phone": "0711222000",
+          "in": -1,
+          "nights": 3,
+          "status": "IN_HOUSE",
+          "source": "Walk-in"
+        },
+        {
+          "space": "201",
+          "guest": "Sarah Johnson",
+          "phone": "+447700900123",
+          "in": 0,
+          "nights": 2,
+          "status": "RESERVED",
+          "source": "Booking.com"
+        },
+        {
+          "space": "Family suite",
+          "guest": "Otieno family",
+          "phone": "0722333111",
+          "in": 2,
+          "nights": 4,
+          "status": "RESERVED",
+          "source": "Phone"
+        }
+      ],
+      "floors": [
+        {
+          "name": "Restaurant",
+          "tables": 8
+        }
+      ],
+      "categories": [
+        {
+          "name": "Breakfast",
+          "color": "#f59e0b",
+          "items": [
+            {
+              "name": "Full breakfast",
+              "price": 900,
+              "cost": 350,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Continental breakfast",
+              "price": 650,
+              "cost": 220,
+              "station": "Kitchen"
+            }
+          ]
+        },
+        {
+          "name": "Mains",
+          "color": "#dc2626",
+          "items": [
+            {
+              "name": "Grilled tilapia",
+              "price": 1400,
+              "cost": 600,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Beef stew & rice",
+              "price": 950,
+              "cost": 380,
+              "station": "Kitchen"
+            },
+            {
+              "name": "Chicken curry",
+              "price": 1100,
+              "cost": 420,
+              "station": "Kitchen"
+            }
+          ]
+        },
+        {
+          "name": "Bar",
+          "color": "#2563eb",
+          "items": [
+            {
+              "name": "Tusker 500ml",
+              "price": 350,
+              "cost": 210,
+              "station": "Bar",
+              "kind": "PRODUCT",
+              "stock": 120,
+              "reorder": 24
+            },
+            {
+              "name": "Glass of wine",
+              "price": 600,
+              "cost": 250,
+              "station": "Bar"
+            },
+            {
+              "name": "Soda 300ml",
+              "price": 120,
+              "cost": 55,
+              "station": "Bar",
+              "kind": "PRODUCT",
+              "stock": 96,
+              "reorder": 24
+            }
+          ]
+        },
+        {
+          "name": "Services",
+          "color": "#64748b",
+          "items": [
+            {
+              "name": "Laundry (per bag)",
+              "price": 800,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Airport transfer",
+              "price": 4500,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Spa massage (60 min)",
+              "price": 3500,
+              "kind": "SERVICE",
+              "duration": 60
+            }
+          ]
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in guest"
+        },
+        {
+          "name": "Acacia Holdings (corporate)",
+          "kind": "CORPORATE",
+          "credit": 300000
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Fresh Farm Produce",
+          "phone": "0722000111"
+        },
+        {
+          "name": "Brewery depot",
+          "phone": "0733000999"
+        }
+      ],
+      "deals": [
+        {
+          "title": "Wedding reception, 120 guests",
+          "value": 650000,
+          "contact": "Faith Wanjiru"
+        },
+        {
+          "title": "Corporate retreat, 3 nights x 20 rooms",
+          "value": 540000,
+          "contact": "HR, Acacia Holdings"
+        }
+      ]
     }
   },
   {
@@ -68,48 +715,243 @@
     "tagline": "Fast barcode till, stock alerts and store-to-shop transfers",
     "icon": "store",
     "color": "#0f766e",
-    "subSectors": ["Minimart / supermarket", "Boutique & fashion", "Electronics & phones", "Hardware", "Agrovet", "Bookshop & stationery", "Liquor store"],
-    "products": ["POS", "ERP"],
+    "subSectors": [
+      "Minimart / supermarket",
+      "Boutique & fashion",
+      "Electronics & phones",
+      "Hardware",
+      "Agrovet",
+      "Bookshop & stationery",
+      "Liquor store"
+    ],
+    "products": [
+      "POS",
+      "ERP"
+    ],
     "posMode": "RETAIL",
     "home": "/pos",
-    "modules": ["dashboard", "pos", "items", "stock", "purchasing", "customers", "reports", "team", "settings"],
-    "terms": { "customer": "Customer", "customers": "Customers", "item": "Product", "items": "Products", "order": "Sale", "orders": "Sales", "staff": "Cashier", "location": "Shop" },
-    "features": { "tables": false, "kitchen": false, "courses": false, "splitBill": false, "tips": false, "barcode": true, "expiry": false, "prescriptions": false, "wholesalePricing": false, "credit": true, "loyalty": true, "appointments": false, "commissions": false, "storeFeedsShops": true, "channels": ["COUNTER"] },
-    "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
+    "modules": [
+      "dashboard",
+      "pos",
+      "items",
+      "stock",
+      "purchasing",
+      "customers",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Customer",
+      "customers": "Customers",
+      "item": "Product",
+      "items": "Products",
+      "order": "Sale",
+      "orders": "Sales",
+      "staff": "Cashier",
+      "location": "Shop"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": false,
+      "barcode": true,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": true,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": true,
+      "channels": [
+        "COUNTER"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": false,
+      "deposits": false,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "sales_today",
+      "transactions_today",
+      "avg_ticket",
+      "low_stock"
+    ],
     "stages": [
-      { "name": "New lead", "probability": 10 },
-      { "name": "Quoted", "probability": 40 },
-      { "name": "Won", "probability": 100, "won": true },
-      { "name": "Lost", "probability": 0, "lost": true }
+      {
+        "name": "New lead",
+        "probability": 10
+      },
+      {
+        "name": "Quoted",
+        "probability": 40
+      },
+      {
+        "name": "Won",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
     ],
     "seed": {
-      "locations": [{ "name": "Main shop", "kind": "SHOP" }, { "name": "Back store", "kind": "STORE" }],
-      "categories": [
-        { "name": "Groceries", "color": "#16a34a", "items": [
-          { "name": "Maize flour 2kg", "price": 180, "cost": 150, "barcode": "6161100000011", "stock": 40, "reorder": 10 },
-          { "name": "Rice 1kg", "price": 220, "cost": 175, "barcode": "6161100000028", "stock": 35, "reorder": 10 },
-          { "name": "Sugar 1kg", "price": 190, "cost": 160, "barcode": "6161100000035", "stock": 6, "reorder": 10 },
-          { "name": "Cooking oil 1L", "price": 340, "cost": 290, "barcode": "6161100000042", "stock": 24, "reorder": 8 },
-          { "name": "Bread 400g", "price": 65, "cost": 55, "barcode": "6161100000059", "stock": 30, "reorder": 12 }
-        ]},
-        { "name": "Drinks", "color": "#2563eb", "items": [
-          { "name": "Milk 500ml", "price": 65, "cost": 52, "barcode": "6161100000066", "stock": 48, "reorder": 24 },
-          { "name": "Soda 500ml", "price": 80, "cost": 62, "barcode": "6161100000073", "stock": 72, "reorder": 24 },
-          { "name": "Water 1L", "price": 70, "cost": 45, "barcode": "6161100000080", "stock": 60, "reorder": 24 }
-        ]},
-        { "name": "Household", "color": "#9333ea", "items": [
-          { "name": "Bar soap", "price": 120, "cost": 95, "barcode": "6161100000097", "stock": 30, "reorder": 10 },
-          { "name": "Tissue 10 pack", "price": 450, "cost": 370, "barcode": "6161100000103", "stock": 4, "reorder": 6 },
-          { "name": "Detergent 1kg", "price": 280, "cost": 225, "barcode": "6161100000110", "stock": 18, "reorder": 6 }
-        ]},
-        { "name": "Airtime & services", "color": "#64748b", "items": [
-          { "name": "Phone charging", "price": 30, "cost": 0, "kind": "SERVICE" }
-        ]}
+      "locations": [
+        {
+          "name": "Main shop",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Back store",
+          "kind": "STORE"
+        }
       ],
-      "customers": [{ "name": "Walk-in customer" }, { "name": "Mama Akinyi", "phone": "0711222333", "credit": 5000 }],
-      "suppliers": [{ "name": "Metro Wholesalers", "phone": "0720111222" }],
+      "categories": [
+        {
+          "name": "Groceries",
+          "color": "#16a34a",
+          "items": [
+            {
+              "name": "Maize flour 2kg",
+              "price": 180,
+              "cost": 150,
+              "barcode": "6161100000011",
+              "stock": 40,
+              "reorder": 10
+            },
+            {
+              "name": "Rice 1kg",
+              "price": 220,
+              "cost": 175,
+              "barcode": "6161100000028",
+              "stock": 35,
+              "reorder": 10
+            },
+            {
+              "name": "Sugar 1kg",
+              "price": 190,
+              "cost": 160,
+              "barcode": "6161100000035",
+              "stock": 6,
+              "reorder": 10
+            },
+            {
+              "name": "Cooking oil 1L",
+              "price": 340,
+              "cost": 290,
+              "barcode": "6161100000042",
+              "stock": 24,
+              "reorder": 8
+            },
+            {
+              "name": "Bread 400g",
+              "price": 65,
+              "cost": 55,
+              "barcode": "6161100000059",
+              "stock": 30,
+              "reorder": 12
+            }
+          ]
+        },
+        {
+          "name": "Drinks",
+          "color": "#2563eb",
+          "items": [
+            {
+              "name": "Milk 500ml",
+              "price": 65,
+              "cost": 52,
+              "barcode": "6161100000066",
+              "stock": 48,
+              "reorder": 24
+            },
+            {
+              "name": "Soda 500ml",
+              "price": 80,
+              "cost": 62,
+              "barcode": "6161100000073",
+              "stock": 72,
+              "reorder": 24
+            },
+            {
+              "name": "Water 1L",
+              "price": 70,
+              "cost": 45,
+              "barcode": "6161100000080",
+              "stock": 60,
+              "reorder": 24
+            }
+          ]
+        },
+        {
+          "name": "Household",
+          "color": "#9333ea",
+          "items": [
+            {
+              "name": "Bar soap",
+              "price": 120,
+              "cost": 95,
+              "barcode": "6161100000097",
+              "stock": 30,
+              "reorder": 10
+            },
+            {
+              "name": "Tissue 10 pack",
+              "price": 450,
+              "cost": 370,
+              "barcode": "6161100000103",
+              "stock": 4,
+              "reorder": 6
+            },
+            {
+              "name": "Detergent 1kg",
+              "price": 280,
+              "cost": 225,
+              "barcode": "6161100000110",
+              "stock": 18,
+              "reorder": 6
+            }
+          ]
+        },
+        {
+          "name": "Airtime & services",
+          "color": "#64748b",
+          "items": [
+            {
+              "name": "Phone charging",
+              "price": 30,
+              "cost": 0,
+              "kind": "SERVICE"
+            }
+          ]
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in customer"
+        },
+        {
+          "name": "Mama Akinyi",
+          "phone": "0711222333",
+          "credit": 5000
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Metro Wholesalers",
+          "phone": "0720111222"
+        }
+      ],
       "deals": []
-    }
+    },
+    "extras": []
   },
   {
     "key": "beauty",
@@ -117,48 +959,241 @@
     "tagline": "Bookings by stylist, service checkout and commissions",
     "icon": "scissors",
     "color": "#be185d",
-    "subSectors": ["Hair salon", "Barbershop", "Spa & massage", "Nail bar", "Cosmetics shop", "Beauty clinic"],
-    "products": ["POS", "CRM"],
+    "subSectors": [
+      "Hair salon",
+      "Barbershop",
+      "Spa & massage",
+      "Nail bar",
+      "Cosmetics shop",
+      "Beauty clinic"
+    ],
+    "products": [
+      "POS",
+      "CRM"
+    ],
     "posMode": "SALON",
     "home": "/bookings",
-    "modules": ["dashboard", "bookings", "pos", "customers", "crm", "items", "stock", "reports", "team", "settings"],
-    "terms": { "customer": "Client", "customers": "Clients", "item": "Service", "items": "Services & products", "order": "Ticket", "orders": "Tickets", "staff": "Stylist", "location": "Branch" },
-    "features": { "tables": false, "kitchen": false, "courses": false, "splitBill": false, "tips": true, "barcode": true, "expiry": false, "prescriptions": false, "wholesalePricing": false, "credit": false, "loyalty": true, "appointments": true, "commissions": true, "storeFeedsShops": false, "channels": ["COUNTER", "BOOKING"] },
-    "kpis": ["sales_today", "bookings_today", "avg_ticket", "top_staff"],
+    "modules": [
+      "dashboard",
+      "bookings",
+      "pos",
+      "customers",
+      "crm",
+      "items",
+      "stock",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Client",
+      "customers": "Clients",
+      "item": "Service",
+      "items": "Services & products",
+      "order": "Ticket",
+      "orders": "Tickets",
+      "staff": "Stylist",
+      "location": "Branch"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": true,
+      "barcode": true,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": false,
+      "loyalty": true,
+      "appointments": true,
+      "commissions": true,
+      "storeFeedsShops": false,
+      "channels": [
+        "COUNTER",
+        "BOOKING"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": false,
+      "deposits": false,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "sales_today",
+      "bookings_today",
+      "avg_ticket",
+      "top_staff"
+    ],
     "stages": [
-      { "name": "Enquiry", "probability": 10 },
-      { "name": "Consultation booked", "probability": 40 },
-      { "name": "Package sold", "probability": 100, "won": true },
-      { "name": "Lost", "probability": 0, "lost": true }
+      {
+        "name": "Enquiry",
+        "probability": 10
+      },
+      {
+        "name": "Consultation booked",
+        "probability": 40
+      },
+      {
+        "name": "Package sold",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
     ],
     "seed": {
-      "locations": [{ "name": "Main branch", "kind": "SHOP" }],
-      "categories": [
-        { "name": "Hair", "color": "#be185d", "items": [
-          { "name": "Wash & blow-dry", "price": 800, "kind": "SERVICE", "duration": 45 },
-          { "name": "Box braids", "price": 3500, "kind": "SERVICE", "duration": 240 },
-          { "name": "Relaxer & set", "price": 1800, "kind": "SERVICE", "duration": 90 },
-          { "name": "Haircut (men)", "price": 400, "kind": "SERVICE", "duration": 30 }
-        ]},
-        { "name": "Nails", "color": "#7c3aed", "items": [
-          { "name": "Gel manicure", "price": 1200, "kind": "SERVICE", "duration": 60 },
-          { "name": "Pedicure", "price": 1000, "kind": "SERVICE", "duration": 60 }
-        ]},
-        { "name": "Spa", "color": "#0891b2", "items": [
-          { "name": "Full body massage (60 min)", "price": 3000, "kind": "SERVICE", "duration": 60 },
-          { "name": "Facial", "price": 2500, "kind": "SERVICE", "duration": 50 }
-        ]},
-        { "name": "Retail products", "color": "#ca8a04", "items": [
-          { "name": "Leave-in conditioner", "price": 950, "cost": 600, "barcode": "6162200000017", "stock": 12, "reorder": 4 },
-          { "name": "Hair oil 100ml", "price": 650, "cost": 380, "barcode": "6162200000024", "stock": 15, "reorder": 5 },
-          { "name": "Body lotion 400ml", "price": 1100, "cost": 700, "barcode": "6162200000031", "stock": 3, "reorder": 4 }
-        ]}
+      "locations": [
+        {
+          "name": "Main branch",
+          "kind": "SHOP"
+        }
       ],
-      "staff": [{ "name": "Achieng", "role": "STYLIST" }, { "name": "Brian", "role": "STYLIST" }, { "name": "Faith", "role": "STYLIST" }],
-      "customers": [{ "name": "Walk-in client" }, { "name": "Njeri Wambui", "phone": "0700111222" }, { "name": "Amina Hassan", "phone": "0700333444" }],
-      "suppliers": [{ "name": "Beauty Supplies Ltd", "phone": "0722333444" }],
-      "deals": [{ "title": "Bridal party package (6 people)", "value": 45000, "contact": "Mercy Otieno" }]
-    }
+      "categories": [
+        {
+          "name": "Hair",
+          "color": "#be185d",
+          "items": [
+            {
+              "name": "Wash & blow-dry",
+              "price": 800,
+              "kind": "SERVICE",
+              "duration": 45
+            },
+            {
+              "name": "Box braids",
+              "price": 3500,
+              "kind": "SERVICE",
+              "duration": 240
+            },
+            {
+              "name": "Relaxer & set",
+              "price": 1800,
+              "kind": "SERVICE",
+              "duration": 90
+            },
+            {
+              "name": "Haircut (men)",
+              "price": 400,
+              "kind": "SERVICE",
+              "duration": 30
+            }
+          ]
+        },
+        {
+          "name": "Nails",
+          "color": "#7c3aed",
+          "items": [
+            {
+              "name": "Gel manicure",
+              "price": 1200,
+              "kind": "SERVICE",
+              "duration": 60
+            },
+            {
+              "name": "Pedicure",
+              "price": 1000,
+              "kind": "SERVICE",
+              "duration": 60
+            }
+          ]
+        },
+        {
+          "name": "Spa",
+          "color": "#0891b2",
+          "items": [
+            {
+              "name": "Full body massage (60 min)",
+              "price": 3000,
+              "kind": "SERVICE",
+              "duration": 60
+            },
+            {
+              "name": "Facial",
+              "price": 2500,
+              "kind": "SERVICE",
+              "duration": 50
+            }
+          ]
+        },
+        {
+          "name": "Retail products",
+          "color": "#ca8a04",
+          "items": [
+            {
+              "name": "Leave-in conditioner",
+              "price": 950,
+              "cost": 600,
+              "barcode": "6162200000017",
+              "stock": 12,
+              "reorder": 4
+            },
+            {
+              "name": "Hair oil 100ml",
+              "price": 650,
+              "cost": 380,
+              "barcode": "6162200000024",
+              "stock": 15,
+              "reorder": 5
+            },
+            {
+              "name": "Body lotion 400ml",
+              "price": 1100,
+              "cost": 700,
+              "barcode": "6162200000031",
+              "stock": 3,
+              "reorder": 4
+            }
+          ]
+        }
+      ],
+      "staff": [
+        {
+          "name": "Achieng",
+          "role": "STYLIST"
+        },
+        {
+          "name": "Brian",
+          "role": "STYLIST"
+        },
+        {
+          "name": "Faith",
+          "role": "STYLIST"
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in client"
+        },
+        {
+          "name": "Njeri Wambui",
+          "phone": "0700111222"
+        },
+        {
+          "name": "Amina Hassan",
+          "phone": "0700333444"
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Beauty Supplies Ltd",
+          "phone": "0722333444"
+        }
+      ],
+      "deals": [
+        {
+          "title": "Bridal party package (6 people)",
+          "value": 45000,
+          "contact": "Mercy Otieno"
+        }
+      ]
+    },
+    "extras": []
   },
   {
     "key": "wholesale",
@@ -166,50 +1201,250 @@
     "tagline": "Price tiers, quotations, credit customers and a store that feeds shops",
     "icon": "truck",
     "color": "#1d4ed8",
-    "subSectors": ["FMCG wholesaler", "Packaging supplier", "Distributor", "Manufacturer", "Building materials"],
-    "products": ["ERP", "CRM", "POS"],
+    "subSectors": [
+      "Packaging supplier",
+      "FMCG wholesaler",
+      "Distributor",
+      "Manufacturer",
+      "Building materials"
+    ],
+    "products": [
+      "ERP",
+      "CRM",
+      "POS"
+    ],
     "posMode": "WHOLESALE",
     "home": "/pos",
-    "modules": ["dashboard", "pos", "quotes", "crm", "customers", "items", "stock", "purchasing", "reports", "team", "settings"],
-    "terms": { "customer": "Customer", "customers": "Customers", "item": "Product", "items": "Products", "order": "Invoice", "orders": "Invoices", "staff": "Sales rep", "location": "Warehouse" },
-    "features": { "tables": false, "kitchen": false, "courses": false, "splitBill": false, "tips": false, "barcode": true, "expiry": false, "prescriptions": false, "wholesalePricing": true, "credit": true, "loyalty": false, "appointments": false, "commissions": false, "storeFeedsShops": true, "channels": ["WHOLESALE", "COUNTER", "DELIVERY"] },
-    "kpis": ["sales_today", "receivables", "open_quotes", "low_stock"],
+    "modules": [
+      "dashboard",
+      "pos",
+      "quotes",
+      "crm",
+      "customers",
+      "items",
+      "stock",
+      "purchasing",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Customer",
+      "customers": "Customers",
+      "item": "Product",
+      "items": "Products",
+      "order": "Invoice",
+      "orders": "Invoices",
+      "staff": "Sales rep",
+      "location": "Warehouse"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": false,
+      "barcode": true,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": true,
+      "credit": true,
+      "loyalty": false,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": true,
+      "channels": [
+        "WHOLESALE",
+        "COUNTER",
+        "DELIVERY"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": false,
+      "deposits": false,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "sales_today",
+      "receivables",
+      "open_quotes",
+      "low_stock"
+    ],
     "stages": [
-      { "name": "New lead", "probability": 10 },
-      { "name": "Sample sent", "probability": 25 },
-      { "name": "Quotation", "probability": 50 },
-      { "name": "Negotiation", "probability": 75 },
-      { "name": "Won", "probability": 100, "won": true },
-      { "name": "Lost", "probability": 0, "lost": true }
+      {
+        "name": "New lead",
+        "probability": 10
+      },
+      {
+        "name": "Sample sent",
+        "probability": 25
+      },
+      {
+        "name": "Quotation",
+        "probability": 50
+      },
+      {
+        "name": "Negotiation",
+        "probability": 75
+      },
+      {
+        "name": "Won",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
     ],
     "seed": {
-      "locations": [{ "name": "Main warehouse", "kind": "STORE" }, { "name": "Town shop", "kind": "SHOP", "parent": "Main warehouse" }],
+      "locations": [
+        {
+          "name": "Main warehouse",
+          "kind": "STORE"
+        },
+        {
+          "name": "Town shop",
+          "kind": "SHOP",
+          "parent": "Main warehouse"
+        }
+      ],
       "categories": [
-        { "name": "Food packaging", "color": "#0369a1", "items": [
-          { "name": "Kraft paper bag (100 pcs)", "unit": "pack", "price": 950, "cost": 620, "wholesale": 820, "wholesaleMin": 10, "stock": 120, "reorder": 30, "barcode": "6163300000014" },
-          { "name": "Takeaway box 1000ml (50 pcs)", "unit": "pack", "price": 1400, "cost": 950, "wholesale": 1200, "wholesaleMin": 10, "stock": 80, "reorder": 25, "barcode": "6163300000021" },
-          { "name": "Paper cup 8oz (50 pcs)", "unit": "pack", "price": 600, "cost": 380, "wholesale": 500, "wholesaleMin": 20, "stock": 15, "reorder": 40, "barcode": "6163300000038" }
-        ]},
-        { "name": "Cleaning", "color": "#059669", "items": [
-          { "name": "Bleach 5L", "unit": "jerrycan", "price": 1100, "cost": 760, "wholesale": 950, "wholesaleMin": 6, "stock": 40, "reorder": 10 },
-          { "name": "Liquid soap 20L", "unit": "jerrycan", "price": 3200, "cost": 2300, "wholesale": 2900, "wholesaleMin": 3, "stock": 18, "reorder": 5 }
-        ]},
-        { "name": "Bulk goods", "color": "#b45309", "items": [
-          { "name": "Sugar 50kg bag", "unit": "bag", "price": 7600, "cost": 6900, "wholesale": 7350, "wholesaleMin": 5, "stock": 25, "reorder": 8 },
-          { "name": "Rice 25kg bag", "unit": "bag", "price": 4800, "cost": 4100, "wholesale": 4600, "wholesaleMin": 5, "stock": 30, "reorder": 8 }
-        ]}
+        {
+          "name": "Food packaging",
+          "color": "#0369a1",
+          "items": [
+            {
+              "name": "Kraft paper bag (100 pcs)",
+              "unit": "pack",
+              "price": 950,
+              "cost": 620,
+              "wholesale": 820,
+              "wholesaleMin": 10,
+              "stock": 120,
+              "reorder": 30,
+              "barcode": "6163300000014"
+            },
+            {
+              "name": "Takeaway box 1000ml (50 pcs)",
+              "unit": "pack",
+              "price": 1400,
+              "cost": 950,
+              "wholesale": 1200,
+              "wholesaleMin": 10,
+              "stock": 80,
+              "reorder": 25,
+              "barcode": "6163300000021"
+            },
+            {
+              "name": "Paper cup 8oz (50 pcs)",
+              "unit": "pack",
+              "price": 600,
+              "cost": 380,
+              "wholesale": 500,
+              "wholesaleMin": 20,
+              "stock": 15,
+              "reorder": 40,
+              "barcode": "6163300000038"
+            }
+          ]
+        },
+        {
+          "name": "Cleaning",
+          "color": "#059669",
+          "items": [
+            {
+              "name": "Bleach 5L",
+              "unit": "jerrycan",
+              "price": 1100,
+              "cost": 760,
+              "wholesale": 950,
+              "wholesaleMin": 6,
+              "stock": 40,
+              "reorder": 10
+            },
+            {
+              "name": "Liquid soap 20L",
+              "unit": "jerrycan",
+              "price": 3200,
+              "cost": 2300,
+              "wholesale": 2900,
+              "wholesaleMin": 3,
+              "stock": 18,
+              "reorder": 5
+            }
+          ]
+        },
+        {
+          "name": "Bulk goods",
+          "color": "#b45309",
+          "items": [
+            {
+              "name": "Sugar 50kg bag",
+              "unit": "bag",
+              "price": 7600,
+              "cost": 6900,
+              "wholesale": 7350,
+              "wholesaleMin": 5,
+              "stock": 25,
+              "reorder": 8
+            },
+            {
+              "name": "Rice 25kg bag",
+              "unit": "bag",
+              "price": 4800,
+              "cost": 4100,
+              "wholesale": 4600,
+              "wholesaleMin": 5,
+              "stock": 30,
+              "reorder": 8
+            }
+          ]
+        }
       ],
       "customers": [
-        { "name": "Cash customer" },
-        { "name": "Java Bites Café", "phone": "0711000999", "kind": "WHOLESALE", "credit": 150000 },
-        { "name": "Greenleaf Supermarket", "phone": "0722999888", "kind": "WHOLESALE", "credit": 300000 }
+        {
+          "name": "Cash customer"
+        },
+        {
+          "name": "Java Bites Café",
+          "phone": "0711000999",
+          "kind": "WHOLESALE",
+          "credit": 150000
+        },
+        {
+          "name": "Greenleaf Supermarket",
+          "phone": "0722999888",
+          "kind": "WHOLESALE",
+          "credit": 300000
+        }
       ],
-      "suppliers": [{ "name": "Kenya Paper Mills", "phone": "0720555666" }, { "name": "Mombasa Commodities", "phone": "0733444555" }],
+      "suppliers": [
+        {
+          "name": "Kenya Paper Mills",
+          "phone": "0720555666"
+        },
+        {
+          "name": "Mombasa Commodities",
+          "phone": "0733444555"
+        }
+      ],
       "deals": [
-        { "title": "Monthly packaging supply: Java Bites", "value": 85000, "contact": "Kevin Mutua" },
-        { "title": "Hotel chain cleaning contract", "value": 420000, "contact": "Lucy Wairimu" }
+        {
+          "title": "Monthly packaging supply: Java Bites",
+          "value": 85000,
+          "contact": "Kevin Mutua"
+        },
+        {
+          "title": "Hotel chain cleaning contract",
+          "value": 420000,
+          "contact": "Lucy Wairimu"
+        }
       ]
-    }
+    },
+    "extras": []
   },
   {
     "key": "pharmacy",
@@ -217,44 +1452,215 @@
     "tagline": "Batches, expiry alerts and prescription checks at the till",
     "icon": "pill",
     "color": "#059669",
-    "subSectors": ["Retail pharmacy", "Chemist", "Clinic dispensary", "Agrovet & vet pharmacy"],
-    "products": ["POS", "ERP"],
+    "subSectors": [
+      "Retail pharmacy",
+      "Chemist",
+      "Clinic dispensary",
+      "Agrovet & vet pharmacy"
+    ],
+    "products": [
+      "POS",
+      "ERP"
+    ],
     "posMode": "RETAIL",
     "home": "/pos",
-    "modules": ["dashboard", "pos", "items", "stock", "purchasing", "customers", "reports", "team", "settings"],
-    "terms": { "customer": "Patient", "customers": "Patients", "item": "Product", "items": "Products", "order": "Sale", "orders": "Sales", "staff": "Pharmacist", "location": "Branch" },
-    "features": { "tables": false, "kitchen": false, "courses": false, "splitBill": false, "tips": false, "barcode": true, "expiry": true, "prescriptions": true, "wholesalePricing": false, "credit": true, "loyalty": true, "appointments": false, "commissions": false, "storeFeedsShops": true, "channels": ["COUNTER"] },
-    "kpis": ["sales_today", "transactions_today", "expiring_soon", "low_stock"],
+    "modules": [
+      "dashboard",
+      "pos",
+      "items",
+      "stock",
+      "purchasing",
+      "customers",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Patient",
+      "customers": "Patients",
+      "item": "Product",
+      "items": "Products",
+      "order": "Sale",
+      "orders": "Sales",
+      "staff": "Pharmacist",
+      "location": "Branch"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": false,
+      "barcode": true,
+      "expiry": true,
+      "prescriptions": true,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": true,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": true,
+      "channels": [
+        "COUNTER"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": false,
+      "deposits": false,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "sales_today",
+      "transactions_today",
+      "expiring_soon",
+      "low_stock"
+    ],
     "stages": [
-      { "name": "Enquiry", "probability": 10 },
-      { "name": "Quoted", "probability": 40 },
-      { "name": "Won", "probability": 100, "won": true },
-      { "name": "Lost", "probability": 0, "lost": true }
+      {
+        "name": "Enquiry",
+        "probability": 10
+      },
+      {
+        "name": "Quoted",
+        "probability": 40
+      },
+      {
+        "name": "Won",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
     ],
     "seed": {
-      "locations": [{ "name": "Main pharmacy", "kind": "SHOP" }, { "name": "Dispensary store", "kind": "STORE" }],
-      "categories": [
-        { "name": "Pain & fever", "color": "#dc2626", "items": [
-          { "name": "Paracetamol 500mg (10 tabs)", "price": 50, "cost": 22, "barcode": "6164400000017", "stock": 200, "reorder": 50, "batch": "PCM2405", "expiryDays": 400 },
-          { "name": "Ibuprofen 400mg (10 tabs)", "price": 80, "cost": 35, "barcode": "6164400000024", "stock": 120, "reorder": 40, "batch": "IBU2311", "expiryDays": 45 }
-        ]},
-        { "name": "Antibiotics", "color": "#7c3aed", "items": [
-          { "name": "Amoxicillin 500mg (21 caps)", "price": 350, "cost": 170, "barcode": "6164400000031", "stock": 40, "reorder": 15, "rx": true, "batch": "AMX2402", "expiryDays": 300 },
-          { "name": "Azithromycin 500mg (3 tabs)", "price": 450, "cost": 230, "barcode": "6164400000048", "stock": 8, "reorder": 10, "rx": true, "batch": "AZT2310", "expiryDays": 20 }
-        ]},
-        { "name": "Personal care", "color": "#0891b2", "items": [
-          { "name": "Hand sanitiser 500ml", "price": 400, "cost": 240, "barcode": "6164400000055", "stock": 30, "reorder": 10 },
-          { "name": "Vitamin C 1000mg (20 tabs)", "price": 650, "cost": 380, "barcode": "6164400000062", "stock": 25, "reorder": 8, "batch": "VTC2501", "expiryDays": 500 }
-        ]},
-        { "name": "Services", "color": "#64748b", "items": [
-          { "name": "Blood pressure check", "price": 100, "kind": "SERVICE" },
-          { "name": "Blood sugar test", "price": 200, "kind": "SERVICE" }
-        ]}
+      "locations": [
+        {
+          "name": "Main pharmacy",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Dispensary store",
+          "kind": "STORE"
+        }
       ],
-      "customers": [{ "name": "Walk-in patient" }, { "name": "John Kiprop", "phone": "0711777888" }],
-      "suppliers": [{ "name": "Pharma Distributors Kenya", "phone": "0722121212" }],
+      "categories": [
+        {
+          "name": "Pain & fever",
+          "color": "#dc2626",
+          "items": [
+            {
+              "name": "Paracetamol 500mg (10 tabs)",
+              "price": 50,
+              "cost": 22,
+              "barcode": "6164400000017",
+              "stock": 200,
+              "reorder": 50,
+              "batch": "PCM2405",
+              "expiryDays": 400
+            },
+            {
+              "name": "Ibuprofen 400mg (10 tabs)",
+              "price": 80,
+              "cost": 35,
+              "barcode": "6164400000024",
+              "stock": 120,
+              "reorder": 40,
+              "batch": "IBU2311",
+              "expiryDays": 45
+            }
+          ]
+        },
+        {
+          "name": "Antibiotics",
+          "color": "#7c3aed",
+          "items": [
+            {
+              "name": "Amoxicillin 500mg (21 caps)",
+              "price": 350,
+              "cost": 170,
+              "barcode": "6164400000031",
+              "stock": 40,
+              "reorder": 15,
+              "rx": true,
+              "batch": "AMX2402",
+              "expiryDays": 300
+            },
+            {
+              "name": "Azithromycin 500mg (3 tabs)",
+              "price": 450,
+              "cost": 230,
+              "barcode": "6164400000048",
+              "stock": 8,
+              "reorder": 10,
+              "rx": true,
+              "batch": "AZT2310",
+              "expiryDays": 20
+            }
+          ]
+        },
+        {
+          "name": "Personal care",
+          "color": "#0891b2",
+          "items": [
+            {
+              "name": "Hand sanitiser 500ml",
+              "price": 400,
+              "cost": 240,
+              "barcode": "6164400000055",
+              "stock": 30,
+              "reorder": 10
+            },
+            {
+              "name": "Vitamin C 1000mg (20 tabs)",
+              "price": 650,
+              "cost": 380,
+              "barcode": "6164400000062",
+              "stock": 25,
+              "reorder": 8,
+              "batch": "VTC2501",
+              "expiryDays": 500
+            }
+          ]
+        },
+        {
+          "name": "Services",
+          "color": "#64748b",
+          "items": [
+            {
+              "name": "Blood pressure check",
+              "price": 100,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Blood sugar test",
+              "price": 200,
+              "kind": "SERVICE"
+            }
+          ]
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in patient"
+        },
+        {
+          "name": "John Kiprop",
+          "phone": "0711777888"
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Pharma Distributors Kenya",
+          "phone": "0722121212"
+        }
+      ],
       "deals": []
-    }
+    },
+    "extras": []
   },
   {
     "key": "services",
@@ -262,38 +1668,680 @@
     "tagline": "Sales pipeline, follow-ups, quotations and invoices",
     "icon": "briefcase",
     "color": "#7c3aed",
-    "subSectors": ["Agency / marketing", "Consultancy", "Real estate", "Training & schools", "Logistics", "Cleaning & pest control", "Repairs & installations"],
-    "products": ["CRM", "ERP"],
+    "subSectors": [
+      "Agency / marketing",
+      "Consultancy",
+      "Real estate",
+      "Training & schools",
+      "Logistics",
+      "Cleaning & pest control",
+      "Repairs & installations"
+    ],
+    "products": [
+      "CRM",
+      "ERP"
+    ],
     "posMode": "WHOLESALE",
     "home": "/crm",
-    "modules": ["dashboard", "crm", "quotes", "pos", "customers", "items", "reports", "team", "settings"],
-    "terms": { "customer": "Client", "customers": "Clients", "item": "Service", "items": "Services", "order": "Invoice", "orders": "Invoices", "staff": "Account manager", "location": "Office" },
-    "features": { "tables": false, "kitchen": false, "courses": false, "splitBill": false, "tips": false, "barcode": false, "expiry": false, "prescriptions": false, "wholesalePricing": false, "credit": true, "loyalty": false, "appointments": true, "commissions": false, "storeFeedsShops": false, "channels": ["COUNTER"] },
-    "kpis": ["pipeline_value", "won_this_month", "receivables", "tasks_due"],
+    "modules": [
+      "dashboard",
+      "crm",
+      "quotes",
+      "pos",
+      "customers",
+      "items",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Client",
+      "customers": "Clients",
+      "item": "Service",
+      "items": "Services",
+      "order": "Invoice",
+      "orders": "Invoices",
+      "staff": "Account manager",
+      "location": "Office"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": false,
+      "barcode": false,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": false,
+      "appointments": true,
+      "commissions": false,
+      "storeFeedsShops": false,
+      "channels": [
+        "COUNTER"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": false,
+      "deposits": true,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "pipeline_value",
+      "won_this_month",
+      "receivables",
+      "tasks_due"
+    ],
     "stages": [
-      { "name": "New lead", "probability": 10, "rot": 3 },
-      { "name": "Qualified", "probability": 25 },
-      { "name": "Proposal sent", "probability": 50 },
-      { "name": "Negotiation", "probability": 75 },
-      { "name": "Won", "probability": 100, "won": true },
-      { "name": "Lost", "probability": 0, "lost": true }
+      {
+        "name": "New lead",
+        "probability": 10,
+        "rot": 3
+      },
+      {
+        "name": "Qualified",
+        "probability": 25
+      },
+      {
+        "name": "Proposal sent",
+        "probability": 50
+      },
+      {
+        "name": "Negotiation",
+        "probability": 75
+      },
+      {
+        "name": "Won",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
     ],
     "seed": {
-      "locations": [{ "name": "Head office", "kind": "SHOP" }],
-      "categories": [
-        { "name": "Services", "color": "#7c3aed", "items": [
-          { "name": "Consultation (1 hour)", "price": 5000, "kind": "SERVICE", "duration": 60 },
-          { "name": "Monthly retainer", "price": 45000, "kind": "SERVICE" },
-          { "name": "Site visit", "price": 3500, "kind": "SERVICE", "duration": 120 },
-          { "name": "Project setup fee", "price": 25000, "kind": "SERVICE" }
-        ]}
+      "locations": [
+        {
+          "name": "Head office",
+          "kind": "SHOP"
+        }
       ],
-      "customers": [{ "name": "Acacia Holdings", "company": "Acacia Holdings", "phone": "0720123123", "kind": "CORPORATE", "credit": 200000 }, { "name": "Brightstar Academy", "phone": "0733123123", "kind": "CORPORATE" }],
+      "categories": [
+        {
+          "name": "Services",
+          "color": "#7c3aed",
+          "items": [
+            {
+              "name": "Consultation (1 hour)",
+              "price": 5000,
+              "kind": "SERVICE",
+              "duration": 60
+            },
+            {
+              "name": "Monthly retainer",
+              "price": 45000,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Site visit",
+              "price": 3500,
+              "kind": "SERVICE",
+              "duration": 120
+            },
+            {
+              "name": "Project setup fee",
+              "price": 25000,
+              "kind": "SERVICE"
+            }
+          ]
+        }
+      ],
+      "customers": [
+        {
+          "name": "Acacia Holdings",
+          "company": "Acacia Holdings",
+          "phone": "0720123123",
+          "kind": "CORPORATE",
+          "credit": 200000
+        },
+        {
+          "name": "Brightstar Academy",
+          "phone": "0733123123",
+          "kind": "CORPORATE"
+        }
+      ],
       "suppliers": [],
       "deals": [
-        { "title": "Website + SEO retainer: Acacia Holdings", "value": 240000, "contact": "Peter Njoroge" },
-        { "title": "Staff training programme", "value": 150000, "contact": "Mary Wanjiku" },
-        { "title": "Annual service contract", "value": 600000, "contact": "Daniel Ouma" }
+        {
+          "title": "Website + SEO retainer: Acacia Holdings",
+          "value": 240000,
+          "contact": "Peter Njoroge"
+        },
+        {
+          "title": "Staff training programme",
+          "value": 150000,
+          "contact": "Mary Wanjiku"
+        },
+        {
+          "title": "Annual service contract",
+          "value": 600000,
+          "contact": "Daniel Ouma"
+        }
+      ]
+    },
+    "extras": []
+  },
+  {
+    "key": "tours",
+    "name": "Safaris & tour operators",
+    "tagline": "Packages, departures with seats, bookings with deposits, and enquiries that turn into trips",
+    "icon": "mountain",
+    "color": "#a16207",
+    "subSectors": [
+      "Safari operator",
+      "Tour company",
+      "Travel agency",
+      "Excursions & activities",
+      "Car hire with driver"
+    ],
+    "products": [
+      "CRM",
+      "POS",
+      "ERP"
+    ],
+    "posMode": "WHOLESALE",
+    "home": "/trips",
+    "modules": [
+      "dashboard",
+      "trips",
+      "crm",
+      "quotes",
+      "pos",
+      "customers",
+      "items",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Client",
+      "customers": "Clients",
+      "item": "Package",
+      "items": "Packages & extras",
+      "order": "Invoice",
+      "orders": "Invoices",
+      "staff": "Consultant",
+      "location": "Office"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": false,
+      "barcode": false,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": false,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": false,
+      "channels": [
+        "COUNTER"
+      ],
+      "rooms": false,
+      "trips": true,
+      "property": false,
+      "deposits": true,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "departures_next_30",
+      "seats_booked",
+      "balances_due",
+      "pipeline_value"
+    ],
+    "stages": [
+      {
+        "name": "New enquiry",
+        "probability": 10,
+        "rot": 2
+      },
+      {
+        "name": "Itinerary sent",
+        "probability": 30
+      },
+      {
+        "name": "Negotiation",
+        "probability": 60
+      },
+      {
+        "name": "Deposit paid",
+        "probability": 90
+      },
+      {
+        "name": "Booked",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
+    ],
+    "extras": [],
+    "seed": {
+      "locations": [
+        {
+          "name": "Head office",
+          "kind": "SHOP"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Safaris",
+          "color": "#a16207",
+          "items": [
+            {
+              "name": "3-day Maasai Mara safari",
+              "price": 48000,
+              "kind": "SERVICE",
+              "days": 3
+            },
+            {
+              "name": "2-day Amboseli safari",
+              "price": 36000,
+              "kind": "SERVICE",
+              "days": 2
+            },
+            {
+              "name": "Day trip: Nairobi National Park",
+              "price": 9500,
+              "kind": "SERVICE",
+              "days": 1
+            }
+          ]
+        },
+        {
+          "name": "Excursions",
+          "color": "#0891b2",
+          "items": [
+            {
+              "name": "Hell's Gate cycling day trip",
+              "price": 7500,
+              "kind": "SERVICE",
+              "days": 1
+            },
+            {
+              "name": "Diani snorkelling excursion",
+              "price": 6000,
+              "kind": "SERVICE",
+              "days": 1
+            }
+          ]
+        },
+        {
+          "name": "Extras",
+          "color": "#64748b",
+          "items": [
+            {
+              "name": "Park fees (per person)",
+              "price": 13000,
+              "kind": "SERVICE",
+              "tax": 0
+            },
+            {
+              "name": "Hot-air balloon ride",
+              "price": 58000,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Airport pickup",
+              "price": 3500,
+              "kind": "SERVICE"
+            }
+          ]
+        }
+      ],
+      "trips": [
+        {
+          "package": "3-day Maasai Mara safari",
+          "inDays": 4,
+          "seats": 7,
+          "vehicle": "Land Cruiser KDA 123A",
+          "guide": "Joseph Sankale"
+        },
+        {
+          "package": "2-day Amboseli safari",
+          "inDays": 10,
+          "seats": 7,
+          "vehicle": "Safari van KCB 456B",
+          "guide": "Peter Kariuki"
+        },
+        {
+          "package": "Day trip: Nairobi National Park",
+          "inDays": 1,
+          "seats": 6,
+          "vehicle": "Safari van KCC 789C",
+          "guide": "Ann Wairimu"
+        }
+      ],
+      "tripBookings": [
+        {
+          "trip": 0,
+          "lead": "Emma Schmidt",
+          "phone": "+491701234567",
+          "pax": 2,
+          "nationality": "German",
+          "pickup": "Hotel, CBD",
+          "deposit": 30000
+        },
+        {
+          "trip": 0,
+          "lead": "Kamau family",
+          "phone": "0722111222",
+          "pax": 4,
+          "nationality": "Kenyan",
+          "pickup": "Westlands"
+        },
+        {
+          "trip": 2,
+          "lead": "Li Wei",
+          "phone": "+8613800138000",
+          "pax": 1,
+          "nationality": "Chinese",
+          "pickup": "JKIA",
+          "deposit": 9500
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in client"
+        },
+        {
+          "name": "Savannah Travel (agent)",
+          "kind": "CORPORATE",
+          "credit": 500000
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Mara lodge partner",
+          "phone": "0733111222"
+        },
+        {
+          "name": "Fuel station account",
+          "phone": "0722999000"
+        }
+      ],
+      "deals": [
+        {
+          "title": "Honeymoon: 7 days Mara + Diani",
+          "value": 420000,
+          "contact": "James & Wendy"
+        },
+        {
+          "title": "School trip, 45 students, Naivasha",
+          "value": 180000,
+          "contact": "Brightstar Academy"
+        }
+      ]
+    }
+  },
+  {
+    "key": "property",
+    "name": "Malls, landlords & property",
+    "tagline": "Stalls and units, leases, monthly rent and service-charge invoices, arrears and occupancy",
+    "icon": "building",
+    "color": "#4338ca",
+    "subSectors": [
+      "Mall / shopping centre",
+      "Market stalls",
+      "Commercial building",
+      "Residential apartments",
+      "Property agent"
+    ],
+    "products": [
+      "ERP",
+      "CRM"
+    ],
+    "posMode": "WHOLESALE",
+    "home": "/property",
+    "modules": [
+      "dashboard",
+      "property",
+      "customers",
+      "crm",
+      "sales",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Tenant",
+      "customers": "Tenants",
+      "item": "Charge",
+      "items": "Charges",
+      "order": "Invoice",
+      "orders": "Invoices",
+      "staff": "Agent",
+      "location": "Property"
+    },
+    "features": {
+      "tables": false,
+      "kitchen": false,
+      "courses": false,
+      "splitBill": false,
+      "tips": false,
+      "barcode": false,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": false,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": false,
+      "channels": [
+        "COUNTER"
+      ],
+      "rooms": false,
+      "trips": false,
+      "property": true,
+      "deposits": true,
+      "orderBoard": false,
+      "publicMenu": false
+    },
+    "kpis": [
+      "occupancy_rate",
+      "rent_billed_month",
+      "rent_collected_month",
+      "arrears"
+    ],
+    "stages": [
+      {
+        "name": "Enquiry",
+        "probability": 10
+      },
+      {
+        "name": "Viewing",
+        "probability": 30
+      },
+      {
+        "name": "Offer",
+        "probability": 60
+      },
+      {
+        "name": "Lease signed",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
+    ],
+    "extras": [],
+    "seed": {
+      "locations": [
+        {
+          "name": "Main building",
+          "kind": "SHOP"
+        }
+      ],
+      "spaces": [
+        {
+          "names": [
+            "G01",
+            "G02",
+            "G03",
+            "G04",
+            "G05",
+            "G06"
+          ],
+          "kind": "SHOP",
+          "type": "Ground floor shop",
+          "capacity": 1,
+          "rate": 35000,
+          "service": 4000,
+          "area": 250,
+          "floor": "Ground"
+        },
+        {
+          "names": [
+            "S01",
+            "S02",
+            "S03",
+            "S04",
+            "S05",
+            "S06",
+            "S07",
+            "S08"
+          ],
+          "kind": "STALL",
+          "type": "Stall",
+          "capacity": 1,
+          "rate": 12000,
+          "service": 1500,
+          "area": 80,
+          "floor": "1st"
+        },
+        {
+          "names": [
+            "O1",
+            "O2"
+          ],
+          "kind": "OFFICE",
+          "type": "Office",
+          "capacity": 1,
+          "rate": 45000,
+          "service": 6000,
+          "area": 600,
+          "floor": "2nd"
+        }
+      ],
+      "leases": [
+        {
+          "space": "G01",
+          "tenant": "Mama Mboga Stores",
+          "phone": "0711000111",
+          "monthsAgo": 8,
+          "deposit": 70000
+        },
+        {
+          "space": "G02",
+          "tenant": "Quickfix Phone Repairs",
+          "phone": "0711000222",
+          "monthsAgo": 3,
+          "deposit": 70000
+        },
+        {
+          "space": "S01",
+          "tenant": "Wanjiku Fashions",
+          "phone": "0711000333",
+          "monthsAgo": 14,
+          "deposit": 24000
+        },
+        {
+          "space": "S02",
+          "tenant": "Barber Kings",
+          "phone": "0711000444",
+          "monthsAgo": 5,
+          "deposit": 24000
+        },
+        {
+          "space": "S05",
+          "tenant": "Sweet Bites Bakery",
+          "phone": "0711000555",
+          "monthsAgo": 2,
+          "deposit": 24000
+        },
+        {
+          "space": "O1",
+          "tenant": "Apex Insurance Agency",
+          "phone": "0711000666",
+          "monthsAgo": 20,
+          "deposit": 90000
+        }
+      ],
+      "categories": [
+        {
+          "name": "Charges",
+          "color": "#4338ca",
+          "items": [
+            {
+              "name": "Late payment penalty",
+              "price": 1000,
+              "kind": "SERVICE",
+              "tax": 0
+            },
+            {
+              "name": "Water (metered)",
+              "price": 0,
+              "kind": "SERVICE",
+              "tax": 0
+            },
+            {
+              "name": "Electricity (sub-meter)",
+              "price": 0,
+              "kind": "SERVICE",
+              "tax": 0
+            }
+          ]
+        }
+      ],
+      "customers": [],
+      "suppliers": [
+        {
+          "name": "Security company",
+          "phone": "0720000111"
+        },
+        {
+          "name": "CleanPro cleaning",
+          "phone": "0720000222"
+        }
+      ],
+      "deals": [
+        {
+          "title": "Pharmacy interested in G03",
+          "value": 35000,
+          "contact": "Dr. Achieng"
+        },
+        {
+          "title": "Bank ATM lobby space",
+          "value": 60000,
+          "contact": "Bank facilities team"
+        }
       ]
     }
   }

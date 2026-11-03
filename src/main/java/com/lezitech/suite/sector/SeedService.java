@@ -22,10 +22,17 @@ public class SeedService {
 
     private final Db db;
     private final PasswordEncoder encoder;
+    private final com.lezitech.suite.rooms.StayService stays;
+    private final com.lezitech.suite.sales.OrderService orders;
+    private final com.lezitech.suite.property.PropertyController property;
 
-    public SeedService(Db db, PasswordEncoder encoder) {
+    public SeedService(Db db, PasswordEncoder encoder, com.lezitech.suite.rooms.StayService stays,
+                       com.lezitech.suite.sales.OrderService orders, com.lezitech.suite.property.PropertyController property) {
         this.db = db;
         this.encoder = encoder;
+        this.stays = stays;
+        this.orders = orders;
+        this.property = property;
     }
 
     @Transactional
@@ -72,16 +79,18 @@ public class SeedService {
                 boolean tracks = "PRODUCT".equals(kind);
                 UUID itemId = db.insert("""
                         INSERT INTO items (tenant_id, category_id, name, kind, unit, price, cost, wholesale_price, wholesale_min_qty,
-                                           barcode, track_stock, reorder_level, duration_min, station, needs_prescription, options, color)
+                                           barcode, track_stock, reorder_level, duration_min, station, needs_prescription, options, color, tax_rate)
                         VALUES (:t, :cat, :name, :kind, :unit, :price, :cost, :wp, :wmin, :barcode, :track, :reorder, :dur, :station,
-                                :rx, cast(:options as jsonb), :color) RETURNING id""",
+                                :rx, cast(:options as jsonb), :color, :tax) RETURNING id""",
                         "cat", catId, "name", i.get("name").asText(), "kind", kind, "unit", i.path("unit").asText("pc"),
                         "price", new BigDecimal(i.path("price").asText("0")), "cost", new BigDecimal(i.path("cost").asText("0")),
                         "wp", i.has("wholesale") ? new BigDecimal(i.get("wholesale").asText()) : null,
                         "wmin", i.has("wholesaleMin") ? new BigDecimal(i.get("wholesaleMin").asText()) : null,
                         "barcode", i.path("barcode").asText(null), "track", tracks,
                         "reorder", new BigDecimal(i.path("reorder").asText("0")),
-                        "dur", i.has("duration") ? i.get("duration").asInt() : null,
+                        "dur", i.has("duration") ? Integer.valueOf(i.get("duration").asInt())
+                                : i.has("days") ? Integer.valueOf(i.get("days").asInt() * 1440) : null,
+                        "tax", new BigDecimal(i.path("tax").asText("16")),
                         "station", i.path("station").asText(null), "rx", i.path("rx").asBoolean(false),
                         "options", i.has("options") ? i.get("options").toString() : "[]", "color", c.path("color").asText(null));
                 if (tracks && i.has("stock")) {
@@ -139,6 +148,8 @@ public class SeedService {
                     "value", new BigDecimal(d.path("value").asText("0")), "stage", firstStage);
         }
 
+        seedSpacesAndBookings(seed);
+
         // Sample staff (stylists etc.) can't sign in until the owner gives them a PIN or password.
         int n = 1;
         for (JsonNode s : seed.path("staff")) {
@@ -147,6 +158,103 @@ public class SeedService {
                     VALUES (:t, :email, :name, :hash, :role, true)""",
                     "email", "staff" + n++ + "@" + tenantSlug + ".suite.local", "name", s.get("name").asText(),
                     "hash", encoder.encode(UUID.randomUUID().toString()), "role", s.path("role").asText("CASHIER"));
+        }
+    }
+
+    /** Rooms, reservations, tour departures and leases for the hotel, tours and property packs. */
+    private void seedSpacesAndBookings(JsonNode seed) {
+        LocalDate today = LocalDate.now(java.time.ZoneId.of("Africa/Nairobi"));
+        int sort = 0;
+        Map<String, UUID> spaces = new HashMap<>();
+        for (JsonNode g : seed.path("spaces")) {
+            for (JsonNode name : g.path("names")) {
+                UUID id = db.insert("""
+                        INSERT INTO spaces (tenant_id, name, kind, type_name, capacity, rate, service_charge, area_sqft, floor, sort)
+                        VALUES (:t, :name, :kind, :type, :cap, :rate, :svc, :area, :floor, :sort) RETURNING id""",
+                        "name", name.asText(), "kind", g.path("kind").asText("ROOM"), "type", g.path("type").asText(null),
+                        "cap", g.path("capacity").asInt(2), "rate", new BigDecimal(g.path("rate").asText("0")),
+                        "svc", new BigDecimal(g.path("service").asText("0")),
+                        "area", g.has("area") ? Integer.valueOf(g.get("area").asInt()) : null, "floor", g.path("floor").asText(null),
+                        "sort", sort++);
+                spaces.put(name.asText(), id);
+            }
+        }
+        for (JsonNode st : seed.path("stays")) {
+            LocalDate in = today.plusDays(st.path("in").asInt(0));
+            Map<String, Object> body = new HashMap<>();
+            body.put("spaceId", spaces.get(st.get("space").asText()).toString());
+            body.put("guestName", st.get("guest").asText());
+            body.put("phone", st.path("phone").asText(null));
+            body.put("checkIn", in.toString());
+            body.put("checkOut", in.plusDays(st.path("nights").asInt(1)).toString());
+            body.put("source", st.path("source").asText("Walk-in"));
+            body.put("status", st.path("status").asText("RESERVED"));
+            UUID stayId = stays.reserve(new com.lezitech.suite.common.Body(body));
+            if ("IN_HOUSE".equals(st.path("status").asText())) {
+                UUID folio = db.value("SELECT folio_id FROM stays WHERE id = :stayId", UUID.class, "stayId", stayId);
+                orders.addLines(folio, java.util.List.of(Map.of("name", "Dinner: chicken curry", "unitPrice", 1100, "qty", 1, "taxRate", 16)));
+            }
+        }
+        java.util.List<UUID> trips = new java.util.ArrayList<>();
+        for (JsonNode tr : seed.path("trips")) {
+            Map<String, Object> pkg = db.one("Package", "SELECT id, duration_min FROM items WHERE name = :name", "name", tr.get("package").asText());
+            int days = pkg.get("durationMin") == null ? 1 : Math.max(1, ((Integer) pkg.get("durationMin")) / 1440);
+            LocalDate start = today.plusDays(tr.path("inDays").asInt(7));
+            trips.add(db.insert("""
+                    INSERT INTO trips (tenant_id, item_id, starts_on, ends_on, seats, vehicle, guide)
+                    VALUES (:t, :item, :start, :end, :seats, :vehicle, :guide) RETURNING id""",
+                    "item", pkg.get("id"), "start", start, "end", start.plusDays(days - 1L), "seats", tr.path("seats").asInt(7),
+                    "vehicle", tr.path("vehicle").asText(null), "guide", tr.path("guide").asText(null)));
+        }
+        for (JsonNode bk : seed.path("tripBookings")) {
+            UUID trip = trips.get(bk.path("trip").asInt(0));
+            Map<String, Object> t = db.one("Departure", "SELECT * FROM trips WHERE id = :trip", "trip", trip);
+            String lead = bk.get("lead").asText();
+            UUID customer = db.insert("INSERT INTO customers (tenant_id, name, phone) VALUES (:t, :name, :phone) RETURNING id",
+                    "name", lead, "phone", bk.path("phone").asText(null));
+            int pax = bk.path("pax").asInt(1);
+            Map<String, Object> inv = new HashMap<>();
+            inv.put("channel", "TOUR");
+            inv.put("customerId", customer.toString());
+            inv.put("dueOn", t.get("startsOn"));
+            inv.put("lines", java.util.List.of(Map.of("itemId", t.get("itemId"), "qty", pax)));
+            UUID order = orders.create(new com.lezitech.suite.common.Body(inv));
+            db.exec("""
+                    INSERT INTO trip_bookings (tenant_id, trip_id, customer_id, lead_name, phone, pax, pickup, nationality, order_id)
+                    VALUES (:t, :trip, :customer, :lead, :phone, :pax, :pickup, :nat, :order)""",
+                    "trip", trip, "customer", customer, "lead", lead, "phone", bk.path("phone").asText(null), "pax", pax,
+                    "pickup", bk.path("pickup").asText(null), "nat", bk.path("nationality").asText(null), "order", order);
+            if (bk.has("deposit")) {
+                orders.pay(order, new com.lezitech.suite.common.Body(Map.of("deposit", true, "payments",
+                        java.util.List.of(Map.of("method", "MPESA", "amount", bk.get("deposit").asInt(), "reference", "SAMPLE")))));
+            }
+        }
+        if (seed.path("leases").isEmpty()) {
+            return;
+        }
+        for (JsonNode l : seed.path("leases")) {
+            UUID unit = spaces.get(l.get("space").asText());
+            Map<String, Object> sp = db.one("Unit", "SELECT * FROM spaces WHERE id = :unit", "unit", unit);
+            UUID customer = db.insert("""
+                    INSERT INTO customers (tenant_id, name, phone, company, kind) VALUES (:t, :name, :phone, :name, 'CORPORATE') RETURNING id""",
+                    "name", l.get("tenant").asText(), "phone", l.path("phone").asText(null));
+            db.exec("""
+                    INSERT INTO leases (tenant_id, space_id, customer_id, starts_on, rent, service_charge, deposit, due_day)
+                    VALUES (:t, :unit, :customer, :start, :rent, :svc, :deposit, 5)""",
+                    "unit", unit, "customer", customer, "start", today.minusMonths(l.path("monthsAgo").asInt(1)).withDayOfMonth(1),
+                    "rent", sp.get("rate"), "svc", sp.get("serviceCharge"), "deposit", new BigDecimal(l.path("deposit").asText("0")));
+        }
+        // Last month mostly paid, this month just raised: shows arrears and collection on day one.
+        java.time.YearMonth now = java.time.YearMonth.from(today);
+        property.raiseInvoices(now.minusMonths(1));
+        property.raiseInvoices(now);
+        int n = 0;
+        for (Map<String, Object> inv : db.list("SELECT id, total FROM orders WHERE period = :p ORDER BY number", "p", now.minusMonths(1).toString())) {
+            if (n++ % 3 == 2) {
+                continue;
+            }
+            orders.pay(UUID.fromString(inv.get("id").toString()), new com.lezitech.suite.common.Body(Map.of("payments",
+                    java.util.List.of(Map.of("method", "MPESA", "amount", inv.get("total"), "reference", "SAMPLE")))));
         }
     }
 }

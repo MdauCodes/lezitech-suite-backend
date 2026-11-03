@@ -50,8 +50,11 @@ public class OrderService {
         UUID shift = db.value("SELECT id FROM shifts WHERE user_id = :u AND status = 'OPEN' LIMIT 1", UUID.class);
         UUID loc = b.has("locationId") ? UUID.fromString(b.str("locationId")) : stock.defaultLocation();
         UUID id = db.insert("""
-                INSERT INTO orders (tenant_id, number, kind, channel, table_id, guests, customer_id, location_id, shift_id, user_id, note)
-                VALUES (:t, :number, :kind, :channel, :tableId, :guests, :customerId, :loc, :shift, :u, :note) RETURNING id""",
+                INSERT INTO orders (tenant_id, number, kind, channel, table_id, guests, customer_id, location_id, shift_id, user_id, note,
+                                    customer_label, due_on)
+                VALUES (:t, :number, :kind, :channel, :tableId, :guests, :customerId, :loc, :shift, :u, :note,
+                        :label, :due) RETURNING id""",
+                "label", b.str("customerLabel", null), "due", b.date("dueOn"),
                 "number", number, "kind", kind, "channel", channel, "tableId", tableId, "guests", b.integer("guests", null),
                 "customerId", b.has("customerId") ? UUID.fromString(b.str("customerId")) : null,
                 "loc", loc, "shift", shift, "note", b.str("note", null));
@@ -165,7 +168,10 @@ public class OrderService {
         List<Map<String, Object>> payments = new ArrayList<>(b.list("payments"));
         // Cash given beyond what's due is change, not revenue; trim the cash line by it.
         BigDecimal sum = payments.stream().map(p -> new Body(p).num("amount", BigDecimal.ZERO)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal change = sum.subtract(due).max(BigDecimal.ZERO);
+        // A deposit (room, tour, event) may exceed what's billed so far; it's not change.
+        boolean deposit = b.bool("deposit", false);
+        BigDecimal change = deposit ? BigDecimal.ZERO : sum.subtract(due).max(BigDecimal.ZERO);
+        final BigDecimal changeDue = change;
         for (Map<String, Object> p : payments) {
             Body pb = new Body(p);
             String method = pb.str("method").toUpperCase();
@@ -205,11 +211,11 @@ public class OrderService {
         }
         BigDecimal paid = alreadyPaid.add(tendered);
         db.exec("UPDATE orders SET paid = :paid WHERE id = :id", "id", orderId, "paid", paid);
-        if (paid.compareTo(total) >= 0) {
+        if (!deposit && paid.compareTo(total) >= 0) {
             close(orderId, credit.signum() > 0 ? "CREDIT" : "PAID");
         }
         Map<String, Object> result = new LinkedHashMap<>(detail(orderId));
-        result.put("change", sum.subtract(due).max(BigDecimal.ZERO));
+        result.put("change", changeDue);
         return result;
     }
 
@@ -251,9 +257,36 @@ public class OrderService {
         db.exec("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE order_id = :id", "id", orderId);
     }
 
+    /** Hotel guest eats in the restaurant: the bill moves onto their room folio, settled at check-out. */
+    public UUID chargeToStay(UUID orderId, UUID stayId) {
+        Map<String, Object> o = requireOpen(orderId);
+        if (((BigDecimal) o.get("paid")).signum() > 0) {
+            throw ApiException.bad("This bill is part-paid; take the rest here instead");
+        }
+        Map<String, Object> stay = db.one("In-house stay", "SELECT * FROM stays WHERE id = :stayId AND status = 'IN_HOUSE'", "stayId", stayId);
+        UUID folio = UUID.fromString(stay.get("folioId").toString());
+        if (folio.equals(orderId)) {
+            throw ApiException.bad("That's already the room folio");
+        }
+        db.exec("UPDATE order_lines SET order_id = :folio WHERE order_id = :id", "folio", folio, "id", orderId);
+        db.exec("DELETE FROM orders WHERE id = :id", "id", orderId);
+        recalc(folio);
+        return folio;
+    }
+
+    /** Orders whose sent dishes are all cooked get a ready time, for the customer screen. */
+    public void markReadyIfDone(UUID orderId) {
+        db.exec("""
+                UPDATE orders o SET ready_at = CASE
+                    WHEN EXISTS (SELECT 1 FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status IN ('NEW','PREPARING')) THEN NULL
+                    ELSE coalesce(o.ready_at, now()) END
+                WHERE o.id = :orderId""", "orderId", orderId);
+    }
+
     public Map<String, Object> detail(UUID orderId) {
         Map<String, Object> o = new LinkedHashMap<>(db.one("Order", """
-                SELECT o.*, t.label AS table_label, c.name AS customer_name, c.phone AS customer_phone, u.name AS user_name
+                SELECT o.*, t.label AS table_label, c.name AS customer_name, c.phone AS customer_phone, u.name AS user_name,
+                       (SELECT sp.name FROM stays st JOIN spaces sp ON sp.id = st.space_id WHERE st.id = o.stay_id) AS room_name
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN customers c ON c.id = o.customer_id
                 LEFT JOIN users u ON u.id = o.user_id WHERE o.id = :id""", "id", orderId));
         o.put("lines", db.list("""

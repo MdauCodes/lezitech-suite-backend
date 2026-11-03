@@ -30,9 +30,11 @@ public class RestaurantController {
     private static final Set<String> KITCHEN_FLOW = Set.of("NEW", "PREPARING", "READY", "SERVED");
 
     private final Db db;
+    private final com.lezitech.suite.sales.OrderService orders;
 
-    public RestaurantController(Db db) {
+    public RestaurantController(Db db, com.lezitech.suite.sales.OrderService orders) {
         this.db = db;
+        this.orders = orders;
     }
 
     /** Floors with every table and the running bill on it, for the waiter's floor view. */
@@ -133,7 +135,9 @@ public class RestaurantController {
             throw ApiException.bad("Unknown kitchen status");
         }
         db.exec("UPDATE order_lines SET kitchen_status = :s WHERE id = :id", "id", id, "s", status);
-        return db.one("Line", "SELECT id, kitchen_status FROM order_lines WHERE id = :id", "id", id);
+        Map<String, Object> line = db.one("Line", "SELECT id, order_id, kitchen_status FROM order_lines WHERE id = :id", "id", id);
+        orders.markReadyIfDone(UUID.fromString(line.get("orderId").toString()));
+        return line;
     }
 
     /** Bump a whole ticket one step: new → preparing → ready → served. */
@@ -152,6 +156,7 @@ public class RestaurantController {
         };
         db.exec("UPDATE order_lines SET kitchen_status = :next WHERE order_id = :orderId AND kitchen_status = :cur",
                 "orderId", orderId, "next", next, "cur", lowest);
+        orders.markReadyIfDone(orderId);
         return Map.of("status", next);
     }
 }

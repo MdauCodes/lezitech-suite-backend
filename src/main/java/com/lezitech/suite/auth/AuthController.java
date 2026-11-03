@@ -81,22 +81,48 @@ public class AuthController {
                 ? (List<String>) l : json.convertValue(pack.get("products"), List.class);
 
         ObjectNode settings = json.createObjectNode();
-        settings.set("modules", pack.get("modules"));
-        settings.set("features", pack.get("features"));
-        settings.put("receiptFooter", "Thank you for your business!");
+        com.fasterxml.jackson.databind.node.ArrayNode modules = pack.get("modules").deepCopy();
+        ObjectNode features = pack.get("features").deepCopy();
+        // Optional add-ons the owner ticked at signup, e.g. a restaurant that also lets rooms.
+        @SuppressWarnings("unchecked")
+        List<String> extras = raw.get("extras") instanceof List<?> el ? (List<String>) el : List.of();
+        for (JsonNode extra : pack.path("extras")) {
+            if (extras.contains(extra.get("key").asText())) {
+                extra.path("modules").forEach(m -> {
+                    if (!modules.toString().contains("\"" + m.asText() + "\"")) {
+                        modules.insert(1, m.asText());
+                    }
+                });
+                extra.path("features").fields().forEachRemaining(f -> features.set(f.getKey(), f.getValue()));
+            }
+        }
+        settings.set("modules", modules);
+        settings.set("features", features);
+        settings.put("receiptFooter", b.str("receiptFooter", "Thank you for your business!"));
         settings.put("storeFeedsShops", pack.path("features").path("storeFeedsShops").asBoolean(false)
                 && b.bool("storeFeedsShops", true));
+        String accent = b.str("accentColor", null);
+        if (accent != null && HEX.matcher(accent).matches()) {
+            settings.put("accentColor", accent);
+        }
+        settings.put("address", b.str("address", ""));
+        settings.put("kraPin", b.str("kraPin", "").toUpperCase());
+        settings.put("tagline", b.str("tagline", ""));
+        String logo = b.str("logoUrl", null);
+        if (logo != null && (!logo.startsWith("data:image/") || logo.length() > 400_000)) {
+            throw ApiException.bad("Logo must be an image under 300 KB");
+        }
 
         String slug = uniqueSlug(business);
         UUID tenantId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Instant trialEnds = Instant.now().plus(trialDays, ChronoUnit.DAYS);
         jdbc.update("""
-                INSERT INTO tenants (id, slug, name, sector, sub_sector, products, trial_ends_at, brand_color, phone, settings)
-                VALUES (?, ?, ?, ?, ?, cast(? as text[]), ?, ?, ?, cast(? as jsonb))""",
+                INSERT INTO tenants (id, slug, name, sector, sub_sector, products, trial_ends_at, brand_color, logo_url, phone, settings)
+                VALUES (?, ?, ?, ?, ?, cast(? as text[]), ?, ?, ?, ?, cast(? as jsonb))""",
                 tenantId, slug, business, pack.get("key").asText(), b.str("subSector", null),
                 "{" + String.join(",", products.stream().filter(p -> List.of("POS", "CRM", "ERP").contains(p)).toList()) + "}",
-                Timestamp.from(trialEnds), color, b.str("phone", null), settings.toString());
+                Timestamp.from(trialEnds), color, logo, b.str("phone", null), settings.toString());
         String name = b.str("name");
         jdbc.update("INSERT INTO users (id, tenant_id, email, name, password_hash, role) VALUES (?, ?, ?, ?, ?, 'OWNER')",
                 userId, tenantId, email, name, encoder.encode(password));
@@ -156,7 +182,7 @@ public class AuthController {
     private Map<String, Object> profile(UUID userId, UUID tenantId) {
         Map<String, Object> t = jdbc.queryForMap("""
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until,
-                       brand_color, logo_url, currency, phone, settings::text AS settings
+                       brand_color, logo_url, currency, phone, display_key, settings::text AS settings
                 FROM tenants WHERE id = ?""", tenantId);
         Map<String, Object> u = jdbc.queryForMap("SELECT id, email, name, role FROM users WHERE id = ?", userId);
 
@@ -188,6 +214,7 @@ public class AuthController {
         tenant.put("logoUrl", t.get("logo_url"));
         tenant.put("currency", t.get("currency"));
         tenant.put("phone", t.get("phone"));
+        tenant.put("displayKey", t.get("display_key"));
 
         Map<String, Object> user = new LinkedHashMap<>();
         user.put("id", u.get("id").toString());
