@@ -80,3 +80,18 @@ Or start `suite-api` and `suite-web` from the preview launcher.
 7. Accounting ledger (journal postings, P&L, balance sheet) — Moments Core already has this to port.
 8. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
 9. Automated tests (the RLS isolation test from DukaFlow should be ported first) and `.xlsx` import.
+
+## Local demo workspaces
+
+Created on the embedded database in `.localdb/` (local only; they don't exist anywhere else).
+
+| Workspace | Sector | Email | Password |
+|---|---|---|---|
+| Savanna Grill & Rooms | Restaurant with rooms | savanna@example.test | demo12345 |
+| Demo hotel | Hotels & lodges | owner-hotel@example.test | password123 |
+| Demo tours | Safaris & tours | owner-tours@example.test | password123 |
+| Demo property | Malls & property | owner-property@example.test | password123 |
+| Test restaurant / retail / beauty / wholesale / pharmacy / services | one each | owner-<sector>@example.test | password123 |
+
+Customer screens for Savanna Grill: `/menu/savanna-grill-rooms`, `/w/savanna-grill-rooms`, and the order board
+link from Settings → Customer screens & links.

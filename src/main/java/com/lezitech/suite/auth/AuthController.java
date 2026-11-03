@@ -130,6 +130,9 @@ public class AuthController {
         boolean samples = b.bool("withSamples", true);
         TenantContext.runAs(tenantId, userId, () -> {
             seeder.seed(pack, samples, slug);
+            if (samples && extras.contains("rooms")) {
+                seeder.seedExtraRooms();
+            }
             return null;
         });
         return session(userId, tenantId, "OWNER", name);

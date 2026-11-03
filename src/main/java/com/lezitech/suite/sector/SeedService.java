@@ -161,6 +161,23 @@ public class SeedService {
         }
     }
 
+    /** A restaurant or shop that also lets rooms starts with a few to try, if its pack has none. */
+    @Transactional
+    public void seedExtraRooms() {
+        if (Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM spaces)", Boolean.class))) {
+            return;
+        }
+        String[][] rooms = {{"Room 1", "ROOM", "Standard", "2", "4500"}, {"Room 2", "ROOM", "Standard", "2", "4500"},
+                {"Room 3", "ROOM", "Family", "4", "7500"}, {"Function hall", "HALL", "Hall (per day)", "60", "15000"}};
+        int sort = 0;
+        for (String[] r : rooms) {
+            db.exec("""
+                    INSERT INTO spaces (tenant_id, name, kind, type_name, capacity, rate, sort)
+                    VALUES (:t, :name, :kind, :type, :cap, :rate, :sort)""",
+                    "name", r[0], "kind", r[1], "type", r[2], "cap", Integer.parseInt(r[3]), "rate", new BigDecimal(r[4]), "sort", sort++);
+        }
+    }
+
     /** Rooms, reservations, tour departures and leases for the hotel, tours and property packs. */
     private void seedSpacesAndBookings(JsonNode seed) {
         LocalDate today = LocalDate.now(java.time.ZoneId.of("Africa/Nairobi"));
