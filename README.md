@@ -95,3 +95,33 @@ Created on the embedded database in `.localdb/` (local only; they don't exist an
 
 Customer screens for Savanna Grill: `/menu/savanna-grill-rooms`, `/w/savanna-grill-rooms`, and the order board
 link from Settings → Customer screens & links.
+
+## Piloting: one-click demo logins
+
+`/demo` lists one ready-made business per sector with a button per role (owner, manager, waiter, chef, cashier,
+front desk, stylist, sales rep, rent collector…). Clicking signs you in as that person; each role only sees the
+screens for its job and lands on the right one (waiter → floor plan, chef → kitchen screen, front desk → rooms).
+Inside a demo a black bar lets you switch person in one click. Demo businesses (slugs `demo-<sector>`) are
+created at startup, never expire, are excluded from control-panel numbers, and can be reset from the panel.
+Turn them off with `DEMO_LOGINS=false`.
+
+## Lezitech control panel (`/admin`)
+
+For the Lezitech team only; separate login and token (a workspace token is refused by `/api/admin/**` and an
+admin token is refused by workspace endpoints).
+
+- **Overview:** MRR, trials, trial→paid conversion, signups per day, by sector, trials ending (who to call), latest team actions.
+- **Workspaces:** search and filter every business; detail page with usage (orders, sales, own items added,
+  activity chart), people and last sign-ins, team notes, links to their staff login/menu/order board.
+  Actions: activate a plan, extend a trial, suspend/reactivate, switch screens and features for that workspace,
+  and **open their portal as any of their roles** to see exactly what they see.
+- **Billing queue:** owners who chose a plan; confirm the M-Pesa code and activate.
+- **Sectors & packs:** pause or reopen signups per sector.
+- **Demo businesses:** reset any demo to fresh data.
+- **Lezitech team:** add teammates as superadmin, admin, support, sales or developer (permissions per role).
+- **Audit log:** every control-panel action, who did it and to which workspace.
+- **System health:** uptime, memory, database size, migrations, row counts.
+
+First login on a real server: set `ADMIN_EMAIL` and `ADMIN_PASSWORD`; that superadmin is created at startup.
+Locally the sign-in page also shows one-click buttons per staff role; these only exist when the API runs on the
+embedded database and can never be switched on against a real `DATABASE_URL`.

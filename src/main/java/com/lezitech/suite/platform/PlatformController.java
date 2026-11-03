@@ -38,7 +38,9 @@ public class PlatformController {
 
     @GetMapping("/api/public/sectors")
     public List<?> sectors() {
-        return sectors.all();
+        List<String> off = jdbc.queryForList("""
+                SELECT jsonb_array_elements_text(value) FROM platform_settings WHERE key = 'disabled_sectors'""", String.class);
+        return sectors.all().stream().filter(p -> !off.contains(p.get("key").asText())).toList();
     }
 
     @GetMapping("/api/platform/tenants")

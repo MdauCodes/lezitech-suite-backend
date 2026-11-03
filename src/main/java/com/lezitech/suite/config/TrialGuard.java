@@ -41,6 +41,9 @@ public class TrialGuard implements WebMvcConfigurer, HandlerInterceptor {
         if (caller == null) {
             return true;
         }
+        // Activity heartbeat for the control panel, written at most every five minutes per workspace.
+        jdbc.update("UPDATE tenants SET last_active_at = now() WHERE id = ? AND (last_active_at IS NULL OR last_active_at < now() - interval '5 minutes')",
+                caller.tenantId());
         Map<String, Object> t = jdbc.queryForMap(
                 "SELECT status, trial_ends_at, paid_until FROM tenants WHERE id = ?", caller.tenantId());
         if (isLocked((String) t.get("status"), (Timestamp) t.get("trial_ends_at"), (Timestamp) t.get("paid_until"))) {

@@ -32,6 +32,15 @@ suite:
     secret: ${JWT_SECRET:local-dev-secret-change-me-before-any-real-deploy-0123456789}
     ttl-hours: 72
   trial-days: ${TRIAL_DAYS:7}
+  demo:
+    # One-click demo workspaces per sector for pilots and sales demos.
+    enabled: ${DEMO_LOGINS:true}
+  admin:
+    # First superadmin, created on startup if no Lezitech admin exists yet.
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    # One-click control-panel role logins; only ever on for local runs (embedded database).
+    demo-logins: ${ADMIN_DEMO_LOGINS:${EMBEDDED_DB:true}}
   operator-key: ${OPERATOR_KEY:local-operator-key}
   cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320}
   # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.

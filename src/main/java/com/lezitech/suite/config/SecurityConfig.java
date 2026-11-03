@@ -41,8 +41,14 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/public/**", "/api/auth/signup", "/api/auth/login",
-                                "/api/platform/**", "/actuator/health").permitAll()
-                        .anyRequest().authenticated())
+                                "/api/platform/**", "/actuator/health", "/api/admin/auth/login", "/api/admin/auth/demo",
+                                "/api/admin/auth/options").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("PLATFORM")
+                        // Workspace endpoints need a workspace login; a control-panel token is refused here.
+                        .anyRequest().access((auth, ctx) -> new org.springframework.security.authorization.AuthorizationDecision(
+                                auth.get() != null && auth.get().isAuthenticated()
+                                        && !(auth.get() instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)
+                                        && auth.get().getAuthorities().stream().noneMatch(g -> "ROLE_PLATFORM".equals(g.getAuthority())))))
                 .addFilterBefore(new JwtFilter(jwt), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

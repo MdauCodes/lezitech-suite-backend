@@ -26,17 +26,24 @@ public class JwtFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
-            jwt.parse(header.substring(7)).ifPresent(caller -> {
+            String token = header.substring(7);
+            jwt.parse(token).ifPresentOrElse(caller -> {
                 TenantContext.set(caller);
                 var auth = new UsernamePasswordAuthenticationToken(caller, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + caller.role())));
                 SecurityContextHolder.getContext().setAuthentication(auth);
-            });
+            }, () -> jwt.parseAdmin(token).ifPresent(admin -> {
+                com.lezitech.suite.admin.AdminContext.set(admin);
+                var auth = new UsernamePasswordAuthenticationToken(admin, null,
+                        List.of(new SimpleGrantedAuthority("ROLE_PLATFORM")));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }));
         }
         try {
             chain.doFilter(req, res);
         } finally {
             TenantContext.clear();
+            com.lezitech.suite.admin.AdminContext.clear();
         }
     }
 }

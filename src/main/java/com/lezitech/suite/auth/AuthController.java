@@ -57,6 +57,11 @@ public class AuthController {
     /** Start a free trial: workspace, owner login and sector sample data in one step. */
     @PostMapping("/signup")
     public Map<String, Object> signup(@RequestBody Map<String, Object> raw) throws Exception {
+        return createWorkspace(raw, null);
+    }
+
+    /** Used by signup and by the demo seeder (which passes a fixed slug like demo-restaurant). */
+    public Map<String, Object> createWorkspace(Map<String, Object> raw, String fixedSlug) throws Exception {
         Body b = new Body(raw);
         String email = b.str("email").toLowerCase();
         if (!EMAIL.matcher(email).matches()) {
@@ -72,6 +77,10 @@ public class AuthController {
         }
         String business = b.str("businessName");
         JsonNode pack = sectors.get(b.str("sector"));
+        if (fixedSlug == null && Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT exists(SELECT 1 FROM platform_settings WHERE key = 'disabled_sectors' AND value @> to_jsonb(cast(? as text)))""", Boolean.class, pack.get("key").asText()))) {
+            throw ApiException.bad("Signups for this kind of business are paused. Please contact Lezitech.");
+        }
         String color = b.str("brandColor", pack.get("color").asText());
         if (!HEX.matcher(color).matches()) {
             color = pack.get("color").asText();
@@ -113,7 +122,7 @@ public class AuthController {
             throw ApiException.bad("Logo must be an image under 300 KB");
         }
 
-        String slug = uniqueSlug(business);
+        String slug = fixedSlug != null ? fixedSlug : uniqueSlug(business);
         UUID tenantId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Instant trialEnds = Instant.now().plus(trialDays, ChronoUnit.DAYS);
@@ -176,7 +185,8 @@ public class AuthController {
         return profile(c.userId(), c.tenantId());
     }
 
-    private Map<String, Object> session(UUID userId, UUID tenantId, String role, String name) {
+    public Map<String, Object> session(UUID userId, UUID tenantId, String role, String name) {
+        jdbc.update("UPDATE users SET last_login_at = now() WHERE id = ?", userId);
         Map<String, Object> out = profile(userId, tenantId);
         out.put("token", jwt.issue(userId, tenantId, role, name));
         return out;
@@ -185,7 +195,7 @@ public class AuthController {
     private Map<String, Object> profile(UUID userId, UUID tenantId) {
         Map<String, Object> t = jdbc.queryForMap("""
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until,
-                       brand_color, logo_url, currency, phone, display_key, settings::text AS settings
+                       brand_color, logo_url, currency, phone, display_key, is_demo, settings::text AS settings
                 FROM tenants WHERE id = ?""", tenantId);
         Map<String, Object> u = jdbc.queryForMap("SELECT id, email, name, role FROM users WHERE id = ?", userId);
 
@@ -218,6 +228,7 @@ public class AuthController {
         tenant.put("currency", t.get("currency"));
         tenant.put("phone", t.get("phone"));
         tenant.put("displayKey", t.get("display_key"));
+        tenant.put("isDemo", t.get("is_demo"));
 
         Map<String, Object> user = new LinkedHashMap<>();
         user.put("id", u.get("id").toString());
@@ -236,6 +247,9 @@ public class AuthController {
         String base = business.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
         if (base.isBlank()) {
             base = "shop";
+        }
+        if (base.equals("demo") || base.startsWith("demo-")) {
+            base = "my-" + base; // demo-* addresses belong to the one-click demo businesses
         }
         base = base.length() > 40 ? base.substring(0, 40) : base;
         String slug = base;

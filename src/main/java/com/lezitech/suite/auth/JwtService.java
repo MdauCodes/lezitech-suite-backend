@@ -40,9 +40,39 @@ public class JwtService {
                 .compact();
     }
 
+    /** Control-panel token for Lezitech staff; carries no tenant. */
+    public String issueAdmin(UUID adminId, String role, String name) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(adminId.toString())
+                .claim("scope", "platform")
+                .claim("role", role)
+                .claim("name", name)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(12, ChronoUnit.HOURS)))
+                .signWith(key)
+                .compact();
+    }
+
+    public Optional<com.lezitech.suite.admin.AdminContext.Admin> parseAdmin(String token) {
+        try {
+            Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            if (!"platform".equals(c.get("scope", String.class))) {
+                return Optional.empty();
+            }
+            return Optional.of(new com.lezitech.suite.admin.AdminContext.Admin(
+                    UUID.fromString(c.getSubject()), c.get("role", String.class), c.get("name", String.class)));
+        } catch (JwtException | IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
     public Optional<TenantContext.Caller> parse(String token) {
         try {
             Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            if (c.get("tid", String.class) == null) {
+                return Optional.empty();
+            }
             return Optional.of(new TenantContext.Caller(
                     UUID.fromString(c.getSubject()),
                     UUID.fromString(c.get("tid", String.class)),

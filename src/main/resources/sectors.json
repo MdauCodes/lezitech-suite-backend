@@ -373,7 +373,38 @@
           "rooms": true
         }
       }
-    ]
+    ],
+    "demo": {
+      "business": "Mama Oliech Kitchen",
+      "color": "#c2410c",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner",
+          "name": "Grace Oliech"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Floor manager",
+          "name": "Peter Kamau"
+        },
+        {
+          "role": "WAITER",
+          "label": "Waiter",
+          "name": "Brian Otieno"
+        },
+        {
+          "role": "KITCHEN",
+          "label": "Chef / kitchen",
+          "name": "Chef Juma"
+        },
+        {
+          "role": "CASHIER",
+          "label": "Cashier",
+          "name": "Mercy Wanjiru"
+        }
+      ]
+    }
   },
   {
     "key": "hotel",
@@ -707,6 +738,37 @@
           "contact": "HR, Acacia Holdings"
         }
       ]
+    },
+    "demo": {
+      "business": "Acacia Lodge Naivasha",
+      "color": "#0e7490",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner / GM",
+          "name": "Daniel Mutua"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Manager",
+          "name": "Ruth Njeri"
+        },
+        {
+          "role": "RECEPTION",
+          "label": "Front desk",
+          "name": "Esther Achieng"
+        },
+        {
+          "role": "WAITER",
+          "label": "Restaurant waiter",
+          "name": "Kevin Mwangi"
+        },
+        {
+          "role": "KITCHEN",
+          "label": "Kitchen",
+          "name": "Chef Omondi"
+        }
+      ]
     }
   },
   {
@@ -951,7 +1013,28 @@
       ],
       "deals": []
     },
-    "extras": []
+    "extras": [],
+    "demo": {
+      "business": "Jirani Minimart",
+      "color": "#0f766e",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner",
+          "name": "Samuel Kiprono"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Shop manager",
+          "name": "Lucy Wairimu"
+        },
+        {
+          "role": "CASHIER",
+          "label": "Cashier",
+          "name": "John Ouma"
+        }
+      ]
+    }
   },
   {
     "key": "beauty",
@@ -1193,7 +1276,33 @@
         }
       ]
     },
-    "extras": []
+    "extras": [],
+    "demo": {
+      "business": "Glow Beauty Lounge",
+      "color": "#be185d",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner",
+          "name": "Amina Hassan"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Salon manager",
+          "name": "Joy Wambui"
+        },
+        {
+          "role": "STYLIST",
+          "label": "Stylist",
+          "name": "Achieng"
+        },
+        {
+          "role": "CASHIER",
+          "label": "Reception / cashier",
+          "name": "Faith Muthoni"
+        }
+      ]
+    }
   },
   {
     "key": "wholesale",
@@ -1444,7 +1553,33 @@
         }
       ]
     },
-    "extras": []
+    "extras": [],
+    "demo": {
+      "business": "Pwani Packaging Supplies",
+      "color": "#1d4ed8",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner",
+          "name": "Ali Mohammed"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Store manager",
+          "name": "Grace Chebet"
+        },
+        {
+          "role": "SALES",
+          "label": "Sales rep",
+          "name": "Kevin Mutua"
+        },
+        {
+          "role": "CASHIER",
+          "label": "Counter clerk",
+          "name": "Ann Wanjiku"
+        }
+      ]
+    }
   },
   {
     "key": "pharmacy",
@@ -1660,7 +1795,28 @@
       ],
       "deals": []
     },
-    "extras": []
+    "extras": [],
+    "demo": {
+      "business": "Afya Bora Chemist",
+      "color": "#059669",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner / superintendent",
+          "name": "Dr. Wekesa"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Branch manager",
+          "name": "Nancy Atieno"
+        },
+        {
+          "role": "CASHIER",
+          "label": "Pharmacist",
+          "name": "Brian Kiplagat"
+        }
+      ]
+    }
   },
   {
     "key": "services",
@@ -1834,7 +1990,28 @@
         }
       ]
     },
-    "extras": []
+    "extras": [],
+    "demo": {
+      "business": "Bidii Consulting",
+      "color": "#7c3aed",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Director",
+          "name": "Mary Wanjiku"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Operations",
+          "name": "Paul Njoroge"
+        },
+        {
+          "role": "SALES",
+          "label": "Account manager",
+          "name": "Sharon Akinyi"
+        }
+      ]
+    }
   },
   {
     "key": "tours",
@@ -2095,6 +2272,27 @@
           "contact": "Brightstar Academy"
         }
       ]
+    },
+    "demo": {
+      "business": "Savannah Trails Safaris",
+      "color": "#a16207",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Director",
+          "name": "Joseph Sankale"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Operations",
+          "name": "Ann Wairimu"
+        },
+        {
+          "role": "SALES",
+          "label": "Travel consultant",
+          "name": "Diana Moraa"
+        }
+      ]
     }
   },
   {
@@ -2341,6 +2539,27 @@
           "title": "Bank ATM lobby space",
           "value": 60000,
           "contact": "Bank facilities team"
+        }
+      ]
+    },
+    "demo": {
+      "business": "Uhuru Plaza Mall",
+      "color": "#4338ca",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Landlord",
+          "name": "Francis Gitau"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Property manager",
+          "name": "Esther Wangari"
+        },
+        {
+          "role": "ACCOUNTANT",
+          "label": "Rent collector / accounts",
+          "name": "Moses Kimani"
         }
       ]
     }
