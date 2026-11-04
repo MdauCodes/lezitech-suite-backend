@@ -28,10 +28,12 @@ public class OrderController {
 
     private final Db db;
     private final OrderService orders;
+    private final ApprovalService approvals;
 
-    public OrderController(Db db, OrderService orders) {
+    public OrderController(Db db, OrderService orders, ApprovalService approvals) {
         this.db = db;
         this.orders = orders;
+        this.approvals = approvals;
     }
 
     @GetMapping
@@ -74,7 +76,7 @@ public class OrderController {
 
     @PostMapping("/{id}/lines")
     public Map<String, Object> addLines(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        orders.addLines(id, new Body(raw).list("lines"));
+        orders.addLinesFromTill(id, new Body(raw));
         return orders.detail(id);
     }
 
@@ -88,6 +90,17 @@ public class OrderController {
             TenantContext.requireRole("MANAGER");
         }
         BigDecimal qty = b.num("qty", (BigDecimal) line.get("qty"));
+        BigDecimal newDiscount = b.num("discount", (BigDecimal) line.get("discount"));
+        if (newDiscount.signum() < 0) {
+            throw com.lezitech.suite.common.ApiException.bad("A discount can't be below zero");
+        }
+        if (newDiscount.compareTo((BigDecimal) line.get("discount")) != 0) {
+            approvals.require(b, "a discount");
+            approvals.checkDiscountLimit(newDiscount, ((BigDecimal) line.get("unitPrice")).multiply(qty));
+        }
+        if (((BigDecimal) line.get("unitPrice")).multiply(qty).compareTo(newDiscount) < 0) {
+            throw com.lezitech.suite.common.ApiException.bad("The discount is bigger than the price");
+        }
         if (qty.signum() <= 0) {
             db.exec("DELETE FROM order_lines WHERE id = :lineId", "lineId", lineId);
         } else {
@@ -119,8 +132,7 @@ public class OrderController {
             db.exec("UPDATE orders SET note = :n WHERE id = :id", "id", id, "n", b.str("note"));
         }
         if (b.has("discount")) {
-            db.exec("UPDATE orders SET discount = :d WHERE id = :id", "id", id, "d", b.num("discount"));
-            orders.recalc(id);
+            orders.setDiscount(id, b.num("discount"), b);
         }
         return orders.detail(id);
     }

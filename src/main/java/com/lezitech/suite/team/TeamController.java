@@ -35,6 +35,21 @@ public class TeamController {
         this.encoder = encoder;
     }
 
+    /** Managers who can approve a price change or discount at the till with their PIN. Names only. */
+    @GetMapping("/approvers")
+    public List<Map<String, Object>> approvers() {
+        return db.list("""
+                SELECT id, name, role FROM users WHERE tenant_id = :t AND active AND pin_hash IS NOT NULL
+                  AND role IN ('OWNER','MANAGER') ORDER BY role = 'OWNER', name""");
+    }
+
+    /** People who can take over the till with their PIN (cashier switch). Names only. */
+    @GetMapping("/till-users")
+    public List<Map<String, Object>> tillUsers() {
+        return db.list("""
+                SELECT id, name, role FROM users WHERE tenant_id = :t AND active AND pin_hash IS NOT NULL ORDER BY name""");
+    }
+
     @GetMapping
     public List<Map<String, Object>> list() {
         return db.list("""

@@ -114,7 +114,7 @@ public class PropertyController {
             inv.put("customerId", l.get("customerId"));
             inv.put("dueOn", period.atDay(dueDay).toString());
             inv.put("lines", lines);
-            UUID order = orders.create(new Body(inv));
+            UUID order = orders.createTrusted(new Body(inv));
             db.exec("UPDATE orders SET lease_id = :leaseId, period = :p WHERE id = :order", "leaseId", leaseId, "p", period.toString(), "order", order);
             created++;
         }

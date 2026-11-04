@@ -26,21 +26,33 @@ public class OrderService {
     private final Db db;
     private final JdbcTemplate jdbc;
     private final StockService stock;
+    private final ApprovalService approvals;
 
-    public OrderService(Db db, JdbcTemplate jdbc, StockService stock) {
+    public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals) {
         this.db = db;
         this.jdbc = jdbc;
         this.stock = stock;
+        this.approvals = approvals;
     }
 
+    /** An order from the till: prices, add-ons and discounts are checked against the caller's rights. */
     public UUID create(Body b) {
+        return create(b, false);
+    }
+
+    /** An order built by the server itself (rent bills, room nights): its prices are already trusted. */
+    public UUID createTrusted(Body b) {
+        return create(b, true);
+    }
+
+    private UUID create(Body b, boolean trusted) {
         String kind = b.str("kind", "SALE");
         String channel = b.str("channel", "COUNTER");
         UUID tableId = b.has("tableId") ? UUID.fromString(b.str("tableId")) : null;
         if (tableId != null) {
             UUID open = db.value("SELECT id FROM orders WHERE table_id = :tableId AND status = 'OPEN' LIMIT 1", UUID.class, "tableId", tableId);
             if (open != null && !b.bool("allowSecondBill", false)) {
-                addLines(open, b.list("lines"));
+                addLines(open, b.list("lines"), b, trusted);
                 return open;
             }
         }
@@ -58,11 +70,21 @@ public class OrderService {
                 "number", number, "kind", kind, "channel", channel, "tableId", tableId, "guests", b.integer("guests", null),
                 "customerId", b.has("customerId") ? UUID.fromString(b.str("customerId")) : null,
                 "loc", loc, "shift", shift, "note", b.str("note", null));
-        addLines(id, b.list("lines"));
+        addLines(id, b.list("lines"), b, trusted);
         return id;
     }
 
+    /** Server-side additions (tips, room nights): trusted. */
     public void addLines(UUID orderId, List<Map<String, Object>> lines) {
+        addLines(orderId, lines, null, true);
+    }
+
+    /** Lines sent by the till: price changes, custom prices and line discounts need a manager. */
+    public void addLinesFromTill(UUID orderId, Body b) {
+        addLines(orderId, b.list("lines"), b, false);
+    }
+
+    private void addLines(UUID orderId, List<Map<String, Object>> lines, Body approvalSource, boolean trusted) {
         Map<String, Object> order = requireOpen(orderId);
         boolean wholesale = "WHOLESALE".equals(order.get("channel"))
                 || (order.get("customerId") != null && "WHOLESALE".equals(db.value(
@@ -94,19 +116,38 @@ public class OrderService {
                 name = l.str("name");
                 price = l.num("unitPrice");
                 tax = l.num("taxRate", BigDecimal.ZERO);
+                if (!trusted) {
+                    approvals.require(approvalSource, "a custom-priced item");
+                }
             }
-            if (l.has("unitPrice") && item != null) {
-                // Manual price override at the till (e.g. negotiated wholesale price).
+            if (l.has("unitPrice") && item != null && l.num("unitPrice").compareTo(price) != 0) {
+                // Manual price change at the till (e.g. a negotiated wholesale price).
+                if (!trusted) {
+                    approvals.require(approvalSource, "a price change on " + name);
+                }
                 price = l.num("unitPrice");
             }
+            if (price.signum() < 0) {
+                throw ApiException.bad("A price can't be below zero");
+            }
+            List<Map<String, Object>> options = trusted || item == null ? l.list("options") : checkedOptions(item, l.list("options"));
             BigDecimal optionsTotal = BigDecimal.ZERO;
-            List<Map<String, Object>> options = l.list("options");
             for (Map<String, Object> o : options) {
                 optionsTotal = optionsTotal.add(new Body(o).num("price", BigDecimal.ZERO));
             }
             BigDecimal unit = price.add(optionsTotal);
             BigDecimal discount = l.num("discount", BigDecimal.ZERO);
+            if (discount.signum() < 0) {
+                throw ApiException.bad("A discount can't be below zero");
+            }
+            if (discount.signum() > 0 && !trusted) {
+                approvals.require(approvalSource, "a discount on " + name);
+                approvals.checkDiscountLimit(discount, unit.multiply(qty));
+            }
             BigDecimal lineTotal = unit.multiply(qty).subtract(discount).setScale(2, RoundingMode.HALF_UP);
+            if (lineTotal.signum() < 0) {
+                throw ApiException.bad("The discount on " + name + " is bigger than its price");
+            }
             db.exec("""
                     INSERT INTO order_lines (tenant_id, order_id, item_id, name, qty, unit_price, tax_rate, discount, line_total,
                                              options, note, course, station, staff_id)
@@ -133,6 +174,61 @@ public class OrderService {
                 WHERE o.id = :id""", "id", orderId);
     }
 
+    /** Whole-bill discount: needs a manager (or their PIN), stays within the limit, never makes the bill negative. */
+    public void setDiscount(UUID orderId, BigDecimal discount, Body approvalSource) {
+        if (discount.signum() < 0) {
+            throw ApiException.bad("A discount can't be below zero");
+        }
+        BigDecimal current = db.value("SELECT discount FROM orders WHERE id = :id", BigDecimal.class, "id", orderId);
+        if (current != null && discount.compareTo(current) == 0) {
+            return;
+        }
+        BigDecimal subtotal = db.value("SELECT coalesce(sum(line_total), 0) FROM order_lines WHERE order_id = :id", BigDecimal.class, "id", orderId);
+        if (discount.signum() > 0) {
+            approvals.require(approvalSource, "a discount");
+            if (discount.compareTo(subtotal) > 0) {
+                throw ApiException.bad("The discount is bigger than the bill");
+            }
+            BigDecimal lineDiscounts = db.value("SELECT coalesce(sum(discount), 0) FROM order_lines WHERE order_id = :id", BigDecimal.class, "id", orderId);
+            approvals.checkDiscountLimit(discount.add(lineDiscounts), subtotal.add(lineDiscounts));
+        }
+        db.exec("UPDATE orders SET discount = :d WHERE id = :id", "id", orderId, "d", discount);
+        recalc(orderId);
+    }
+
+    /** Add-on prices come from the item's own definition, never from the till. */
+    private List<Map<String, Object>> checkedOptions(Map<String, Object> item, List<Map<String, Object>> picked) {
+        if (picked.isEmpty()) {
+            return picked;
+        }
+        com.fasterxml.jackson.databind.JsonNode groups = (com.fasterxml.jackson.databind.JsonNode) item.get("options");
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> p : picked) {
+            Body pb = new Body(p);
+            String group = pb.str("group", "");
+            String name = pb.str("name");
+            BigDecimal price = null;
+            if (groups != null) {
+                for (com.fasterxml.jackson.databind.JsonNode g : groups) {
+                    if (!group.isEmpty() && !group.equals(g.path("name").asText())) {
+                        continue;
+                    }
+                    for (com.fasterxml.jackson.databind.JsonNode c : g.path("choices")) {
+                        if (name.equals(c.path("name").asText())) {
+                            price = new BigDecimal(c.path("price").asText("0"));
+                            group = g.path("name").asText();
+                        }
+                    }
+                }
+            }
+            if (price == null) {
+                throw ApiException.bad("\u201c" + name + "\u201d is not one of the choices for " + item.get("name"));
+            }
+            out.add(Map.of("group", group, "name", name, "price", price));
+        }
+        return out;
+    }
+
     public Map<String, Object> requireOpen(UUID orderId) {
         Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id", "id", orderId);
         if (!"OPEN".equals(o.get("status"))) {
@@ -147,11 +243,7 @@ public class OrderService {
             throw ApiException.bad("Convert the quotation to a sale before taking payment");
         }
         if (b.has("discount")) {
-            BigDecimal discount = b.num("discount");
-            if (discount.signum() < 0) {
-                throw ApiException.bad("Discount can't be negative");
-            }
-            db.exec("UPDATE orders SET discount = :d WHERE id = :id", "id", orderId, "d", discount);
+            setDiscount(orderId, b.num("discount"), b);
         }
         if (b.has("tip") && b.num("tip").signum() > 0) {
             addLines(orderId, List.of(Map.of("name", "Tip", "unitPrice", b.num("tip"), "qty", 1)));
