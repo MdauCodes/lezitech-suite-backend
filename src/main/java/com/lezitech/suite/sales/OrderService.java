@@ -229,8 +229,39 @@ public class OrderService {
         return out;
     }
 
+    /**
+     * Reserve an idempotency key for this till action. Returns the order an earlier request with
+     * the same key already produced, or null if this is the first time (or no key was sent).
+     * A second request with the key waits here until the first one commits.
+     */
+    public UUID claimKey(Body b, String scope) {
+        if (!b.has("idempotencyKey")) {
+            return null;
+        }
+        String key = scope + ":" + b.str("idempotencyKey");
+        int inserted = db.exec("INSERT INTO idempotency_keys (tenant_id, key) VALUES (:t, :k) ON CONFLICT DO NOTHING", "k", key);
+        if (inserted == 1) {
+            return null;
+        }
+        UUID earlier = db.value("SELECT order_id FROM idempotency_keys WHERE key = :k", UUID.class, "k", key);
+        if (earlier == null) {
+            throw ApiException.conflict("This payment is already being processed");
+        }
+        return earlier;
+    }
+
+    public void bindKey(Body b, String scope, UUID orderId) {
+        if (b.has("idempotencyKey")) {
+            db.exec("UPDATE idempotency_keys SET order_id = :o WHERE key = :k", "o", orderId, "k", scope + ":" + b.str("idempotencyKey"));
+        }
+    }
+
+    /**
+     * The open order, locked for the rest of the transaction so two tills (or a double tap)
+     * can't add, pay or cancel at the same time.
+     */
     public Map<String, Object> requireOpen(UUID orderId) {
-        Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id", "id", orderId);
+        Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id FOR UPDATE", "id", orderId);
         if (!"OPEN".equals(o.get("status"))) {
             throw ApiException.conflict("This " + o.get("kind").toString().toLowerCase() + " is already closed");
         }
@@ -293,7 +324,8 @@ public class OrderService {
             if (customerId == null) {
                 throw ApiException.bad("Pick the customer to put this on their account");
             }
-            Map<String, Object> c = db.one("Customer", "SELECT balance, credit_limit, name FROM customers WHERE id = :id", "id", customerId);
+            // Lock the customer too: two tills putting sales on the same account can't both slip under the limit.
+            Map<String, Object> c = db.one("Customer", "SELECT balance, credit_limit, name FROM customers WHERE id = :id FOR UPDATE", "id", customerId);
             BigDecimal newBalance = ((BigDecimal) c.get("balance")).add(credit);
             BigDecimal limit = (BigDecimal) c.get("creditLimit");
             if (limit.signum() > 0 && newBalance.compareTo(limit) > 0) {
@@ -328,7 +360,7 @@ public class OrderService {
     }
 
     public void voidOrder(UUID orderId, String reason) {
-        Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id", "id", orderId);
+        Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id FOR UPDATE", "id", orderId);
         if ("VOID".equals(o.get("status"))) {
             return;
         }

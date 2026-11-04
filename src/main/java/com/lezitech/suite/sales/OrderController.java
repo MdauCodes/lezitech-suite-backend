@@ -67,7 +67,13 @@ public class OrderController {
     @PostMapping
     public Map<String, Object> create(@RequestBody Map<String, Object> raw) {
         Body b = new Body(raw);
+        // A retried or double-tapped checkout with the same key gets the first sale back.
+        UUID earlier = orders.claimKey(b, "sale");
+        if (earlier != null) {
+            return orders.detail(earlier);
+        }
         UUID id = orders.create(b);
+        orders.bindKey(b, "sale", id);
         if (!b.list("payments").isEmpty() || b.has("discount")) {
             return orders.pay(id, b);
         }
@@ -156,7 +162,12 @@ public class OrderController {
 
     @PostMapping("/{id}/pay")
     public Map<String, Object> pay(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        return orders.pay(id, new Body(raw));
+        Body b = new Body(raw);
+        if (orders.claimKey(b, "pay") != null) {
+            return orders.detail(id);
+        }
+        orders.bindKey(b, "pay", id);
+        return orders.pay(id, b);
     }
 
     /** Split by item: the chosen lines move to a new bill on the same table. */
