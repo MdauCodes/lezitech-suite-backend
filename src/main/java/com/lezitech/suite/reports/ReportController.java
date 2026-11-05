@@ -126,8 +126,13 @@ public class ReportController {
                 SELECT l.name, sum(l.qty) AS qty, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
                 WHERE """ + window + " GROUP BY l.name ORDER BY amount DESC LIMIT 50", range));
         out.put("byMethod", db.list("""
-                SELECT p.method, sum(p.amount) AS amount, count(*) AS count FROM payments p JOIN orders o ON o.id = p.order_id
-                WHERE """ + window + " GROUP BY p.method ORDER BY amount DESC", range));
+                SELECT p.method, sum(p.amount) AS amount, count(*) FILTER (WHERE p.kind = 'PAYMENT') AS count
+                FROM payments p WHERE p.created_at >= :from AND p.created_at < :to
+                GROUP BY p.method ORDER BY amount DESC""", range));
+        // Money given back in the period (already netted out of the methods above).
+        out.put("refunds", db.one("Refunds", """
+                SELECT coalesce(-sum(amount), 0) AS amount, count(DISTINCT order_id) AS orders FROM payments
+                WHERE kind = 'REFUND' AND created_at >= :from AND created_at < :to""", range));
         out.put("byStaff", db.list("""
                 SELECT u.name, count(DISTINCT o.id) AS orders, sum(l.line_total) AS amount
                 FROM order_lines l JOIN orders o ON o.id = l.order_id JOIN users u ON u.id = coalesce(l.staff_id, o.user_id)

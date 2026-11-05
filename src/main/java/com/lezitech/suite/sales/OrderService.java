@@ -359,26 +359,80 @@ public class OrderService {
         db.exec("UPDATE appointments SET status = 'DONE' WHERE order_id = :id", "id", orderId);
     }
 
+    /**
+     * Cancel an order. An unpaid one is simply voided (any deposit already taken is given back).
+     * A completed sale is refunded instead: see {@link #refund}.
+     */
     public void voidOrder(UUID orderId, String reason) {
         Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id FOR UPDATE", "id", orderId);
-        if ("VOID".equals(o.get("status"))) {
+        String status = (String) o.get("status");
+        if ("VOID".equals(status) || "REFUNDED".equals(status)) {
             return;
         }
-        if (!"OPEN".equals(o.get("status"))) {
-            // Undo a completed sale: return stock and reverse any account charge.
-            UUID loc = o.get("locationId") == null ? stock.defaultLocation() : UUID.fromString(o.get("locationId").toString());
-            for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
-                stock.move(UUID.fromString(l.get("itemId").toString()), loc, (BigDecimal) l.get("qty"), "VOID", "Void #" + o.get("number"), reason);
-            }
-            BigDecimal credit = db.value("SELECT coalesce(sum(amount), 0) FROM payments WHERE order_id = :id AND method = 'CREDIT'",
-                    BigDecimal.class, "id", orderId);
-            if (credit != null && credit.signum() > 0 && o.get("customerId") != null) {
-                db.exec("UPDATE customers SET balance = balance - :c WHERE id = :id", "id", o.get("customerId"), "c", credit);
-            }
+        if (!"OPEN".equals(status)) {
+            refund(orderId, reason, null);
+            return;
+        }
+        if (((BigDecimal) o.get("paid")).signum() > 0) {
+            // A deposit was taken on this open bill: give it back the way it came in.
+            payBack(o, reason, null);
         }
         db.exec("UPDATE orders SET status = 'VOID', closed_at = now(), note = concat_ws(' · ', note, :reason) WHERE id = :id",
-                "id", orderId, "reason", "Void: " + reason);
+                "id", orderId, "reason", "Cancelled: " + reason);
         db.exec("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE order_id = :id", "id", orderId);
+    }
+
+    /**
+     * Refund a completed sale: money goes back the way it came in (or all by one method if the
+     * manager chooses), as negative payments in the refunder's till session; account sales come
+     * off what the customer owes; items go back into stock; loyalty points are taken back.
+     */
+    public void refund(UUID orderId, String reason, String method) {
+        TenantContext.requireRole("MANAGER");
+        if (reason == null || reason.isBlank()) {
+            throw ApiException.bad("Say why the money is being given back");
+        }
+        Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id FOR UPDATE", "id", orderId);
+        if (!"PAID".equals(o.get("status")) && !"CREDIT".equals(o.get("status"))) {
+            throw ApiException.conflict("Only completed sales can be refunded");
+        }
+        payBack(o, reason, method);
+        UUID loc = o.get("locationId") == null ? stock.defaultLocation() : UUID.fromString(o.get("locationId").toString());
+        for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
+            stock.move(UUID.fromString(l.get("itemId").toString()), loc, (BigDecimal) l.get("qty"), "VOID", "Refund #" + o.get("number"), reason);
+        }
+        if (o.get("customerId") != null) {
+            int points = ((BigDecimal) o.get("total")).divide(HUNDRED, 0, RoundingMode.DOWN).intValue();
+            db.exec("UPDATE customers SET points = greatest(points - :p, 0) WHERE id = :id", "id", o.get("customerId"), "p", points);
+        }
+        db.exec("""
+                UPDATE orders SET status = 'REFUNDED', refunded_at = now(), refunded_by = :u,
+                       note = concat_ws(' · ', note, :reason) WHERE id = :id""", "id", orderId, "reason", "Refunded: " + reason);
+    }
+
+    /** Negative payment rows mirroring what was paid, net of anything already given back. */
+    private void payBack(Map<String, Object> o, String reason, String method) {
+        UUID orderId = UUID.fromString(o.get("id").toString());
+        UUID shift = db.value("SELECT id FROM shifts WHERE user_id = :u AND status = 'OPEN' LIMIT 1", UUID.class);
+        BigDecimal toAccount = BigDecimal.ZERO;
+        for (Map<String, Object> p : db.list("""
+                SELECT method, sum(amount) AS amount FROM payments WHERE order_id = :id GROUP BY method HAVING sum(amount) > 0""", "id", orderId)) {
+            String paidWith = (String) p.get("method");
+            BigDecimal amount = (BigDecimal) p.get("amount");
+            if ("CREDIT".equals(paidWith)) {
+                toAccount = toAccount.add(amount);
+            }
+            String back = "CREDIT".equals(paidWith) || method == null ? paidWith : method.toUpperCase();
+            db.exec("""
+                    INSERT INTO payments (tenant_id, order_id, shift_id, method, amount, kind, refund_reason, user_id)
+                    VALUES (:t, :order, :shift, :method, :amount, 'REFUND', :reason, :u)""",
+                    "order", orderId, "shift", shift, "method", back, "amount", amount.negate(), "reason", reason);
+        }
+        if (toAccount.signum() > 0 && o.get("customerId") != null) {
+            db.list("SELECT id FROM customers WHERE id = :id FOR UPDATE", "id", o.get("customerId"));
+            db.exec("UPDATE customers SET balance = balance - :c WHERE id = :id", "id", o.get("customerId"), "c", toAccount);
+        }
+        db.exec("UPDATE orders SET paid = 0 WHERE id = :id", "id", orderId);
     }
 
     /** Hotel guest eats in the restaurant: the bill moves onto their room folio, settled at check-out. */

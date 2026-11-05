@@ -197,6 +197,14 @@ public class OrderController {
         return orders.detail(folio);
     }
 
+    /** Give the money back for a completed sale. Managers only; a reason is required. */
+    @PostMapping("/{id}/refund")
+    public Map<String, Object> refund(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        Body b = new Body(raw);
+        orders.refund(id, b.str("reason", ""), b.str("method", null));
+        return orders.detail(id);
+    }
+
     @PostMapping("/{id}/void")
     public Map<String, Object> voidOrder(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         Map<String, Object> o = db.one("Order", "SELECT status, paid FROM orders WHERE id = :id", "id", id);

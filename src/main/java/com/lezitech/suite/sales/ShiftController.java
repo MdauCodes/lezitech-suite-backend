@@ -75,7 +75,11 @@ public class ShiftController {
         Map<String, Object> s = new LinkedHashMap<>(db.one("Shift", """
                 SELECT s.*, u.name AS user_name FROM shifts s LEFT JOIN users u ON u.id = s.user_id WHERE s.id = :id""", "id", id));
         List<Map<String, Object>> byMethod = db.list("""
-                SELECT method, sum(amount) AS amount, count(*) AS count FROM payments WHERE shift_id = :id GROUP BY method""", "id", id);
+                SELECT method, sum(amount) AS amount, count(*) FILTER (WHERE kind = 'PAYMENT') AS count,
+                       coalesce(-sum(amount) FILTER (WHERE kind = 'REFUND'), 0) AS refunded
+                FROM payments WHERE shift_id = :id GROUP BY method""", "id", id);
+        s.put("refunds", db.value("SELECT coalesce(-sum(amount), 0) FROM payments WHERE shift_id = :id AND kind = 'REFUND'",
+                BigDecimal.class, "id", id));
         BigDecimal cash = byMethod.stream().filter(m -> "CASH".equals(m.get("method")))
                 .map(m -> (BigDecimal) m.get("amount")).findFirst().orElse(BigDecimal.ZERO);
         s.put("open", "OPEN".equals(s.get("status")));
