@@ -26,6 +26,16 @@ management:
     web:
       exposure:
         include: health
+  endpoint:
+    health:
+      # Status of each part (database, disk) without exposing details publicly.
+      show-components: always
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
 
 suite:
   jwt:

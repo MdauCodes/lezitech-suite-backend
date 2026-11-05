@@ -153,3 +153,34 @@ any signed-in staff member.
 | Trips | Manager, Sales |
 | Rent and tenants | Manager, Accounts (new rentals: Manager) |
 | Refunds, price changes, discounts | Manager (or a cashier with a manager's PIN for prices and discounts) |
+
+## Running it in production
+
+- **Logs:** set `SPRING_PROFILES_ACTIVE=json` for one JSON object per line (Coolify/Loki friendly). Every
+  API request logs method, path, status and time, with a `requestId` (also returned in the `X-Request-Id`
+  header) and the `tenantId` on each line.
+- **Health:** `GET /actuator/health` is `UP` only when the database answers (components listed, details
+  hidden). Point Coolify's health check at it. `/actuator/health/liveness` and `/readiness` also exist.
+
+### Backups (daily `pg_dump` on the Contabo VPS)
+
+`ops/backup.sh` dumps the database from the Coolify Postgres container every night, checks the dump can be
+read, keeps 14 days, and can copy each dump off the server with rclone. Install steps are at the top of the
+script. Check `/var/log/suite-backup.log` after the first night, and copy a dump off the VPS at least weekly
+if rclone isn't set up: a backup on the same disk doesn't survive losing the server.
+
+### Restoring a backup
+
+1. Stop the API in Coolify so nothing writes while you restore.
+2. Copy the dump into the Postgres container:
+   `docker cp /var/backups/suite/suite_YYYY-MM-DD_HHMM.dump <pg-container>:/tmp/restore.dump`
+3. Restore into a fresh database (keeps the broken one until you're sure):
+   ```bash
+   docker exec -it <pg-container> createdb -U <owner> suite_restore
+   docker exec -it <pg-container> pg_restore -U <owner> -d suite_restore --no-owner /tmp/restore.dump
+   docker exec -it <pg-container> psql -U <owner> -d suite_restore -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO suite_app;"
+   ```
+4. Point the API at it: set `DATABASE_URL` (and `FLYWAY_URL`) to `.../suite_restore`, start the API, check
+   `/actuator/health` and sign in to a workspace. Or swap names:
+   `ALTER DATABASE suite RENAME TO suite_old; ALTER DATABASE suite_restore RENAME TO suite;`
+5. Practise this once on a spare database before you need it.

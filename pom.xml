@@ -74,6 +74,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- JSON log lines for the server (LOG_FORMAT=json). -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>7.4</version>
+        </dependency>
+
         <!-- Local dev and tests run a real Postgres without Docker or a system install. -->
         <dependency>
             <groupId>io.zonky.test</groupId>
