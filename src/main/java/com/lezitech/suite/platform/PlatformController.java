@@ -44,7 +44,7 @@ public class PlatformController {
     }
 
     @GetMapping("/api/platform/tenants")
-    public List<Map<String, Object>> tenants(@RequestHeader("X-Operator-Key") String key) {
+    public List<Map<String, Object>> tenants(@RequestHeader(value = "X-Operator-Key", required = false) String key) {
         guard(key);
         return jdbc.queryForList("""
                 SELECT t.id, t.slug, t.name, t.sector, t.sub_sector, t.status, t.plan, t.trial_ends_at, t.paid_until, t.created_at,
@@ -57,7 +57,7 @@ public class PlatformController {
 
     /** Activate a paid plan for N months, or extend a trial by N days. */
     @PostMapping("/api/platform/tenants/{id}/activate")
-    public Map<String, Object> activate(@RequestHeader("X-Operator-Key") String key, @PathVariable UUID id,
+    public Map<String, Object> activate(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id,
                                         @RequestBody Map<String, Object> raw) {
         guard(key);
         Body b = new Body(raw);
@@ -71,7 +71,7 @@ public class PlatformController {
     }
 
     @PostMapping("/api/platform/tenants/{id}/extend-trial")
-    public Map<String, Object> extend(@RequestHeader("X-Operator-Key") String key, @PathVariable UUID id,
+    public Map<String, Object> extend(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id,
                                       @RequestBody Map<String, Object> raw) {
         guard(key);
         int days = new Body(raw).integer("days", 7);
@@ -81,7 +81,7 @@ public class PlatformController {
     }
 
     @PostMapping("/api/platform/tenants/{id}/suspend")
-    public Map<String, Object> suspend(@RequestHeader("X-Operator-Key") String key, @PathVariable UUID id) {
+    public Map<String, Object> suspend(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id) {
         guard(key);
         jdbc.update("UPDATE tenants SET status = 'SUSPENDED' WHERE id = ?", id);
         return Map.of("ok", true);
