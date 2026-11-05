@@ -128,3 +128,28 @@ admin token is refused by workspace endpoints).
 First login on a real server: set `ADMIN_EMAIL` and `ADMIN_PASSWORD`; that superadmin is created at startup.
 Locally the sign-in page also shows one-click buttons per staff role; these only exist when the API runs on the
 embedded database and can never be switched on against a real `DATABASE_URL`.
+
+## Who can do what (enforced in the API)
+
+`config/RoleGuard.java` checks every workspace request against the caller's job, matching what the app
+shows each role (`lib/roles.ts` in the web app). The owner can do everything. Anything not listed is open to
+any signed-in staff member.
+
+| Area | Allowed (besides the owner) |
+|---|---|
+| Staff list and changes, plan and billing | Manager |
+| Settings changes | Owner only |
+| Sales reports | Manager, Accounts |
+| Home numbers | Manager, Sales, Accounts |
+| Changing items, categories, places, tables, suppliers | Manager |
+| Stock and buying (read and change) | Manager, Accounts (changes: manager, checked again in the service) |
+| Kitchen screen updates | Manager, Kitchen, Waiter, Front desk, Cashier |
+| Taking orders and payments | Everyone except Kitchen |
+| Opening/closing the till | Manager, Cashier, Sales, Front desk, Accounts |
+| Customers (change) | Everyone except Kitchen; recording debt payments: Manager, Cashier, Sales, Front desk, Accounts |
+| Sales leads | Manager, Sales |
+| Bookings | Manager, Stylist, Cashier, Front desk, Sales |
+| Rooms: cleaning status / bookings / rooms themselves | Front desk + Manager / Front desk + Manager / Manager |
+| Trips | Manager, Sales |
+| Rent and tenants | Manager, Accounts (new rentals: Manager) |
+| Refunds, price changes, discounts | Manager (or a cashier with a manager's PIN for prices and discounts) |

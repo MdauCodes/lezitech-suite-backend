@@ -46,6 +46,12 @@ public class TeamController {
                   AND role IN ('OWNER','MANAGER') ORDER BY role = 'OWNER', name""");
     }
 
+    /** Everyone active, names and jobs only (e.g. to credit a stylist at the till). */
+    @GetMapping("/names")
+    public List<Map<String, Object>> names() {
+        return db.list("SELECT id, name, role, active FROM users WHERE tenant_id = :t AND active ORDER BY name");
+    }
+
     /** People who can take over the till with their PIN (cashier switch). Names only. */
     @GetMapping("/till-users")
     public List<Map<String, Object>> tillUsers() {
