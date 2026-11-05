@@ -52,6 +52,19 @@ suite:
     # One-click control-panel role logins; only ever on for local runs (embedded database).
     demo-logins: ${ADMIN_DEMO_LOGINS:${EMBEDDED_DB:true}}
   operator-key: ${OPERATOR_KEY:local-operator-key}
+  # M-Pesa (Safaricom Daraja). Off unless MPESA_MODE is set. Keys only ever come from env vars.
+  # MPESA_MODE: off | sandbox | production | simulate (simulate = local demo, refused on a real database)
+  mpesa:
+    mode: ${MPESA_MODE:off}
+    base-url: ${MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
+    consumer-key: ${MPESA_CONSUMER_KEY:}
+    consumer-secret: ${MPESA_CONSUMER_SECRET:}
+    shortcode: ${MPESA_SHORTCODE:174379}
+    passkey: ${MPESA_PASSKEY:}
+    callback-base: ${MPESA_CALLBACK_BASE:}
+    subscription-shortcode: ${MPESA_SUBSCRIPTION_SHORTCODE:}
+    c2b-secret: ${MPESA_C2B_SECRET:}
+    simulate-delay-ms: ${MPESA_SIMULATE_DELAY_MS:4000}
   cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320}
   # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.
   embedded-db:

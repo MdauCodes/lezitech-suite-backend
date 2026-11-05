@@ -96,10 +96,10 @@ public class SettingsController {
                 .orElseThrow(() -> ApiException.bad("Unknown plan"));
         int monthly = (Integer) p.get("monthly");
         BigDecimal amount = BigDecimal.valueOf("ANNUAL".equals(cycle) ? monthly * 10L : monthly);
-        jdbc.update("""
-                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone) VALUES (?, ?, ?, ?, ?)""",
-                TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null));
-        return Map.of("ok", true, "amount", amount,
+        java.util.UUID id = jdbc.queryForObject("""
+                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone) VALUES (?, ?, ?, ?, ?) RETURNING id""",
+                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null));
+        return Map.of("ok", true, "amount", amount, "requestId", id,
                 "message", "Request received. Pay KES " + amount.toPlainString()
                         + " to Lezitech and we activate your plan within one working hour.");
     }

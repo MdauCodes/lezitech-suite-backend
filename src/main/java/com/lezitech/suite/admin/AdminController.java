@@ -55,6 +55,8 @@ public class AdminController {
     private final DemoService demos;
     private final SectorCatalog sectors;
     private final ObjectMapper json;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanActivation activation;
 
     public AdminController(JdbcTemplate jdbc, JwtService jwt, PasswordEncoder encoder, AdminService admin,
                            AdminService.UsageReader usage, AuthController auth, DemoService demos, SectorCatalog sectors, ObjectMapper json,
@@ -331,12 +333,7 @@ public class AdminController {
     @PostMapping("/requests/{id}/approve")
     public Map<String, Object> approve(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("billing");
-        Map<String, Object> r = jdbc.queryForMap("SELECT * FROM subscription_requests WHERE id = ?", id);
-        int months = "ANNUAL".equals(r.get("billing_cycle")) ? 12 : 1;
-        jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?, paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?)
-                WHERE id = ?""", r.get("plan"), months, r.get("tenant_id"));
-        jdbc.update("UPDATE subscription_requests SET status = 'PAID' WHERE id = ?", id);
+        Map<String, Object> r = activation.activate(id, "MANUAL", null);
         admin.audit("billing.approve", (UUID) r.get("tenant_id"), Map.of("plan", r.get("plan"), "amount", r.get("amount"),
                 "reference", new Body(raw).str("reference", "")));
         return Map.of("ok", true);

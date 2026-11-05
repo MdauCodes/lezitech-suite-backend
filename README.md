@@ -72,17 +72,44 @@ Or start `suite-api` and `suite-web` from the preview launcher.
 4. Marketing: `https://app.<domain>/for/restaurant` (or retail, beauty, wholesale, pharmacy, services) is the
    ad landing page for one sector; it pre-selects the pack at signup.
 
+## M-Pesa (Safaricom Daraja)
+
+Off unless `MPESA_MODE` is set. Keys come only from environment variables; nothing is stored in the code.
+
+| Variable | What it is |
+|---|---|
+| `MPESA_MODE` | `off` (default), `sandbox`, `production`, or `simulate` (local practice: no money moves, refused on a real database) |
+| `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET` | From the Daraja app on developer.safaricom.co.ke |
+| `MPESA_SHORTCODE`, `MPESA_PASSKEY` | Till/paybill and its Lipa na M-Pesa passkey (sandbox: 174379 and the test passkey from the Daraja portal) |
+| `MPESA_CALLBACK_BASE` | Public https address of this API, e.g. `https://api.lezitech.co.ke`; Safaricom posts results there |
+| `MPESA_SUBSCRIPTION_SHORTCODE` | Lezitech's own paybill for plan payments (defaults to `MPESA_SHORTCODE`) |
+| `MPESA_C2B_SECRET` | Long random string; part of the C2B URLs so nobody else can post fake payments |
+| `MPESA_BASE_URL` | `https://sandbox.safaricom.co.ke` (default) or `https://api.safaricom.co.ke` |
+
+- **Till**: choose M-Pesa, type the customer's number, "Send prompt". The sale is marked paid only after Safaricom's
+  callback arrives, matches the request we sent (secret URL + checkout id) and the amount. Repeated callbacks are
+  recorded once. If the sale was closed meanwhile, the money is kept as "unapplied" for staff to refund or use.
+- **Direct till payments (C2B)**: register `MPESA_CALLBACK_BASE/api/public/mpesa/c2b/<MPESA_C2B_SECRET>/confirmation`
+  (and `/validation`) with Daraja. A workspace claims its till by setting `mpesaTill` in its settings. If the customer
+  typed the sale number as the account, the sale is paid automatically; otherwise it waits in
+  `GET /api/mpesa/till-payments` for staff to put on a sale.
+- **Plans**: Billing → "Pay now with M-Pesa" switches the plan on when Safaricom confirms. The manual request
+  ("Pay another way") and the control panel's billing queue still work as the fallback.
+- Locally, `.claude/launch.json` runs the API with `MPESA_MODE=simulate`; a phone ending in 9999 acts as a
+  customer who cancels.
+- Go-live still needs: each shop's own till number and passkey (today one platform shortcode is used for all
+  workspaces), Safaricom production approval, and registering the C2B URLs per till.
+
 ## Not built yet (next steps, roughly in order)
 
-1. **M-Pesa**: STK push at the till and Daraja C2B confirmation; automatic subscription payment and activation.
-2. **KRA eTIMS** invoice signing (the biggest compliance gap for Kenyan shops).
-3. Cashier switch by PIN in the till UI (the API endpoint `POST /api/auth/pin` exists).
-4. Offline till (queue sales in IndexedDB, sync later).
-5. Operator console UI (only the API exists), trial-ending emails/WhatsApp nudges on day 5 and 7.
-6. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
-7. Accounting ledger (journal postings, P&L, balance sheet) — Moments Core already has this to port.
-8. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
-9. Automated tests (the RLS isolation test from DukaFlow should be ported first) and `.xlsx` import.
+1. **KRA eTIMS** invoice signing (the biggest compliance gap for Kenyan shops).
+2. Cashier switch by PIN in the till UI (the API endpoint `POST /api/auth/pin` exists).
+3. Offline till (queue sales in IndexedDB, sync later).
+4. Trial-ending emails/WhatsApp nudges on day 5 and 7.
+5. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
+6. Accounting ledger (journal postings, P&L, balance sheet).
+7. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
+8. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
 
 ## Local demo workspaces
 

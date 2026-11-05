@@ -50,6 +50,9 @@ public abstract class IntegrationTest {
         r.add("spring.flyway.password", () -> "");
         r.add("suite.demo.enabled", () -> "false");
         r.add("suite.login.max-failures", () -> "5");
+        r.add("suite.mpesa.mode", () -> "simulate");
+        r.add("suite.mpesa.simulate-delay-ms", () -> "300");
+        r.add("suite.mpesa.c2b-secret", () -> "test-c2b-secret");
     }
 
     @LocalServerPort
