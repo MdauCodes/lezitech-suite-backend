@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 
 @SpringBootApplication
+@org.springframework.scheduling.annotation.EnableScheduling
 public class SuiteApplication {
 
     public static void main(String[] args) throws Exception {

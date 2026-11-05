@@ -100,9 +100,28 @@ Off unless `MPESA_MODE` is set. Keys come only from environment variables; nothi
 - Go-live still needs: each shop's own till number and passkey (today one platform shortcode is used for all
   workspaces), Safaricom production approval, and registering the C2B URLs per till.
 
+## KRA eTIMS
+
+Every completed sale of a workspace that has a KRA PIN in Settings is sent for a signed invoice; every refund gets
+a credit note. The receipt prints the KRA invoice number, control-unit id, signature and QR code. If KRA can't be
+reached the sale still completes and the invoice waits in `etims_queue`, retried every minute (backing off to hourly).
+
+The till only talks to the `EtimsClient` interface (`src/main/java/.../etims`). Today the only client is a **stub**
+(`ETIMS_MODE=stub`) that returns numbers in the same shape, marked "TEST ONLY · not valid for tax"; the default
+`ETIMS_MODE=off` sends nothing. There are no public eTIMS sandbox keys, so the real client isn't written yet.
+
+To go live with OSCU (online, for most shops) or VSCU (high volume):
+1. Each shop's KRA PIN must be registered for eTIMS on the KRA iTax portal and the integrator (Lezitech) approved
+   as a third-party integrator, which gets access to the eTIMS sandbox and its test PINs.
+2. Initialise each device/branch with KRA (the eTIMS device initialisation call) to get the control-unit id and key; store them per
+   workspace/branch (encrypted).
+3. Write `OscuEtimsClient implements EtimsClient` mapping our invoice to KRA's sales call (item classification codes,
+   tax bands A–E: today 16% → B, 8% → E, 0% → C), plus item and stock-movement reporting that KRA also expects.
+4. Pass KRA's sandbox certification tests, then switch `ETIMS_MODE` to the real client.
+
 ## Not built yet (next steps, roughly in order)
 
-1. **KRA eTIMS** invoice signing (the biggest compliance gap for Kenyan shops).
+1. **KRA eTIMS real client** (OSCU/VSCU) — waiting on KRA sandbox access; see above.
 2. Cashier switch by PIN in the till UI (the API endpoint `POST /api/auth/pin` exists).
 3. Offline till (queue sales in IndexedDB, sync later).
 4. Trial-ending emails/WhatsApp nudges on day 5 and 7.

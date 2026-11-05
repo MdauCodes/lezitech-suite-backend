@@ -27,12 +27,14 @@ public class OrderService {
     private final JdbcTemplate jdbc;
     private final StockService stock;
     private final ApprovalService approvals;
+    private final com.lezitech.suite.etims.EtimsService etims;
 
-    public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals) {
+    public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
         this.db = db;
         this.jdbc = jdbc;
         this.stock = stock;
         this.approvals = approvals;
+        this.etims = etims;
     }
 
     /** An order from the till: prices, add-ons and discounts are checked against the caller's rights. */
@@ -357,6 +359,7 @@ public class OrderService {
             db.exec("UPDATE customers SET points = points + :p WHERE id = :id", "id", o.get("customerId"), "p", points);
         }
         db.exec("UPDATE appointments SET status = 'DONE' WHERE order_id = :id", "id", orderId);
+        etims.queue(orderId, "SALE");
     }
 
     /**
@@ -408,6 +411,7 @@ public class OrderService {
         db.exec("""
                 UPDATE orders SET status = 'REFUNDED', refunded_at = now(), refunded_by = :u,
                        note = concat_ws(' · ', note, :reason) WHERE id = :id""", "id", orderId, "reason", "Refunded: " + reason);
+        etims.queue(orderId, "CREDIT_NOTE");
     }
 
     /** Negative payment rows mirroring what was paid, net of anything already given back. */

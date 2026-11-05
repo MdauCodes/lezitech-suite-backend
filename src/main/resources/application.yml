@@ -52,6 +52,10 @@ suite:
     # One-click control-panel role logins; only ever on for local runs (embedded database).
     demo-logins: ${ADMIN_DEMO_LOGINS:${EMBEDDED_DB:true}}
   operator-key: ${OPERATOR_KEY:local-operator-key}
+  # KRA eTIMS: off | stub (test numbers, not valid for tax). The real OSCU/VSCU client needs KRA approval first.
+  etims:
+    mode: ${ETIMS_MODE:off}
+    retry-ms: ${ETIMS_RETRY_MS:60000}
   # M-Pesa (Safaricom Daraja). Off unless MPESA_MODE is set. Keys only ever come from env vars.
   # MPESA_MODE: off | sandbox | production | simulate (simulate = local demo, refused on a real database)
   mpesa:
