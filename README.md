@@ -122,13 +122,12 @@ To go live with OSCU (online, for most shops) or VSCU (high volume):
 ## Not built yet (next steps, roughly in order)
 
 1. **KRA eTIMS real client** (OSCU/VSCU) — waiting on KRA sandbox access; see above.
-2. Cashier switch by PIN in the till UI (the API endpoint `POST /api/auth/pin` exists).
-3. Offline till (queue sales in IndexedDB, sync later).
-4. Trial-ending emails/WhatsApp nudges on day 5 and 7.
-5. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
-6. Accounting ledger (journal postings, P&L, balance sheet).
-7. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
-8. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
+2. Offline till (queue sales in IndexedDB, sync later).
+3. Trial-ending emails/WhatsApp nudges on day 5 and 7.
+4. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
+5. Accounting ledger (journal postings, P&L, balance sheet).
+6. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
+7. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
 
 ## Local demo workspaces
 
@@ -199,6 +198,12 @@ any signed-in staff member.
 | Trips | Manager, Sales |
 | Rent and tenants | Manager, Accounts (new rentals: Manager) |
 | Refunds, price changes, discounts | Manager (or a cashier with a manager's PIN for prices and discounts) |
+
+## Switching cashier at the till
+
+On the till, "Switch cashier" lists staff who have a PIN; the next person taps their name and types their PIN
+(`POST /api/auth/pin`, rate-limited like the password login). The cart stays, and sales from then on are recorded under
+that person and their own cash drawer. PINs are set under Staff.
 
 ## Running it in production
 
