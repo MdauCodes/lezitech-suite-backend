@@ -37,6 +37,8 @@ public class AuthController {
 
     private final JdbcTemplate jdbc;
     private final PasswordEncoder encoder;
+    private final LoginThrottle throttle;
+    private final TokenVersions versions;
     private final JwtService jwt;
     private final SectorCatalog sectors;
     private final SeedService seeder;
@@ -44,9 +46,12 @@ public class AuthController {
     private final int trialDays;
 
     public AuthController(JdbcTemplate jdbc, PasswordEncoder encoder, JwtService jwt, SectorCatalog sectors,
-                          SeedService seeder, ObjectMapper json, @Value("${suite.trial-days}") int trialDays) {
+                          SeedService seeder, ObjectMapper json, @Value("${suite.trial-days}") int trialDays,
+                          LoginThrottle throttle, TokenVersions versions) {
         this.jdbc = jdbc;
         this.encoder = encoder;
+        this.throttle = throttle;
+        this.versions = versions;
         this.jwt = jwt;
         this.sectors = sectors;
         this.seeder = seeder;
@@ -148,14 +153,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Map<String, Object> login(@RequestBody Map<String, Object> raw) {
+    public Map<String, Object> login(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         Body b = new Body(raw);
+        String account = "login:" + b.str("email").toLowerCase();
+        throttle.check(account, req);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, tenant_id, name, role, password_hash, active FROM users WHERE email = ?",
                 b.str("email").toLowerCase());
         if (rows.isEmpty() || !encoder.matches(b.str("password"), (String) rows.get(0).get("password_hash"))) {
+            throttle.failed(account, req);
             throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
         }
+        throttle.succeeded(account);
         Map<String, Object> u = rows.get(0);
         if (!Boolean.TRUE.equals(u.get("active"))) {
             throw ApiException.forbidden("This account has been switched off by the owner");
@@ -165,18 +174,29 @@ public class AuthController {
 
     /** Hand the till to another staff member with their 4-digit PIN (cf. Odoo pos_hr cashier switch). */
     @PostMapping("/pin")
-    public Map<String, Object> pin(@RequestBody Map<String, Object> raw) {
+    public Map<String, Object> pin(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         Body b = new Body(raw);
         UUID tenantId = TenantContext.tenantId();
+        String account = "pin:" + b.str("userId");
+        throttle.check(account, req);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, name, role, pin_hash FROM users WHERE id = ? AND tenant_id = ? AND active",
                 UUID.fromString(b.str("userId")), tenantId);
         if (rows.isEmpty() || rows.get(0).get("pin_hash") == null
                 || !encoder.matches(b.str("pin"), (String) rows.get(0).get("pin_hash"))) {
+            throttle.failed(account, req);
             throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "BAD_PIN", "Wrong PIN");
         }
+        throttle.succeeded(account);
         Map<String, Object> u = rows.get(0);
         return session((UUID) u.get("id"), tenantId, (String) u.get("role"), (String) u.get("name"));
+    }
+
+    /** Silent renewal: a signed-in till swaps its token for a fresh one before it expires. */
+    @PostMapping("/refresh")
+    public Map<String, Object> refresh() {
+        TenantContext.Caller c = TenantContext.caller();
+        return Map.of("token", jwt.issue(c.userId(), c.tenantId(), c.role(), c.name(), versions.current(c.userId(), false)));
     }
 
     @GetMapping("/me")
@@ -188,7 +208,7 @@ public class AuthController {
     public Map<String, Object> session(UUID userId, UUID tenantId, String role, String name) {
         jdbc.update("UPDATE users SET last_login_at = now() WHERE id = ?", userId);
         Map<String, Object> out = profile(userId, tenantId);
-        out.put("token", jwt.issue(userId, tenantId, role, name));
+        out.put("token", jwt.issue(userId, tenantId, role, name, versions.current(userId, false)));
         return out;
     }
 

@@ -30,9 +30,12 @@ public class TeamController {
     private final Db db;
     private final PasswordEncoder encoder;
 
-    public TeamController(Db db, PasswordEncoder encoder) {
+    private final com.lezitech.suite.auth.TokenVersions versions;
+
+    public TeamController(Db db, PasswordEncoder encoder, com.lezitech.suite.auth.TokenVersions versions) {
         this.db = db;
         this.encoder = encoder;
+        this.versions = versions;
     }
 
     /** Managers who can approve a price change or discount at the till with their PIN. Names only. */
@@ -87,6 +90,10 @@ public class TeamController {
         if ("OWNER".equals(u.get("role")) && !"OWNER".equals(role)
                 && db.value("SELECT count(*) FROM users WHERE tenant_id = :t AND role = 'OWNER' AND active", Long.class) <= 1) {
             throw ApiException.bad("A workspace needs at least one owner");
+        }
+        if (!role.equals(u.get("role")) || !b.bool("active", true) || b.has("password")) {
+            // Their old logins stop working at once.
+            versions.bump(id, false);
         }
         db.exec("UPDATE users SET name = :name, role = :role, active = :active WHERE id = :id AND tenant_id = :t",
                 "id", id, "name", b.str("name", (String) u.get("name")), "role", role, "active", b.bool("active", true));

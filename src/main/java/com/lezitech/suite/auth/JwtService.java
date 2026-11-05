@@ -27,10 +27,11 @@ public class JwtService {
         this.ttlHours = ttlHours;
     }
 
-    public String issue(UUID userId, UUID tenantId, String role, String name) {
+    public String issue(UUID userId, UUID tenantId, String role, String name, int tokenVersion) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(userId.toString())
+                .claim("tv", tokenVersion)
                 .claim("tid", tenantId.toString())
                 .claim("role", role)
                 .claim("name", name)
@@ -41,10 +42,11 @@ public class JwtService {
     }
 
     /** Control-panel token for Lezitech staff; carries no tenant. */
-    public String issueAdmin(UUID adminId, String role, String name) {
+    public String issueAdmin(UUID adminId, String role, String name, int tokenVersion) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(adminId.toString())
+                .claim("tv", tokenVersion)
                 .claim("scope", "platform")
                 .claim("role", role)
                 .claim("name", name)
@@ -64,6 +66,16 @@ public class JwtService {
                     UUID.fromString(c.getSubject()), c.get("role", String.class), c.get("name", String.class)));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
+        }
+    }
+
+    /** The token_version a token was issued with (0 for tokens from before versions existed). */
+    public int versionOf(String token) {
+        try {
+            Integer v = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload().get("tv", Integer.class);
+            return v == null ? 0 : v;
+        } catch (JwtException | IllegalArgumentException e) {
+            return -1;
         }
     }
 

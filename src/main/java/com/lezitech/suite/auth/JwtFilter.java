@@ -16,9 +16,11 @@ import java.util.List;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwt;
+    private final TokenVersions versions;
 
-    public JwtFilter(JwtService jwt) {
+    public JwtFilter(JwtService jwt, TokenVersions versions) {
         this.jwt = jwt;
+        this.versions = versions;
     }
 
     @Override
@@ -27,12 +29,13 @@ public class JwtFilter extends OncePerRequestFilter {
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
-            jwt.parse(token).ifPresentOrElse(caller -> {
+            int tv = jwt.versionOf(token);
+            jwt.parse(token).filter(c -> versions.valid(c.userId(), false, tv)).ifPresentOrElse(caller -> {
                 TenantContext.set(caller);
                 var auth = new UsernamePasswordAuthenticationToken(caller, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + caller.role())));
                 SecurityContextHolder.getContext().setAuthentication(auth);
-            }, () -> jwt.parseAdmin(token).ifPresent(admin -> {
+            }, () -> jwt.parseAdmin(token).filter(a -> versions.valid(a.id(), true, tv)).ifPresent(admin -> {
                 com.lezitech.suite.admin.AdminContext.set(admin);
                 var auth = new UsernamePasswordAuthenticationToken(admin, null,
                         List.of(new SimpleGrantedAuthority("ROLE_PLATFORM")));

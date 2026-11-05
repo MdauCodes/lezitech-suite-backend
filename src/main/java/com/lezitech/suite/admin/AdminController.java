@@ -47,6 +47,8 @@ public class AdminController {
     private final JdbcTemplate jdbc;
     private final JwtService jwt;
     private final PasswordEncoder encoder;
+    private final com.lezitech.suite.auth.LoginThrottle throttle;
+    private final com.lezitech.suite.auth.TokenVersions versions;
     private final AdminService admin;
     private final AdminService.UsageReader usage;
     private final AuthController auth;
@@ -55,8 +57,11 @@ public class AdminController {
     private final ObjectMapper json;
 
     public AdminController(JdbcTemplate jdbc, JwtService jwt, PasswordEncoder encoder, AdminService admin,
-                           AdminService.UsageReader usage, AuthController auth, DemoService demos, SectorCatalog sectors, ObjectMapper json) {
+                           AdminService.UsageReader usage, AuthController auth, DemoService demos, SectorCatalog sectors, ObjectMapper json,
+                           com.lezitech.suite.auth.LoginThrottle throttle, com.lezitech.suite.auth.TokenVersions versions) {
         this.jdbc = jdbc;
+        this.throttle = throttle;
+        this.versions = versions;
         this.jwt = jwt;
         this.encoder = encoder;
         this.admin = admin;
@@ -79,14 +84,18 @@ public class AdminController {
     }
 
     @PostMapping("/auth/login")
-    public Map<String, Object> login(@RequestBody Map<String, Object> raw) {
+    public Map<String, Object> login(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         Body b = new Body(raw);
+        String account = "admin:" + b.str("email").toLowerCase();
+        throttle.check(account, req);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, name, role, password_hash, active FROM platform_admins WHERE email = ?", b.str("email").toLowerCase());
         if (rows.isEmpty() || !Boolean.TRUE.equals(rows.get(0).get("active"))
                 || !encoder.matches(b.str("password"), (String) rows.get(0).get("password_hash"))) {
+            throttle.failed(account, req);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
         }
+        throttle.succeeded(account);
         return adminSession(rows.get(0));
     }
 
@@ -118,7 +127,7 @@ public class AdminController {
         UUID id = (UUID) row.get("id");
         jdbc.update("UPDATE platform_admins SET last_login_at = now() WHERE id = ?", id);
         String role = (String) row.get("role");
-        return Map.of("token", jwt.issueAdmin(id, role, (String) row.get("name")),
+        return Map.of("token", jwt.issueAdmin(id, role, (String) row.get("name"), versions.current(id, true)),
                 "admin", Map.of("id", id.toString(), "name", row.get("name"), "role", role, "permissions", AdminContext.permissions(role)));
     }
 
@@ -448,6 +457,10 @@ public class AdminController {
         }
         if (id.equals(AdminContext.admin().id()) && (!"SUPERADMIN".equals(role) || !b.bool("active", true))) {
             throw ApiException.bad("You can't demote or switch off your own account");
+        }
+        Map<String, Object> before = jdbc.queryForMap("SELECT role, active FROM platform_admins WHERE id = ?", id);
+        if (!role.equals(before.get("role")) || b.bool("active", true) != Boolean.TRUE.equals(before.get("active"))) {
+            versions.bump(id, true);
         }
         jdbc.update("UPDATE platform_admins SET role = ?, active = ?, name = coalesce(?, name) WHERE id = ?",
                 role, b.bool("active", true), b.str("name", null), id);

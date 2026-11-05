@@ -30,7 +30,7 @@ management:
 suite:
   jwt:
     secret: ${JWT_SECRET:local-dev-secret-change-me-before-any-real-deploy-0123456789}
-    ttl-hours: 72
+    ttl-hours: ${JWT_TTL_HOURS:12}
   trial-days: ${TRIAL_DAYS:7}
   demo:
     # One-click demo workspaces per sector for pilots and sales demos.
