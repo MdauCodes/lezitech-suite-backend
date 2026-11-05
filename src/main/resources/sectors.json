@@ -67,7 +67,8 @@
       "property": false,
       "deposits": false,
       "orderBoard": true,
-      "publicMenu": true
+      "publicMenu": true,
+      "allowNegativeStock": true
     },
     "kpis": [
       "sales_today",
@@ -476,7 +477,8 @@
       "property": false,
       "deposits": true,
       "orderBoard": true,
-      "publicMenu": true
+      "publicMenu": true,
+      "allowNegativeStock": true
     },
     "kpis": [
       "occupancy_today",
@@ -836,7 +838,8 @@
       "property": false,
       "deposits": false,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "sales_today",
@@ -1102,7 +1105,8 @@
       "property": false,
       "deposits": false,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "sales_today",
@@ -1372,7 +1376,8 @@
       "property": false,
       "deposits": false,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "sales_today",
@@ -1643,7 +1648,8 @@
       "property": false,
       "deposits": false,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "sales_today",
@@ -1883,7 +1889,8 @@
       "property": false,
       "deposits": true,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "pipeline_value",
@@ -2078,7 +2085,8 @@
       "property": false,
       "deposits": true,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "departures_next_30",
@@ -2357,7 +2365,8 @@
       "property": true,
       "deposits": true,
       "orderBoard": false,
-      "publicMenu": false
+      "publicMenu": false,
+      "allowNegativeStock": false
     },
     "kpis": [
       "occupancy_rate",

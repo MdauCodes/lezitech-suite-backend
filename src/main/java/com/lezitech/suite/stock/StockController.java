@@ -65,6 +65,9 @@ public class StockController {
         UUID item = UUID.fromString(b.str("itemId"));
         UUID loc = b.has("locationId") ? UUID.fromString(b.str("locationId")) : stock.defaultLocation();
         BigDecimal counted = b.num("counted");
+        if (counted.signum() < 0) {
+            throw com.lezitech.suite.common.ApiException.bad("A count can't be below zero");
+        }
         BigDecimal current = db.value("SELECT qty FROM stock_levels WHERE item_id = :item AND location_id = :loc",
                 BigDecimal.class, "item", item, "loc", loc);
         BigDecimal delta = counted.subtract(current == null ? BigDecimal.ZERO : current);
@@ -97,6 +100,14 @@ public class StockController {
             lines++;
         }
         return Map.of("lines", lines);
+    }
+
+    /** Every batch of one item, including stock with no batch number. */
+    @GetMapping("/batches")
+    public List<Map<String, Object>> batches(@RequestParam UUID itemId) {
+        return db.list("""
+                SELECT b.*, l.name AS location_name FROM stock_batches b JOIN locations l ON l.id = b.location_id
+                WHERE b.item_id = :itemId ORDER BY b.expiry_date NULLS LAST""", "itemId", itemId);
     }
 
     /** Batches expiring within the given number of days (pharmacy, food). */

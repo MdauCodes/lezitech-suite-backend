@@ -102,14 +102,15 @@ public class PurchaseController {
         for (Map<String, Object> l : db.list("SELECT * FROM purchase_lines WHERE po_id = :id", "id", id)) {
             UUID itemId = UUID.fromString(l.get("itemId").toString());
             BigDecimal qty = (BigDecimal) l.get("qty");
-            stock.move(itemId, loc, qty, "RECEIVE", "PO " + id.toString().substring(0, 8), null);
-            db.exec("UPDATE items SET cost = :cost WHERE id = :itemId", "itemId", itemId, "cost", l.get("unitCost"));
+            // Record the batch first so the stock move finds batches and counts already in step.
             if (l.get("batchNo") != null) {
                 db.exec("""
                         INSERT INTO stock_batches (tenant_id, item_id, location_id, batch_no, expiry_date, qty)
                         VALUES (:t, :itemId, :loc, :batch, cast(:exp as date), :qty)""",
                         "itemId", itemId, "loc", loc, "batch", l.get("batchNo"), "exp", l.get("expiryDate"), "qty", qty);
             }
+            stock.move(itemId, loc, qty, "RECEIVE", "PO " + id.toString().substring(0, 8), null);
+            db.exec("UPDATE items SET cost = :cost WHERE id = :itemId", "itemId", itemId, "cost", l.get("unitCost"));
         }
         db.exec("UPDATE purchase_orders SET status = 'RECEIVED', received_at = now() WHERE id = :id", "id", id);
         if (p.get("supplierId") != null) {
