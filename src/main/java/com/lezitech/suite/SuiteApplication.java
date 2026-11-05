@@ -12,6 +12,12 @@ import java.sql.ResultSet;
 public class SuiteApplication {
 
     public static void main(String[] args) throws Exception {
+        if (System.getenv("DATABASE_URL") != null) {
+            // Real database: fail before connecting if the secrets are still the development ones.
+            com.lezitech.suite.config.StartupSafetyCheck.verify(false,
+                    System.getenv().getOrDefault("JWT_SECRET", com.lezitech.suite.config.StartupSafetyCheck.DEV_JWT_SECRET),
+                    System.getenv().getOrDefault("OPERATOR_KEY", com.lezitech.suite.config.StartupSafetyCheck.DEV_OPERATOR_KEY));
+        }
         startEmbeddedDatabaseIfLocal();
         SpringApplication.run(SuiteApplication.class, args);
     }

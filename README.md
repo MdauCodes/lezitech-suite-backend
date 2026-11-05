@@ -64,6 +64,9 @@ Or start `suite-api` and `suite-web` from the preview launcher.
 1. Postgres service. API env: `EMBEDDED_DB=false`, `DATABASE_URL=jdbc:postgresql://db:5432/suite`,
    `DATABASE_USERNAME=suite_app`, `DATABASE_PASSWORD=…`, `FLYWAY_USERNAME=<owner>`, `FLYWAY_PASSWORD=…`,
    `JWT_SECRET` (64+ random chars), `OPERATOR_KEY`, `CORS_ORIGINS=https://app.<domain>`.
+   The server **refuses to start** on a real database if `JWT_SECRET` is missing, shorter than 64 characters or the
+   development default, or if `OPERATOR_KEY` is missing, shorter than 24 characters or the default. Generate them with
+   `openssl rand -base64 64` and `openssl rand -hex 24`.
 2. First deploy runs the migrations; then run `db/production-setup.sql` once to give `suite_app` its password.
 3. Web: build arg `VITE_API_URL=https://api.<domain>`; nginx serves the SPA.
 4. Marketing: `https://app.<domain>/for/restaurant` (or retail, beauty, wholesale, pharmacy, services) is the
