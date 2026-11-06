@@ -122,11 +122,10 @@ To go live with OSCU (online, for most shops) or VSCU (high volume):
 ## Not built yet (next steps, roughly in order)
 
 1. **KRA eTIMS real client** (OSCU/VSCU) — waiting on KRA sandbox access; see above.
-2. Trial-ending emails/WhatsApp nudges on day 5 and 7.
-3. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
-4. Accounting ledger (journal postings, P&L, balance sheet).
-5. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
-6. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
+2. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
+3. Accounting ledger (journal postings, P&L, balance sheet).
+4. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
+5. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
 
 ## Local demo workspaces
 
@@ -217,6 +216,18 @@ the line dropped is never doubled. The server gives the real number and keeps th
 - Not offline: kitchen bills, M-Pesa prompts and "pay later" (they need the server). Typing an M-Pesa code works.
 - A sale the server refuses when it arrives (say, out of stock where selling below zero is blocked) waits under
   "See them" with the reason; fix it and press Try again. Only an owner or manager can remove one.
+
+## Trial reminders
+
+Every hour the API looks for trials ending soon and reminds the owner once on day 5 ("2 days left") and once on
+day 7 ("ends today"), with a link to Billing where they can pay by M-Pesa. Paying or demo workspaces are skipped.
+
+- Email: `EMAIL_PROVIDER` = `brevo` or `resend`, with `EMAIL_API_KEY`, `EMAIL_FROM` (a verified sender) and optionally
+  `EMAIL_FROM_NAME`; `APP_URL` is the web address used in the link; `SUPPORT_WHATSAPP` adds "WhatsApp us on …".
+  `log` writes emails to the log instead (local runs); `off` (default) sends none.
+- WhatsApp: there is no automatic WhatsApp sending. Each reminder also gets a ready message, and the control panel's
+  **Trial reminders** page lists them with an "Open WhatsApp" button (wa.me link to the workspace phone) and
+  "I sent it", which is written to the audit log. "Check now" runs the hourly check straight away.
 
 ## Running it in production
 

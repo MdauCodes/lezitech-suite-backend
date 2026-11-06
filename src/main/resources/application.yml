@@ -52,6 +52,15 @@ suite:
     # One-click control-panel role logins; only ever on for local runs (embedded database).
     demo-logins: ${ADMIN_DEMO_LOGINS:${EMBEDDED_DB:true}}
   operator-key: ${OPERATOR_KEY:local-operator-key}
+  # Where the web app lives (links in emails) and Lezitech's WhatsApp number shown to customers.
+  app-url: ${APP_URL:http://localhost:5320}
+  support-whatsapp: ${SUPPORT_WHATSAPP:}
+  # Trial reminder emails: EMAIL_PROVIDER off | log | brevo | resend (+ EMAIL_API_KEY, EMAIL_FROM).
+  email:
+    provider: ${EMAIL_PROVIDER:off}
+    api-key: ${EMAIL_API_KEY:}
+    from: ${EMAIL_FROM:}
+    from-name: ${EMAIL_FROM_NAME:Lezitech}
   # KRA eTIMS: off | stub (test numbers, not valid for tax). The real OSCU/VSCU client needs KRA approval first.
   etims:
     mode: ${ETIMS_MODE:off}
