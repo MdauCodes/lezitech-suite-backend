@@ -465,6 +465,18 @@ public class OrderService {
                 WHERE o.id = :orderId""", "orderId", orderId);
     }
 
+    /** A till that was offline sends its sale later; it keeps the time it really happened (up to a week back). */
+    public void markOffline(UUID orderId, java.time.Instant at) {
+        java.time.Instant now = java.time.Instant.now();
+        if (at.isAfter(now.plusSeconds(300)) || at.isBefore(now.minus(java.time.Duration.ofDays(7)))) {
+            throw ApiException.bad("Offline sales can only be sent within 7 days; check the till's date and time");
+        }
+        java.sql.Timestamp ts = java.sql.Timestamp.from(at);
+        db.exec("UPDATE orders SET offline = true, created_at = :at, closed_at = CASE WHEN closed_at IS NULL THEN NULL ELSE cast(:at AS timestamptz) END WHERE id = :id",
+                "id", orderId, "at", ts);
+        db.exec("UPDATE payments SET created_at = :at WHERE order_id = :id", "id", orderId, "at", ts);
+    }
+
     public Map<String, Object> detail(UUID orderId) {
         Map<String, Object> o = new LinkedHashMap<>(db.one("Order", """
                 SELECT o.*, t.label AS table_label, c.name AS customer_name, c.phone AS customer_phone, u.name AS user_name,

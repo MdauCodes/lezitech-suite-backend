@@ -43,7 +43,7 @@ public class OrderController {
                                           @RequestParam(required = false) LocalDate from,
                                           @RequestParam(required = false) LocalDate to) {
         return db.list("""
-                SELECT o.id, o.number, o.kind, o.channel, o.status, o.total, o.paid, o.created_at, o.closed_at,
+                SELECT o.id, o.number, o.kind, o.channel, o.status, o.total, o.paid, o.created_at, o.closed_at, o.offline,
                        t.label AS table_label, c.name AS customer_name, u.name AS user_name,
                        (SELECT string_agg(DISTINCT p.method, ', ') FROM payments p WHERE p.order_id = o.id) AS methods,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id) AS line_count
@@ -74,10 +74,15 @@ public class OrderController {
         }
         UUID id = orders.create(b);
         orders.bindKey(b, "sale", id);
-        if (!b.list("payments").isEmpty() || b.has("discount")) {
-            return orders.pay(id, b);
+        Map<String, Object> out = !b.list("payments").isEmpty() || b.has("discount") ? orders.pay(id, b) : orders.detail(id);
+        if (b.has("offlineAt")) {
+            // Rung up offline and sent when the internet came back: keep the real time of the sale.
+            orders.markOffline(id, b.instant("offlineAt"));
+            Map<String, Object> again = new java.util.LinkedHashMap<>(orders.detail(id));
+            again.put("change", out.get("change"));
+            return again;
         }
-        return orders.detail(id);
+        return out;
     }
 
     @PostMapping("/{id}/lines")

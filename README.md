@@ -122,12 +122,11 @@ To go live with OSCU (online, for most shops) or VSCU (high volume):
 ## Not built yet (next steps, roughly in order)
 
 1. **KRA eTIMS real client** (OSCU/VSCU) — waiting on KRA sandbox access; see above.
-2. Offline till (queue sales in IndexedDB, sync later).
-3. Trial-ending emails/WhatsApp nudges on day 5 and 7.
-4. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
-5. Accounting ledger (journal postings, P&L, balance sheet).
-6. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
-7. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
+2. Trial-ending emails/WhatsApp nudges on day 5 and 7.
+3. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
+4. Accounting ledger (journal postings, P&L, balance sheet).
+5. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
+6. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
 
 ## Local demo workspaces
 
@@ -204,6 +203,20 @@ any signed-in staff member.
 On the till, "Switch cashier" lists staff who have a PIN; the next person taps their name and types their PIN
 (`POST /api/auth/pin`, rate-limited like the password login). The cart stays, and sales from then on are recorded under
 that person and their own cash drawer. PINs are set under Staff.
+
+## Selling without internet
+
+Counter sales keep working when the internet drops. The sale is saved in the browser (IndexedDB), the receipt says
+"offline, number given when sent", and a strip at the top shows how many are waiting. When the connection is back
+(and every 20 seconds) they are sent oldest first with their checkout key, so a sale that did reach the server before
+the line dropped is never doubled. The server gives the real number and keeps the time the sale was made
+(`offlineAt`, at most 7 days back); such sales are tagged "offline" in Sales.
+
+- The products list and the signed-in person are kept on the device, and in the production build a service worker
+  (`public/sw.js`) keeps the app itself, so the till also opens after a reload without internet.
+- Not offline: kitchen bills, M-Pesa prompts and "pay later" (they need the server). Typing an M-Pesa code works.
+- A sale the server refuses when it arrives (say, out of stock where selling below zero is blocked) waits under
+  "See them" with the reason; fix it and press Try again. Only an owner or manager can remove one.
 
 ## Running it in production
 
