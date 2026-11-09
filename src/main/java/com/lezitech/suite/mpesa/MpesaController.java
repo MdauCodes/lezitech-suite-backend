@@ -93,6 +93,17 @@ public class MpesaController {
         return Map.of("ResultCode", 0, "ResultDesc", "Accepted");
     }
 
+    /** PayHero calls this when a prompt finishes. Unsigned, so it only triggers a status check with PayHero. */
+    @PostMapping("/api/public/payhero/{token}")
+    public Map<String, Object> payHeroCallback(@PathVariable String token) {
+        try {
+            mpesa.handlePayHeroCallback(token);
+        } catch (RuntimeException e) {
+            log.warn("PayHero callback check failed: {}", e.toString());
+        }
+        return Map.of("status", true);
+    }
+
     @PostMapping("/api/public/mpesa/c2b/{secret}/validation")
     public Map<String, Object> c2bValidation(@PathVariable String secret, @RequestBody JsonNode payload) {
         guard(secret);

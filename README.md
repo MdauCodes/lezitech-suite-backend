@@ -73,33 +73,70 @@ Or start `suite-api` and `suite-web` from the preview launcher.
 4. Marketing: `https://app.<domain>/for/restaurant` (or retail, beauty, wholesale, pharmacy, services) is the
    ad landing page for one sector; it pre-selects the pack at signup.
 
-## M-Pesa (Safaricom Daraja)
+## M-Pesa: each business's own Daraja or PayHero
 
-Off unless `MPESA_MODE` is set. Keys come only from environment variables; nothing is stored in the code.
+Money from a business's customers goes straight to that business. LeziTech never holds it. Each business picks one way
+for the till to send M-Pesa prompts, under **Settings → Payments** (owner only). The LeziTech team can also set this up
+from the control panel (workspace → Payments). That needs the `payments` permission, held by superadmin, admin and
+support. The two ways:
+
+- **Daraja (free, no middleman):** the business's own Daraja app from developer.safaricom.co.ke, with:
+  - environment: sandbox or production;
+  - type: Buy Goods **till** (store number + till number) or **paybill** (paybill number + optional account number);
+  - consumer key, consumer secret and Lipa na M-Pesa passkey.
+- **PayHero (faster, fewer steps):** the business's own PayHero account with its till or paybill linked as a payment
+  channel. It needs the API username and password (PayHero → Account → API Keys) and the channel ID.
+
+Turning one on turns the other off.
+
+"Test connection" does the following:
+- **Daraja:** signs in to Daraja. On production it also registers the C2B URLs, so payments made straight to the
+  till or paybill show up.
+- **PayHero:** reads the PayHero wallet.
+
+How keys are stored and shown:
+- Keys are encrypted with AES-256-GCM using `SECRETS_KEY` before they are saved (`integrations` table).
+- Screens only ever show the last four characters. Saving with a key left blank keeps the stored one.
+- The audit log records which keys changed, never their values.
+
+SMS uses the same pattern. Kind `SMS` holds an Africa's Talking username, sender ID and API key. "Test connection" reads
+the balance. Sending comes with the WhatsApp/SMS work.
 
 | Variable | What it is |
 |---|---|
-| `MPESA_MODE` | `off` (default), `sandbox`, `production`, or `simulate` (local practice: no money moves, refused on a real database) |
-| `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET` | From the Daraja app on developer.safaricom.co.ke |
-| `MPESA_SHORTCODE`, `MPESA_PASSKEY` | Till/paybill and its Lipa na M-Pesa passkey (sandbox: 174379 and the test passkey from the Daraja portal) |
-| `MPESA_CALLBACK_BASE` | Public https address of this API, e.g. `https://api.lezitech.co.ke`; Safaricom posts results there |
-| `MPESA_SUBSCRIPTION_SHORTCODE` | LeziTech's own paybill for plan payments (defaults to `MPESA_SHORTCODE`) |
-| `MPESA_C2B_SECRET` | Long random string; part of the C2B URLs so nobody else can post fake payments |
-| `MPESA_BASE_URL` | `https://sandbox.safaricom.co.ke` (default) or `https://api.safaricom.co.ke` |
+| `MPESA_MODE` | `off` (default), `on`, or `simulate` (local practice: no money moves; refused on a real database). `sandbox`/`production` from older setups mean `on`. |
+| `MPESA_CALLBACK_BASE` | Public https address of this API, e.g. `https://api.lezitech.site`. Safaricom and PayHero post results there. |
+| `MPESA_C2B_SECRET` | Long random string. It is part of the C2B URLs, so nobody else can post fake payments. |
+| `SECRETS_KEY` | `openssl rand -base64 32`. Required on a real database. Never change it once businesses have saved keys. |
+| `PAYHERO_USERNAME`, `PAYHERO_PASSWORD`, `PAYHERO_CHANNEL_ID` | **LeziTech's own** PayHero account. Businesses pay their Lezi Suite plan into it by prompt. |
+| `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY`, `MPESA_BASE_URL` | LeziTech's own Daraja paybill. Used for plan payments only when PayHero isn't set. |
 
-- **Till**: choose M-Pesa, type the customer's number, "Send prompt". The sale is marked paid only after Safaricom's
-  callback arrives, matches the request we sent (secret URL + checkout id) and the amount. Repeated callbacks are
-  recorded once. If the sale was closed meanwhile, the money is kept as "unapplied" for staff to refund or use.
-- **Direct till payments (C2B)**: register `MPESA_CALLBACK_BASE/api/public/mpesa/c2b/<MPESA_C2B_SECRET>/confirmation`
-  (and `/validation`) with Daraja. A workspace claims its till by setting `mpesaTill` in its settings. If the customer
-  typed the sale number as the account, the sale is paid automatically; otherwise it waits in
-  `GET /api/mpesa/till-payments` for staff to put on a sale.
-- **Plans**: Billing → "Pay now with M-Pesa" switches the plan on when Safaricom confirms. The manual request
-  ("Pay another way") and the control panel's billing queue still work as the fallback.
-- Locally, `.claude/launch.json` runs the API with `MPESA_MODE=simulate`; a phone ending in 9999 acts as a
-  customer who cancels.
-- Go-live still needs: each shop's own till number and passkey (today one platform shortcode is used for all
-  workspaces), Safaricom production approval, and registering the C2B URLs per till.
+**Till.** Choose M-Pesa, type the customer's number and press "Send prompt". The sale is marked paid only once the
+payment is confirmed:
+- **Daraja:** the callback arrives on a secret URL and matches the checkout ID and amount.
+- **PayHero:** PayHero's callbacks are unsigned, so they only trigger a call to `transaction-status`. The till's
+  polling asks PayHero too, in case no callback arrives.
+
+Repeated results are recorded once. If the sale was closed meanwhile, the money is kept as "unapplied" for staff to
+refund or use.
+
+**Direct till payments (C2B).** These reach Lezi Suite at `MPESA_CALLBACK_BASE/api/public/mpesa/c2b/<MPESA_C2B_SECRET>/confirmation`.
+A payment is matched to a business by its Daraja till, paybill or store number. If the customer typed the sale number
+as the account, the sale is paid automatically. Otherwise it waits in `GET /api/mpesa/till-payments` for staff.
+
+**Plans.** Billing → "Pay now with M-Pesa" sends a prompt from LeziTech's own PayHero account. The plan switches on
+once the payment is confirmed. The manual request ("Pay another way") and the control panel's billing queue still
+work as the fallback.
+
+**Local runs.** `.claude/launch.json` runs the API with `MPESA_MODE=simulate`. Every business can send prompts even
+with nothing set up, and a phone number ending in 9999 acts as a customer who cancels.
+
+**PayHero API.** The calls follow PayHero's v2 API as used by its official PHP package:
+- `POST /payments`
+- `GET /transaction-status?reference=`
+- `GET /wallets`
+
+The docs site needs a browser to read, so confirm the field names with one real sandbox payment before go-live.
 
 ## KRA eTIMS (switched off for now)
 

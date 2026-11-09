@@ -65,8 +65,13 @@ suite:
   etims:
     mode: ${ETIMS_MODE:off}
     retry-ms: ${ETIMS_RETRY_MS:60000}
-  # M-Pesa (Safaricom Daraja). Off unless MPESA_MODE is set. Keys only ever come from env vars.
-  # MPESA_MODE: off | sandbox | production | simulate (simulate = local demo, refused on a real database)
+  # Encrypts each business's payment and SMS keys (AES-256-GCM). 32 random bytes, base64: openssl rand -base64 32.
+  # Required on a real database; never change it once businesses have saved keys.
+  secrets-key: ${SECRETS_KEY:}
+  # M-Pesa prompts. MPESA_MODE: off | on | simulate (simulate = local demo, refused on a real database).
+  # Each business's till prompts use its own Daraja app or PayHero account (Settings, Payments).
+  # The MPESA_CONSUMER_KEY/SECRET/SHORTCODE/PASSKEY below are LeziTech's own paybill, used for plan payments
+  # only when PayHero isn't set.
   mpesa:
     mode: ${MPESA_MODE:off}
     base-url: ${MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
@@ -78,6 +83,11 @@ suite:
     subscription-shortcode: ${MPESA_SUBSCRIPTION_SHORTCODE:}
     c2b-secret: ${MPESA_C2B_SECRET:}
     simulate-delay-ms: ${MPESA_SIMULATE_DELAY_MS:4000}
+  # LeziTech's own PayHero account, for businesses paying their Lezi Suite plan by M-Pesa prompt.
+  payhero:
+    username: ${PAYHERO_USERNAME:}
+    password: ${PAYHERO_PASSWORD:}
+    channel-id: ${PAYHERO_CHANNEL_ID:0}
   cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320}
   # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.
   embedded-db:

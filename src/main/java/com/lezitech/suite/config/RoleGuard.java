@@ -40,6 +40,7 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(READS, "/api/team/(approvers|till-users|names)", "see who can approve", "MANAGER", "CASHIER", "WAITER", "KITCHEN", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),
             rule(ANY, "/api/team.*", "manage staff", "MANAGER"),
             rule(ANY, "/api/billing/.*", "see or change the plan", "MANAGER"),
+            rule(ANY, "/api/settings/payments.*", "see or change payment and SMS keys"),
             rule(WRITES, "/api/settings.*", "change settings"),
             // Reports with profit and totals
             rule(READS, "/api/reports/sales.*", "see sales reports", "MANAGER", "ACCOUNTANT"),

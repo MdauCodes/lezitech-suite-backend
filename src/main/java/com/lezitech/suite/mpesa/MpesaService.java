@@ -1,9 +1,9 @@
 package com.lezitech.suite.mpesa;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
+import com.lezitech.suite.integrations.IntegrationService;
 import com.lezitech.suite.sales.OrderService;
 import com.lezitech.suite.settings.PlanActivation;
 import com.lezitech.suite.tenant.TenantContext;
@@ -16,20 +16,27 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Lipa na M-Pesa for the till and for LeziTech subscriptions.
  *
- * Flow: the till asks for a prompt (STK push) -> the customer enters their PIN -> Safaricom posts
- * the result to a secret callback URL -> we check it against the request we sent (checkout id and
- * amount) and only then record the payment on the order, once. Direct till payments (C2B) are
- * stored and matched to an open order by its number when the customer typed it as the account.
+ * Till prompts go through the business's own account (Settings, Payments): its Daraja app for its till or
+ * paybill, or its PayHero account. Plan payments go through LeziTech's own account (see MpesaConfig).
+ *
+ * Flow: the till asks for a prompt (STK push) -> the customer enters their PIN -> the provider posts the
+ * result to a secret callback URL -> we check it against the request we sent and only then record the
+ * payment on the order, once. Daraja's callback carries the result; PayHero's isn't signed, so we ask
+ * PayHero for the status ourselves (also while the till is polling, in case the callback never arrives).
+ * Direct till payments (C2B) are stored and matched to an open order by its number when the customer
+ * typed it as the account.
  */
 @Service
 public class MpesaService {
@@ -42,31 +49,38 @@ public class MpesaService {
     private final OrderService orders;
     private final PlanActivation plans;
     private final TransactionTemplate tx;
-    private final MpesaGateway gateway;
+    private final IntegrationService integrations;
+    private final DarajaGateway daraja;
+    private final PayHeroGateway payHero;
+    private final SimulatedGateway simulator;
 
-    public MpesaService(MpesaConfig cfg, JdbcTemplate jdbc, OrderService orders, PlanActivation plans,
-                        PlatformTransactionManager txm, ObjectMapper json) {
+    public MpesaService(MpesaConfig cfg, JdbcTemplate jdbc, OrderService orders, PlanActivation plans, PlatformTransactionManager txm,
+                        IntegrationService integrations, DarajaGateway daraja, PayHeroGateway payHero) {
         this.cfg = cfg;
         this.jdbc = jdbc;
         this.orders = orders;
         this.plans = plans;
         this.tx = new TransactionTemplate(txm);
-        this.gateway = cfg.simulated()
-                ? new SimulatedGateway(cfg.simulateDelayMs, this::deliverSimulated)
-                : new DarajaGateway(cfg, json);
+        this.integrations = integrations;
+        this.daraja = daraja;
+        this.payHero = payHero;
+        this.simulator = new SimulatedGateway(cfg.simulateDelayMs, this::deliverSimulated);
     }
 
+    /** What the till needs to know: can it send prompts for this business, and through which provider. */
     public Map<String, Object> publicConfig() {
+        Optional<PayAccount> acct = cfg.enabled() ? integrations.tillAccount(TenantContext.tenantId()) : Optional.empty();
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("enabled", cfg.enabled());
+        m.put("enabled", cfg.simulated() || acct.isPresent());
         m.put("mode", cfg.mode());
         m.put("simulated", cfg.simulated());
+        m.put("provider", acct.map(PayAccount::provider).orElse(cfg.simulated() ? "SIMULATED" : null));
         return m;
     }
 
     // ---------------- STK push ----------------
 
-    /** Send a "pay with M-Pesa" prompt for what's still due on an open order (or part of it). */
+    /** Send a "pay with M-Pesa" prompt for what's still due on an open sale (or part of it). */
     public Map<String, Object> startOrderPayment(UUID orderId, String phoneRaw, BigDecimal amountOrNull) {
         requireEnabled();
         String phone = normalizePhone(phoneRaw);
@@ -86,19 +100,30 @@ public class MpesaService {
         if (amount.compareTo(due) > 0) {
             throw ApiException.bad("That's more than the KES " + due.toPlainString() + " still due");
         }
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "M-Pesa prompts aren't set up for this business yet. The owner can add the till or paybill under Settings, Payments, "
+                            + "or ask LeziTech to do it. For now, take the payment on your phone and type the M-Pesa code.");
+        }
         UUID id = insertRequest("ORDER", orderId, null, phone, amount);
-        return push(id, cfg.shortcode, phone, amount, "Sale " + o.get("number"), "Payment");
+        return push(id, acct.orElse(null), phone, amount, "Sale " + o.get("number"), "Payment");
     }
 
-    /** Owner pays for a plan from Billing. The plan switches on as soon as Safaricom confirms. */
+    /** Owner pays for a plan from Billing. The plan switches on as soon as the payment is confirmed. */
     public Map<String, Object> startSubscriptionPayment(UUID subscriptionRequestId, String phoneRaw) {
         requireEnabled();
         String phone = normalizePhone(phoneRaw);
         Map<String, Object> r = jdbc.queryForMap("SELECT amount, plan FROM subscription_requests WHERE id = ? AND tenant_id = ?",
                 subscriptionRequestId, TenantContext.tenantId());
+        PayAccount acct = cfg.subscriptionAccount();
+        if (acct == null && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "Paying by M-Pesa prompt isn't ready yet. Send the payment to LeziTech and tap I've paid, and we switch your plan on.");
+        }
         BigDecimal amount = (BigDecimal) r.get("amount");
         UUID id = insertRequest("SUBSCRIPTION", null, subscriptionRequestId, phone, amount);
-        return push(id, cfg.subscriptionShortcode, phone, amount, "Lezi Suite " + r.get("plan"), "LeziTech plan");
+        return push(id, acct, phone, amount, "LeziSuite " + r.get("plan"), "Lezi Suite plan");
     }
 
     private UUID insertRequest(String purpose, UUID orderId, UUID subId, String phone, BigDecimal amount) {
@@ -110,13 +135,21 @@ public class MpesaService {
                 TenantContext.tenantId(), purpose, orderId, subId, TenantContext.userId(), phone, amount, HexFormat.of().formatHex(b));
     }
 
-    private Map<String, Object> push(UUID id, String shortcode, String phone, BigDecimal amount, String ref, String desc) {
+    /** Send the prompt through the account (null only in local simulation). */
+    private Map<String, Object> push(UUID id, PayAccount acct, String phone, BigDecimal amount, String ref, String desc) {
         String token = jdbc.queryForObject("SELECT callback_token FROM mpesa_requests WHERE id = ?", String.class, id);
-        String callback = callbackBase() + "/api/public/mpesa/stk/" + token;
+        jdbc.update("UPDATE mpesa_requests SET provider = ? WHERE id = ?", acct == null ? "DARAJA" : acct.provider(), id);
         try {
-            MpesaGateway.StkResult res = gateway.stkPush(shortcode, phone, amount, ref, desc, callback);
-            jdbc.update("UPDATE mpesa_requests SET checkout_request_id = ?, merchant_request_id = ?, updated_at = now() WHERE id = ?",
-                    res.checkoutRequestId(), res.merchantRequestId(), id);
+            StkResult res;
+            if (cfg.simulated()) {
+                res = simulator.stkPush(phone, amount, token);
+            } else if (acct instanceof PayAccount.PayHero ph) {
+                res = payHero.stkPush(ph, phone, amount, id.toString(), callbackBase() + "/api/public/payhero/" + token);
+            } else {
+                res = daraja.stkPush((PayAccount.Daraja) acct, phone, amount, ref, desc, callbackBase() + "/api/public/mpesa/stk/" + token);
+            }
+            jdbc.update("UPDATE mpesa_requests SET checkout_request_id = ?, merchant_request_id = ?, provider_ref = ?, updated_at = now() WHERE id = ?",
+                    res.checkoutRequestId(), res.merchantRequestId(), res.providerRef(), id);
         } catch (ApiException e) {
             jdbc.update("UPDATE mpesa_requests SET status = 'FAILED', result_desc = ?, updated_at = now() WHERE id = ?", e.getMessage(), id);
             throw e;
@@ -124,11 +157,24 @@ public class MpesaService {
         return status(id);
     }
 
-    /** What the till polls while the customer is entering their PIN. */
+    /** What the till polls while the customer is entering their PIN. PayHero prompts are re-checked with PayHero every few seconds. */
     public Map<String, Object> status(UUID id) {
+        if (!cfg.simulated()) {
+            List<Map<String, Object>> pending = jdbc.queryForList("""
+                    SELECT * FROM mpesa_requests WHERE id = ? AND tenant_id = ? AND status = 'PENDING' AND provider = 'PAYHERO'
+                      AND provider_ref IS NOT NULL AND updated_at < now() - interval '4 seconds'""", id, TenantContext.tenantId());
+            if (!pending.isEmpty()) {
+                jdbc.update("UPDATE mpesa_requests SET updated_at = now() WHERE id = ?", id);
+                try {
+                    recheckPayHero(pending.get(0));
+                } catch (RuntimeException e) {
+                    log.info("PayHero status check for {} failed: {}", id, e.getMessage());
+                }
+            }
+        }
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT id, purpose, order_id AS "orderId", subscription_request_id AS "subscriptionRequestId", phone, amount, status,
-                       receipt, result_desc AS "message", created_at AS "createdAt"
+                       receipt, result_desc AS "message", provider, created_at AS "createdAt"
                 FROM mpesa_requests WHERE id = ? AND tenant_id = ?""", id, TenantContext.tenantId());
         if (rows.isEmpty()) {
             throw ApiException.notFound("M-Pesa request");
@@ -136,7 +182,7 @@ public class MpesaService {
         return rows.get(0);
     }
 
-    /** The cashier gave up waiting. A late success from Safaricom is still recorded. */
+    /** The cashier gave up waiting. A late success is still recorded. */
     public Map<String, Object> cancel(UUID id) {
         jdbc.update("""
                 UPDATE mpesa_requests SET status = 'CANCELLED', result_desc = 'Stopped waiting at the till', updated_at = now()
@@ -156,14 +202,10 @@ public class MpesaService {
             return;
         }
         Map<String, Object> r = rows.get(0);
-        UUID id = (UUID) r.get("id");
-        String checkout = cb.path("CheckoutRequestID").asText();
-        if (!checkout.equals(r.get("checkout_request_id"))) {
-            log.warn("M-Pesa callback for request {} has a different checkout id, ignored", id);
+        if (!cb.path("CheckoutRequestID").asText().equals(r.get("checkout_request_id"))) {
+            log.warn("M-Pesa callback for request {} has a different checkout id, ignored", r.get("id"));
             return;
         }
-        int code = cb.path("ResultCode").asInt(-1);
-        String desc = cb.path("ResultDesc").asText("");
         String receipt = null;
         BigDecimal paidAmount = null;
         for (JsonNode item : cb.path("CallbackMetadata").path("Item")) {
@@ -173,13 +215,44 @@ public class MpesaService {
                 default -> { }
             }
         }
+        settle(r, cb.path("ResultCode").asInt(-1), cb.path("ResultDesc").asText(""), receipt, paidAmount);
+    }
+
+    /** PayHero's callback: unsigned, so it only tells us to ask PayHero for the real status. */
+    public void handlePayHeroCallback(String token) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM mpesa_requests WHERE callback_token = ? AND provider = 'PAYHERO' AND status = 'PENDING'", token);
+        if (!rows.isEmpty()) {
+            recheckPayHero(rows.get(0));
+        }
+    }
+
+    private void recheckPayHero(Map<String, Object> r) {
+        String ref = (String) r.get("provider_ref");
+        PayAccount.PayHero acct = "SUBSCRIPTION".equals(r.get("purpose"))
+                ? (cfg.subscriptionAccount() instanceof PayAccount.PayHero p ? p : null)
+                : integrations.payHeroAccount((UUID) r.get("tenant_id")).orElse(null);
+        if (ref == null || acct == null) {
+            return;
+        }
+        PayHeroGateway.Status st = payHero.status(acct, ref);
+        switch (st.state()) {
+            case "PAID" -> settle(r, 0, "Paid", st.receipt() == null ? ref : st.receipt(),
+                    st.amount() == null ? (BigDecimal) r.get("amount") : st.amount());
+            case "CANCELLED" -> settle(r, 1032, st.message(), null, null);
+            case "FAILED" -> settle(r, 1, st.message(), null, null);
+            default -> { }
+        }
+    }
+
+    /** Record a provider's final answer for a prompt, once. Code 0 is paid; 1032 is the customer cancelling. */
+    private void settle(Map<String, Object> r, int code, String desc, String receipt, BigDecimal paidAmount) {
+        UUID id = (UUID) r.get("id");
         UUID tenant = (UUID) r.get("tenant_id");
         UUID user = (UUID) r.get("user_id");
-        final String rec = receipt;
-        final BigDecimal amt = paidAmount;
         // Claim the result first, so a repeated callback can't record the money twice.
         int claimed = jdbc.update("UPDATE mpesa_requests SET result_code = ?, result_desc = ?, receipt = ?, updated_at = now() WHERE id = ? AND result_code IS NULL",
-                code, desc, rec, id);
+                code, desc, receipt, id);
         if (claimed == 0) {
             return;
         }
@@ -188,52 +261,46 @@ public class MpesaService {
             return;
         }
         BigDecimal expected = (BigDecimal) r.get("amount");
-        // Daraja charges whole shillings (rounded up), so it may be a few cents above what we asked.
-        if (amt == null || amt.compareTo(expected.setScale(0, java.math.RoundingMode.FLOOR)) < 0) {
+        // Prompts charge whole shillings (rounded up), so it may be a few cents above what we asked.
+        if (paidAmount == null || paidAmount.compareTo(expected.setScale(0, RoundingMode.FLOOR)) < 0) {
             jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
-                    "Paid " + (amt == null ? "?" : amt.toPlainString()) + " but " + expected.toPlainString() + " was asked; check and record it by hand", id);
+                    "Paid " + (paidAmount == null ? "?" : paidAmount.toPlainString()) + " but " + expected.toPlainString() + " was asked; check and record it by hand", id);
             return;
         }
         if ("SUBSCRIPTION".equals(r.get("purpose"))) {
             tx.executeWithoutResult(s -> {
-                plans.activate((UUID) r.get("subscription_request_id"), "MPESA", rec);
+                plans.activate((UUID) r.get("subscription_request_id"), "MPESA", receipt);
                 jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
             });
-            log.info("Plan activated by M-Pesa {} for tenant {}", rec, tenant);
+            log.info("Plan activated by M-Pesa {} for tenant {}", receipt, tenant);
             return;
         }
         UUID orderId = (UUID) r.get("order_id");
         try {
             TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
-                orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", expected, "reference", rec)))));
+                orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", expected, "reference", receipt)))));
                 jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
                 return null;
             }));
         } catch (RuntimeException e) {
             // e.g. the sale was paid in cash meanwhile. Keep the money visible so staff can refund or apply it.
-            log.warn("M-Pesa {} confirmed but couldn't be put on order {}: {}", rec, orderId, e.getMessage());
+            log.warn("M-Pesa {} confirmed but couldn't be put on order {}: {}", receipt, orderId, e.getMessage());
             jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
                     "Money received but the sale was already closed (" + e.getMessage() + "). Refund the customer or use it on another sale.", id);
         }
     }
 
-    private void deliverSimulated(SimulatedGateway.SimulatedCallback c) {
-        String token = c.callbackUrl().substring(c.callbackUrl().lastIndexOf('/') + 1);
-        Map<String, Object> stk = new LinkedHashMap<>();
-        stk.put("MerchantRequestID", c.merchantRequestId());
-        stk.put("CheckoutRequestID", c.checkoutRequestId());
-        stk.put("ResultCode", c.success() ? 0 : 1032);
-        stk.put("ResultDesc", c.success() ? "The service request is processed successfully." : "Request cancelled by user");
-        if (c.success()) {
-            stk.put("CallbackMetadata", Map.of("Item", List.of(
-                    Map.of("Name", "Amount", "Value", c.amount().setScale(0, java.math.RoundingMode.CEILING)),
-                    Map.of("Name", "MpesaReceiptNumber", "Value", c.receipt()),
-                    Map.of("Name", "PhoneNumber", "Value", c.phone()))));
-        }
+    private void deliverSimulated(SimulatedGateway.SimulatedResult c) {
         try {
-            handleStkCallback(token, new ObjectMapper().valueToTree(Map.of("Body", Map.of("stkCallback", stk))));
+            List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM mpesa_requests WHERE callback_token = ?", c.callbackToken());
+            if (rows.isEmpty()) {
+                return;
+            }
+            settle(rows.get(0), c.success() ? 0 : 1032,
+                    c.success() ? "The service request is processed successfully." : "Request cancelled by user",
+                    c.success() ? c.receipt() : null, c.success() ? c.amount().setScale(0, RoundingMode.CEILING) : null);
         } catch (RuntimeException e) {
-            log.warn("Simulated M-Pesa callback failed: {}", e.toString());
+            log.warn("Simulated M-Pesa result failed: {}", e.toString());
         }
     }
 
@@ -252,7 +319,7 @@ public class MpesaService {
         BigDecimal amount = new BigDecimal(p.path("TransAmount").asText("0"));
         String shortcode = p.path("BusinessShortCode").asText();
         String billRef = p.path("BillRefNumber").asText("").trim();
-        List<UUID> tenants = jdbc.queryForList("SELECT id FROM tenants WHERE settings->>'mpesaTill' = ?", UUID.class, shortcode);
+        List<UUID> tenants = integrations.tenantsForShortcode(shortcode);
         UUID tenant = tenants.size() == 1 ? tenants.get(0) : null;
         String payer = (p.path("FirstName").asText("") + " " + p.path("LastName").asText("")).trim();
         List<UUID> inserted = jdbc.queryForList("""
@@ -327,11 +394,8 @@ public class MpesaService {
     }
 
     private String callbackBase() {
-        if (cfg.simulated()) {
-            return "http://simulator";
-        }
         if (cfg.callbackBase.isBlank()) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP", "MPESA_CALLBACK_BASE isn't set, so Safaricom couldn't tell us the result.");
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP", "MPESA_CALLBACK_BASE isn't set, so M-Pesa couldn't tell us the result.");
         }
         return cfg.callbackBase.replaceAll("/+$", "");
     }

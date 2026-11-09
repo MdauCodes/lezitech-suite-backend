@@ -17,7 +17,8 @@ public class SuiteApplication {
             // Real database: fail before connecting if the secrets are still the development ones.
             com.lezitech.suite.config.StartupSafetyCheck.verify(false,
                     System.getenv().getOrDefault("JWT_SECRET", com.lezitech.suite.config.StartupSafetyCheck.DEV_JWT_SECRET),
-                    System.getenv().getOrDefault("OPERATOR_KEY", com.lezitech.suite.config.StartupSafetyCheck.DEV_OPERATOR_KEY));
+                    System.getenv().getOrDefault("OPERATOR_KEY", com.lezitech.suite.config.StartupSafetyCheck.DEV_OPERATOR_KEY),
+                    System.getenv().getOrDefault("SECRETS_KEY", ""));
         }
         startEmbeddedDatabaseIfLocal();
         SpringApplication.run(SuiteApplication.class, args);
