@@ -31,7 +31,7 @@ public interface EmailSender {
         @Override
         public void send(Email e) {
             sent.add(e);
-            log.info("Email (not sent, EMAIL_PROVIDER=log) to {}: {}", e.to(), e.subject());
+            log.info("Email (not sent, EMAIL_PROVIDER=log) to {}: {}\n{}", e.to(), e.subject(), e.text());
         }
 
         @Override

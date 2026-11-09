@@ -187,7 +187,8 @@ public class AdminController {
         return jdbc.queryForList("""
                 SELECT t.id, t.slug, t.name, t.sector, t.sub_sector, t.status, t.plan, t.trial_ends_at, t.paid_until, t.created_at,
                        t.last_active_at, t.phone, t.brand_color, t.logo_url, t.is_demo,
-                       CASE WHEN t.status = 'TRIAL' AND t.trial_ends_at <= now() THEN 'EXPIRED'
+                       CASE WHEN t.in_setup THEN 'SETUP'
+                            WHEN t.status = 'TRIAL' AND t.trial_ends_at <= now() THEN 'EXPIRED'
                             WHEN t.status = 'ACTIVE' AND t.paid_until < now() THEN 'LAPSED' ELSE t.status END AS state,
                        (SELECT email FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' ORDER BY created_at LIMIT 1) AS owner_email,
                        (SELECT count(*) FROM users u WHERE u.tenant_id = t.id) AS users,
@@ -209,7 +210,7 @@ public class AdminController {
         AdminContext.require("read");
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until, created_at, last_active_at,
-                       phone, brand_color, logo_url, currency, is_demo, admin_note, display_key, settings::text AS settings FROM tenants WHERE id = ?""", id);
+                       phone, brand_color, logo_url, currency, is_demo, admin_note, display_key, in_setup, handed_over_at, settings::text AS settings FROM tenants WHERE id = ?""", id);
         if (rows.isEmpty()) {
             throw ApiException.notFound("Workspace");
         }

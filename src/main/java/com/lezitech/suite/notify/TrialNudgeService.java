@@ -1,9 +1,7 @@
 package com.lezitech.suite.notify;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -29,38 +27,24 @@ public class TrialNudgeService {
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("EEEE d MMMM").withZone(ZoneId.of("Africa/Nairobi"));
 
     private final JdbcTemplate jdbc;
+    private final Mailer mailer;
     private final String appUrl;
     private final String support;
-    private EmailSender email;
 
-    public TrialNudgeService(JdbcTemplate jdbc, ObjectMapper json,
-                             @Value("${suite.email.provider:off}") String provider,
-                             @Value("${suite.email.api-key:}") String apiKey,
-                             @Value("${suite.email.from:}") String from,
-                             @Value("${suite.email.from-name:LeziTech}") String fromName,
-                             @Value("${suite.app-url:http://localhost:5320}") String appUrl,
-                             @Value("${suite.support-whatsapp:}") String support) {
+    public TrialNudgeService(JdbcTemplate jdbc, Mailer mailer) {
         this.jdbc = jdbc;
-        this.appUrl = appUrl.replaceAll("/+$", "");
-        this.support = support;
-        this.email = switch (provider) {
-            case "log" -> new EmailSender.LogSender();
-            case "brevo" -> apiKey.isBlank() || from.isBlank() ? null : new EmailSender.BrevoSender(apiKey, from, fromName, json);
-            case "resend" -> apiKey.isBlank() || from.isBlank() ? null : new EmailSender.ResendSender(apiKey, from, fromName, json);
-            default -> null;
-        };
-        if (email == null && !"off".equals(provider)) {
-            log.warn("EMAIL_PROVIDER={} needs EMAIL_API_KEY and EMAIL_FROM; trial emails are off (WhatsApp reminders still prepared)", provider);
-        }
+        this.mailer = mailer;
+        this.appUrl = mailer.appUrl();
+        this.support = mailer.support();
     }
 
     /** For tests: swap the email service. */
     public void useSender(EmailSender sender) {
-        this.email = sender;
+        mailer.useSender(sender);
     }
 
     public EmailSender sender() {
-        return email;
+        return mailer.sender();
     }
 
     @Scheduled(fixedDelayString = "${suite.nudges.every-ms:3600000}", initialDelay = 60000)
@@ -71,7 +55,7 @@ public class TrialNudgeService {
                        (SELECT u.email FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS email,
                        (SELECT u.name FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS owner
                 FROM tenants t
-                WHERE t.status = 'TRIAL' AND NOT t.is_demo
+                WHERE t.status = 'TRIAL' AND NOT t.is_demo AND NOT t.in_setup
                   AND t.trial_ends_at <= now() + interval '2 days' AND t.trial_ends_at > now() - interval '1 day'""");
         for (Map<String, Object> t : due) {
             Instant ends = ((Timestamp) t.get("trial_ends_at")).toInstant();
@@ -118,13 +102,14 @@ public class TrialNudgeService {
         }
         String status;
         String error = null;
+        EmailSender email = mailer.sender();
         if (email == null) {
             status = "OFF";
         } else if (to == null || to.isBlank()) {
             status = "NO_EMAIL";
         } else {
             try {
-                email.send(new EmailSender.Email(to, owner, subject, text, html));
+                email.send(new EmailSender.Email(to, owner, subject, text, mailer.layout(html)));
                 status = "SENT";
             } catch (RuntimeException e) {
                 status = "FAILED";
