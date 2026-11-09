@@ -34,6 +34,8 @@ public class CatalogController {
 
     private final Db db;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanLimits limits;
     public CatalogController(Db db) {
         this.db = db;
     }
@@ -96,6 +98,7 @@ public class CatalogController {
     @PostMapping("/items")
     public Map<String, Object> createItem(@RequestBody Map<String, Object> raw) {
         TenantContext.requireRole("MANAGER");
+        limits.checkItems(1);
         UUID id = db.insert("""
                 INSERT INTO items (tenant_id, name, kind) VALUES (:t, :name, :kind) RETURNING id""",
                 "name", new Body(raw).str("name"), "kind", new Body(raw).str("kind", "PRODUCT"));
@@ -145,6 +148,7 @@ public class CatalogController {
             throw ApiException.bad("Import up to 5,000 rows at a time");
         }
         UUID loc = db.value("SELECT id FROM locations WHERE is_default LIMIT 1", UUID.class);
+        long itemCount = limits.items();
         Map<String, UUID> cats = new HashMap<>();
         db.list("SELECT id, name FROM categories").forEach(r ->
                 cats.put(r.get("name").toString().toLowerCase(), UUID.fromString(r.get("id").toString())));
@@ -168,6 +172,7 @@ public class CatalogController {
                     UUID.class, "name", b.str("name"), "barcode", b.str("barcode", null));
             UUID id;
             if (existing == null) {
+                limits.checkItems(itemCount++, 1);
                 id = db.insert("INSERT INTO items (tenant_id, name, kind) VALUES (:t, :name, :kind) RETURNING id",
                         "name", b.str("name"), "kind", b.str("kind", "PRODUCT").toUpperCase());
                 created++;
@@ -212,6 +217,9 @@ public class CatalogController {
     public Map<String, Object> createLocation(@RequestBody Map<String, Object> raw) {
         TenantContext.requireRole("MANAGER");
         Body b = new Body(raw);
+        if (!b.has("parentId")) {
+            limits.checkLocations(1); // a store inside a branch doesn't count as another branch
+        }
         UUID id = db.insert("""
                 INSERT INTO locations (tenant_id, name, kind, parent_id) VALUES (:t, :name, :kind, :parentId) RETURNING id""",
                 "name", b.str("name"), "kind", b.str("kind", "SHOP"),

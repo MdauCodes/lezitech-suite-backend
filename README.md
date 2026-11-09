@@ -122,7 +122,7 @@ To go live with OSCU (online, for most shops) or VSCU (high volume):
 ## Not built yet (next steps, roughly in order)
 
 1. **KRA eTIMS real client** (OSCU/VSCU) — waiting on KRA sandbox access; see above.
-2. Plan limits enforcement (users/locations per plan), per-location prices, shop-requests-stock-from-store flow.
+2. Per-location prices; shop-requests-stock-from-store flow.
 3. Accounting ledger (journal postings, P&L, balance sheet).
 4. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
 5. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
@@ -228,6 +228,20 @@ day 7 ("ends today"), with a link to Billing where they can pay by M-Pesa. Payin
 - WhatsApp: there is no automatic WhatsApp sending. Each reminder also gets a ready message, and the control panel's
   **Trial reminders** page lists them with an "Open WhatsApp" button (wa.me link to the workspace phone) and
   "I sent it", which is written to the audit log. "Check now" runs the hourly check straight away.
+
+## Plan limits
+
+| Plan | People who can sign in | Branches | Products and services |
+|---|---|---|---|
+| Lite | 2 | 1 | 500 |
+| Growth | 8 | 3 | 5,000 |
+| Pro | 30 | 10 | unlimited |
+
+Checked in the API (`PlanLimits`) when adding or switching back on a staff member, adding a branch (a store inside
+a branch doesn't count) and adding or importing products. Going over is refused with `PLAN_LIMIT` and a message
+naming the plan that allows more; the web app shows it in a window with "See plans" for the owner. During the free
+trial Pro's limits apply. Nothing already there is removed when a plan is smaller; only new additions are stopped.
+Your plan (Billing) shows "used of limit" for each.
 
 ## Running it in production
 

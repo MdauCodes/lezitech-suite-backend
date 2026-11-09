@@ -32,6 +32,9 @@ public class TeamController {
 
     private final com.lezitech.suite.auth.TokenVersions versions;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanLimits limits;
+
     public TeamController(Db db, PasswordEncoder encoder, com.lezitech.suite.auth.TokenVersions versions) {
         this.db = db;
         this.encoder = encoder;
@@ -75,6 +78,7 @@ public class TeamController {
         if (Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM users WHERE email = :e)", Boolean.class, "e", email))) {
             throw ApiException.conflict("That email is already in use");
         }
+        limits.checkUsers(1);
         String password = b.str("password");
         if (password.length() < 8) {
             throw ApiException.bad("Use a password of at least 8 characters");
@@ -96,6 +100,9 @@ public class TeamController {
         if ("OWNER".equals(u.get("role")) && !"OWNER".equals(role)
                 && db.value("SELECT count(*) FROM users WHERE tenant_id = :t AND role = 'OWNER' AND active", Long.class) <= 1) {
             throw ApiException.bad("A workspace needs at least one owner");
+        }
+        if (!Boolean.TRUE.equals(u.get("active")) && b.bool("active", true)) {
+            limits.checkUsers(1); // switching someone back on counts again
         }
         if (!role.equals(u.get("role")) || !b.bool("active", true) || b.has("password")) {
             // Their old logins stop working at once.

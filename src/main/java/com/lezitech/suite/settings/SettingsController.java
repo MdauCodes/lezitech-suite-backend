@@ -22,16 +22,18 @@ public class SettingsController {
 
     /** Monthly KES prices; annual prepay gets two months free. */
     public static final List<Map<String, Object>> PLANS = List.of(
-            Map.of("code", "LITE", "name", "Lite", "monthly", 2000, "users", 2, "locations", 1,
+            Map.of("code", "LITE", "name", "Lite", "monthly", 2000, "users", 2, "locations", 1, "items", 500,
                     "blurb", "One product (POS, CRM or ERP), 1 location, 2 users"),
-            Map.of("code", "GROWTH", "name", "Growth", "monthly", 4500, "users", 8, "locations", 3,
+            Map.of("code", "GROWTH", "name", "Growth", "monthly", 4500, "users", 8, "locations", 3, "items", 5000,
                     "blurb", "Any two products, 3 locations, 8 users, spreadsheet import"),
-            Map.of("code", "PRO", "name", "Pro", "monthly", 9000, "users", 30, "locations", 10,
+            Map.of("code", "PRO", "name", "Pro", "monthly", 9000, "users", 30, "locations", 10, "items", 0,
                     "blurb", "POS + CRM + ERP, 10 locations, 30 users, priority support"));
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final SectorCatalog sectors;
+    @org.springframework.beans.factory.annotation.Autowired
+    private PlanLimits limits;
 
     public SettingsController(JdbcTemplate jdbc, ObjectMapper json, SectorCatalog sectors) {
         this.jdbc = jdbc;
@@ -75,9 +77,10 @@ public class SettingsController {
     }
 
     @GetMapping("/api/billing/plans")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true) // usage counts need the workspace's row-level security set
     public Map<String, Object> plans() {
         TenantContext.caller();
-        return Map.of("plans", PLANS, "requests", jdbc.queryForList("""
+        return Map.of("plans", PLANS, "usage", limits.usage(), "requests", jdbc.queryForList("""
                 SELECT plan, billing_cycle, amount, status, created_at FROM subscription_requests
                 WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId()));
     }
