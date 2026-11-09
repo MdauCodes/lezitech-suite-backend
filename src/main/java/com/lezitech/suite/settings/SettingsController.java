@@ -67,8 +67,8 @@ public class SettingsController {
     @PostMapping("/api/settings/reset-modules")
     public Map<String, Object> resetModules() {
         TenantContext.requireRole("OWNER");
-        String sector = jdbc.queryForObject("SELECT sector FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
-        var pack = sectors.get(sector);
+        var t = jdbc.queryForMap("SELECT sector, sub_sector FROM tenants WHERE id = ?", TenantContext.tenantId());
+        var pack = sectors.get((String) t.get("sector"), (String) t.get("sub_sector"));
         var patch = json.createObjectNode();
         patch.set("modules", pack.get("modules"));
         patch.set("features", pack.get("features"));

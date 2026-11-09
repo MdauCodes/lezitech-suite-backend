@@ -100,7 +100,8 @@ public class AuthController {
             throw ApiException.conflict("That email already has a workspace. Sign in instead.");
         }
         String business = b.str("businessName");
-        JsonNode pack = sectors.get(b.str("sector"));
+        // The pack personalised for the chosen sub-sector (its own wording, features, KPIs and sample items).
+        JsonNode pack = sectors.get(b.str("sector"), b.str("subSector", null));
         if (fixedSlug == null && Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT exists(SELECT 1 FROM platform_settings WHERE key = 'disabled_sectors' AND value @> to_jsonb(cast(? as text)))""", Boolean.class, pack.get("key").asText()))) {
             throw ApiException.bad("Signups for this kind of business are paused. Please contact LeziTech.");
@@ -139,6 +140,10 @@ public class AuthController {
             settings.put("accentColor", accent);
         }
         settings.put("address", b.str("address", ""));
+        // Answers to the sub-sector's setup questions (e.g. "Do you sell by weight?"), to tailor the workspace later.
+        if (raw.get("setupAnswers") instanceof Map<?, ?> answers && !answers.isEmpty()) {
+            settings.set("setupAnswers", json.valueToTree(answers));
+        }
         settings.put("kraPin", b.str("kraPin", "").toUpperCase());
         settings.put("tagline", b.str("tagline", ""));
         String logo = b.str("logoUrl", null);
@@ -153,7 +158,7 @@ public class AuthController {
         jdbc.update("""
                 INSERT INTO tenants (id, slug, name, sector, sub_sector, products, trial_ends_at, brand_color, logo_url, phone, settings)
                 VALUES (?, ?, ?, ?, ?, cast(? as text[]), ?, ?, ?, ?, cast(? as jsonb))""",
-                tenantId, slug, business, pack.get("key").asText(), b.str("subSector", null),
+                tenantId, slug, business, pack.get("key").asText(), pack.has("subSector") ? pack.get("subSector").asText() : b.str("subSector", null),
                 "{" + String.join(",", products.stream().filter(p -> List.of("POS", "CRM", "ERP").contains(p)).toList()) + "}",
                 Timestamp.from(trialEnds), color, logo, b.str("phone", null), settings.toString());
         String name = b.str("name");
@@ -278,7 +283,7 @@ public class AuthController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("user", user);
         out.put("tenant", tenant);
-        out.put("pack", sectors.publicView((String) t.get("sector")));
+        out.put("pack", sectors.publicView((String) t.get("sector"), (String) t.get("sub_sector")));
         return out;
     }
 
