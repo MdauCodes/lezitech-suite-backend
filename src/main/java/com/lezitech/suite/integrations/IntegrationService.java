@@ -10,6 +10,7 @@ import com.lezitech.suite.mpesa.MpesaConfig;
 import com.lezitech.suite.mpesa.PayAccount;
 import com.lezitech.suite.mpesa.PayHeroGateway;
 import com.lezitech.suite.notify.AfricasTalking;
+import com.lezitech.suite.notify.WhatsAppCloud;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,21 +33,25 @@ import java.util.UUID;
  *            keys consumerKey, consumerSecret, passkey.
  *  PAYHERO - PayHero: channelId (the till or paybill linked in PayHero); keys username, password.
  *  SMS     - Africa's Talking: environment (sandbox|production), username, senderId (optional); key apiKey.
+ *  WHATSAPP - Meta WhatsApp Cloud API: phoneNumberId, businessAccountId (optional), receiptTemplate, templateLanguage;
+ *            key accessToken. Switched on, receipts and messages go through it; off, the app uses wa.me links.
  * Only one of DARAJA and PAYHERO is switched on at a time: the one the till uses for M-Pesa prompts.
  */
 @Service
 public class IntegrationService {
 
-    public static final List<String> KINDS = List.of("DARAJA", "PAYHERO", "SMS");
+    public static final List<String> KINDS = List.of("DARAJA", "PAYHERO", "SMS", "WHATSAPP");
 
     private static final Map<String, List<String>> SETTINGS = Map.of(
             "DARAJA", List.of("environment", "type", "shortcode", "tillNumber", "accountReference"),
             "PAYHERO", List.of("channelId"),
-            "SMS", List.of("environment", "username", "senderId"));
+            "SMS", List.of("environment", "username", "senderId"),
+            "WHATSAPP", List.of("phoneNumberId", "businessAccountId", "receiptTemplate", "templateLanguage"));
     private static final Map<String, List<String>> SECRETS = Map.of(
             "DARAJA", List.of("consumerKey", "consumerSecret", "passkey"),
             "PAYHERO", List.of("username", "password"),
-            "SMS", List.of("apiKey"));
+            "SMS", List.of("apiKey"),
+            "WHATSAPP", List.of("accessToken"));
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -55,9 +60,10 @@ public class IntegrationService {
     private final PayHeroGateway payHero;
     private final AfricasTalking sms;
     private final MpesaConfig cfg;
+    private final WhatsAppCloud whatsApp;
 
     public IntegrationService(JdbcTemplate jdbc, ObjectMapper json, SecretBox box, DarajaGateway daraja, PayHeroGateway payHero,
-                              AfricasTalking sms, MpesaConfig cfg) {
+                              AfricasTalking sms, MpesaConfig cfg, WhatsAppCloud whatsApp) {
         this.jdbc = jdbc;
         this.json = json;
         this.box = box;
@@ -65,6 +71,7 @@ public class IntegrationService {
         this.payHero = payHero;
         this.sms = sms;
         this.cfg = cfg;
+        this.whatsApp = whatsApp;
     }
 
     // ---------- reading ----------
@@ -110,6 +117,23 @@ public class IntegrationService {
     /** The business's PayHero account, switched on or not (to re-check a payment it already started). */
     public Optional<PayAccount.PayHero> payHeroAccount(UUID tenant) {
         return row(tenant, "PAYHERO").map(r -> (PayAccount.PayHero) account(r));
+    }
+
+    /** The business's own WhatsApp Business number, when it is switched on and complete (otherwise the app uses wa.me links). */
+    public record WhatsAppAccount(String phoneNumberId, String accessToken, String receiptTemplate, String language) {
+    }
+
+    public Optional<WhatsAppAccount> whatsAppAccount(UUID tenant) {
+        return row(tenant, "WHATSAPP").filter(r -> Boolean.TRUE.equals(r.get("enabled"))).flatMap(r -> {
+            Map<String, Object> s = settingsOf(r);
+            Map<String, String> k = secretsOf(r);
+            if (!missing("WHATSAPP", s, k).isEmpty()) {
+                return Optional.empty();
+            }
+            Object lang = s.get("templateLanguage");
+            return Optional.of(new WhatsAppAccount((String) s.get("phoneNumberId"), k.get("accessToken"), (String) s.get("receiptTemplate"),
+                    lang == null ? "en" : lang.toString()));
+        });
     }
 
     /** Tenants whose Daraja till or paybill is this shortcode (for payments made straight to the number). */
@@ -169,7 +193,7 @@ public class IntegrationService {
                   secrets = EXCLUDED.secrets, status = 'UNTESTED', status_message = NULL, tested_at = NULL,
                   updated_by = EXCLUDED.updated_by, updated_at = now()""",
                 tenant, kind, enabled, write(settings), secretJson, who);
-        if (enabled && !"SMS".equals(kind)) {
+        if (enabled && ("DARAJA".equals(kind) || "PAYHERO".equals(kind))) {
             jdbc.update("UPDATE integrations SET enabled = false WHERE tenant_id = ? AND kind IN ('DARAJA', 'PAYHERO') AND kind <> ?", tenant, kind);
         }
         return view(tenant, kind);
@@ -201,6 +225,11 @@ public class IntegrationService {
                         payHero.test((PayAccount.PayHero) account(r));
                         yield "PayHero accepted the API username and password. Make sure channel " + settings.get("channelId")
                                 + " is the till or paybill this business is paid on; the first prompt confirms it.";
+                    }
+                    case "WHATSAPP" -> {
+                        String number = whatsApp.test((String) settings.get("phoneNumberId"), secrets.get("accessToken"));
+                        yield "WhatsApp accepted the number" + (number.isBlank() ? "" : " " + number)
+                                + ". Receipts use the template \"" + settings.getOrDefault("receiptTemplate", "") + "\"; it must be approved in WhatsApp Manager.";
                     }
                     default -> {
                         String balance = sms.test(smsBase(settings), (String) settings.get("username"), secrets.get("apiKey"));
@@ -278,6 +307,11 @@ public class IntegrationService {
                 needKey(out, k, "username", "API username");
                 needKey(out, k, "password", "API password");
             }
+            case "WHATSAPP" -> {
+                need(out, s, "phoneNumberId", "phone number ID");
+                need(out, s, "receiptTemplate", "receipt template name");
+                needKey(out, k, "accessToken", "access token");
+            }
             default -> {
                 need(out, s, "username", "username");
                 needKey(out, k, "apiKey", "API key");
@@ -316,6 +350,23 @@ public class IntegrationService {
                 Object c = s.get("channelId");
                 if (c != null && !c.toString().matches("[1-9][0-9]{0,9}")) {
                     throw ApiException.bad("The PayHero channel ID is a number, from PayHero, Payment Channels");
+                }
+            }
+            case "WHATSAPP" -> {
+                for (String key : List.of("phoneNumberId", "businessAccountId")) {
+                    Object v = s.get(key);
+                    if (v != null && !v.toString().matches("[0-9]{6,20}")) {
+                        throw ApiException.bad("The " + ("phoneNumberId".equals(key) ? "phone number ID" : "WhatsApp Business account ID")
+                                + " is a long number from WhatsApp Manager, not the phone number itself");
+                    }
+                }
+                Object t = s.get("receiptTemplate");
+                if (t != null && !t.toString().matches("[a-z0-9_]{1,512}")) {
+                    throw ApiException.bad("A template name uses lower-case letters, numbers and underscores, e.g. lezi_receipt");
+                }
+                Object lang = s.get("templateLanguage");
+                if (lang != null && !lang.toString().matches("[a-z]{2,3}(_[A-Z]{2})?")) {
+                    throw ApiException.bad("The template language is a code such as en, en_US or sw");
                 }
             }
             default -> {

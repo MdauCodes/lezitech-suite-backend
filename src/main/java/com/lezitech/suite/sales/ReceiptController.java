@@ -2,11 +2,14 @@ package com.lezitech.suite.sales;
 
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
+import com.lezitech.suite.integrations.IntegrationService;
 import com.lezitech.suite.notify.Mailer;
+import com.lezitech.suite.notify.WhatsAppCloud;
 import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,11 +35,15 @@ public class ReceiptController {
     private final OrderService orders;
     private final Mailer mailer;
     private final JdbcTemplate jdbc;
+    private final IntegrationService integrations;
+    private final WhatsAppCloud whatsApp;
 
-    public ReceiptController(OrderService orders, Mailer mailer, JdbcTemplate jdbc) {
+    public ReceiptController(OrderService orders, Mailer mailer, JdbcTemplate jdbc, IntegrationService integrations, WhatsAppCloud whatsApp) {
         this.orders = orders;
         this.mailer = mailer;
         this.jdbc = jdbc;
+        this.integrations = integrations;
+        this.whatsApp = whatsApp;
     }
 
     @PostMapping("/api/orders/{id}/email-receipt")
@@ -112,6 +119,76 @@ public class ReceiptController {
                     to, o.get("customerId"), TenantContext.tenantId());
         }
         return Map.of("ok", true, "to", to);
+    }
+
+    /** Whether receipts go through the business's own WhatsApp Business number (true) or wa.me links on the cashier's phone. */
+    @GetMapping("/api/whatsapp/status")
+    public Map<String, Object> whatsAppStatus() {
+        return Map.of("api", integrations.whatsAppAccount(TenantContext.tenantId()).isPresent());
+    }
+
+    /**
+     * Send the receipt from the business's WhatsApp Business number, as its approved receipt template:
+     * {{1}} business, {{2}} receipt number and date, {{3}} the items, {{4}} the total and how it was paid.
+     */
+    @PostMapping("/api/orders/{id}/whatsapp-receipt")
+    @Transactional
+    public Map<String, Object> whatsApp(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        String to = kenyanPhone(new Body(raw).str("phone"));
+        if (to == null) {
+            throw ApiException.bad("Enter the customer's phone number, e.g. 0712 345678");
+        }
+        IntegrationService.WhatsAppAccount wa = integrations.whatsAppAccount(TenantContext.tenantId()).orElseThrow(() ->
+                new ApiException(HttpStatus.CONFLICT, "WHATSAPP_OFF", "WhatsApp Business isn't switched on. Use the WhatsApp link instead."));
+        Map<String, Object> o = orders.detail(id);
+        Map<String, Object> t = jdbc.queryForMap("SELECT name, currency FROM tenants WHERE id = ?", TenantContext.tenantId());
+        String cur = (String) t.get("currency");
+        boolean quote = "QUOTE".equals(o.get("kind"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) o.get("lines");
+        StringBuilder items = new StringBuilder();
+        for (Map<String, Object> l : lines) {
+            if (!items.isEmpty()) {
+                items.append(", ");
+            }
+            items.append(((BigDecimal) l.get("qty")).stripTrailingZeros().toPlainString()).append(" x ").append(l.get("name"))
+                    .append(' ').append(money(cur, (BigDecimal) l.get("lineTotal")));
+        }
+        StringBuilder total = new StringBuilder(money(cur, (BigDecimal) o.get("total")));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> payments = (List<Map<String, Object>>) o.get("payments");
+        if (payments != null && !payments.isEmpty()) {
+            total.append(", paid by ").append(String.join(" and ", payments.stream().map(p -> method((String) p.get("method"))
+                    + (p.get("reference") == null ? "" : " " + p.get("reference"))).toList()));
+        }
+        String number = (quote ? "Quotation" : "Receipt") + " #" + o.get("number") + ", " + when(o);
+        String messageId = whatsApp.sendTemplate(wa.phoneNumberId(), wa.accessToken(), to, wa.receiptTemplate(), wa.language(),
+                List.of((String) t.get("name"), number, items.toString(), total.toString()));
+        if (o.get("customerId") != null) {
+            jdbc.update("UPDATE customers SET phone = ? WHERE id = ? AND tenant_id = ? AND (phone IS NULL OR phone = '')",
+                    to.startsWith("254") ? "0" + to.substring(3) : "+" + to, o.get("customerId"), TenantContext.tenantId());
+        }
+        return Map.of("ok", true, "to", "+" + to, "messageId", messageId);
+    }
+
+    /** 0712345678, 712345678, +254712345678 -> 254712345678; other countries' numbers in full international form pass as they are. */
+    static String kenyanPhone(String raw) {
+        String d = raw == null ? "" : raw.replaceAll("[^0-9]", "");
+        if (d.length() == 10 && d.startsWith("0")) {
+            d = "254" + d.substring(1);
+        } else if (d.length() == 9 && (d.startsWith("7") || d.startsWith("1"))) {
+            d = "254" + d;
+        }
+        return d.matches("[1-9][0-9]{9,14}") ? d : null;
+    }
+
+    private static String when(Map<String, Object> o) {
+        Object w = o.get("closedAt") != null ? o.get("closedAt") : o.get("createdAt");
+        try {
+            return WHEN.format(java.time.Instant.parse(String.valueOf(w)));
+        } catch (RuntimeException e) {
+            return String.valueOf(w);
+        }
     }
 
     private static String money(String cur, BigDecimal v) {
