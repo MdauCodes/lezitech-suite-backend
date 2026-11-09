@@ -44,10 +44,15 @@ public class AuthController {
     private final SeedService seeder;
     private final ObjectMapper json;
     private final int trialDays;
+    private final com.lezitech.suite.growth.Referrals referrals;
+    private final com.lezitech.suite.growth.MetaConversions meta;
 
     public AuthController(JdbcTemplate jdbc, PasswordEncoder encoder, JwtService jwt, SectorCatalog sectors,
                           SeedService seeder, ObjectMapper json, @Value("${suite.trial-days}") int trialDays,
-                          LoginThrottle throttle, TokenVersions versions) {
+                          LoginThrottle throttle, TokenVersions versions,
+                          com.lezitech.suite.growth.Referrals referrals, com.lezitech.suite.growth.MetaConversions meta) {
+        this.referrals = referrals;
+        this.meta = meta;
         this.jdbc = jdbc;
         this.encoder = encoder;
         this.throttle = throttle;
@@ -61,8 +66,22 @@ public class AuthController {
 
     /** Start a free trial: workspace, owner login and sector sample data in one step. */
     @PostMapping("/signup")
-    public Map<String, Object> signup(@RequestBody Map<String, Object> raw) throws Exception {
-        return createWorkspace(raw, null);
+    public Map<String, Object> signup(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) throws Exception {
+        Map<String, Object> session = createWorkspace(raw, null);
+        // Which ad or referral brought this business, and tell Meta a trial started (same event id as the browser pixel).
+        String email = new Body(raw).str("email").toLowerCase();
+        UUID tenantId = jdbc.queryForObject("SELECT tenant_id FROM users WHERE email = ?", UUID.class, email);
+        ObjectNode acq = com.lezitech.suite.growth.Acquisition.clean(json, raw.get("acquisition"));
+        if (acq != null) {
+            jdbc.update("UPDATE tenants SET acquisition = cast(? as jsonb) WHERE id = ?", acq.toString(), tenantId);
+        }
+        Object ref = raw.get("referralCode") != null ? raw.get("referralCode") : acq == null ? null : acq.path("ref").asText(null);
+        referrals.link(tenantId, ref == null ? null : ref.toString());
+        referrals.codeFor(tenantId);
+        Object eventId = raw.get("eventId");
+        meta.track("StartTrial", eventId == null ? null : eventId.toString(), tenantId, email, new Body(raw).str("phone", null),
+                com.lezitech.suite.growth.Acquisition.visitor(acq, req), java.math.BigDecimal.ZERO);
+        return session;
     }
 
     /** Used by signup and by the demo seeder (which passes a fixed slug like demo-restaurant). */

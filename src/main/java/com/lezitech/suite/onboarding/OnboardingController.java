@@ -8,6 +8,8 @@ import com.lezitech.suite.auth.AuthController;
 import com.lezitech.suite.auth.LoginCodes;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
+import com.lezitech.suite.growth.Acquisition;
+import com.lezitech.suite.growth.MetaConversions;
 import com.lezitech.suite.notify.Mailer;
 import com.lezitech.suite.sector.SectorCatalog;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,11 +62,14 @@ public class OnboardingController {
     private final SectorCatalog sectors;
     private final ObjectMapper json;
     private final int trialDays;
+    private final MetaConversions meta;
     /** Requests per address in the last hour, to keep bots from filling the list. */
     private final Map<String, Deque<Instant>> recent = new ConcurrentHashMap<>();
 
     public OnboardingController(JdbcTemplate jdbc, AuthController auth, AdminService admin, LoginCodes codes, Mailer mailer,
-                                SectorCatalog sectors, ObjectMapper json, @Value("${suite.trial-days}") int trialDays) {
+                                SectorCatalog sectors, ObjectMapper json, @Value("${suite.trial-days}") int trialDays,
+                                MetaConversions meta) {
+        this.meta = meta;
         this.jdbc = jdbc;
         this.auth = auth;
         this.admin = admin;
@@ -115,6 +120,14 @@ public class OnboardingController {
                 clip(b.str("town", null), 80), b.integer("branches", null), b.integer("staff", null), "{" + String.join(",", pays) + "}",
                 clip(b.str("currentTool", null), 120), clip(b.str("openingHours", null), 120), clip(b.str("notes", null), 2000),
                 clip(b.str("source", null), 120));
+        // Which ad brought them, and tell Meta a lead came in (same event id as the browser pixel).
+        com.fasterxml.jackson.databind.node.ObjectNode acq = Acquisition.clean(json, raw.get("acquisition"));
+        if (acq != null) {
+            jdbc.update("UPDATE setup_requests SET acquisition = cast(? as jsonb) WHERE id = ?", acq.toString(), id);
+        }
+        Object eventId = raw.get("eventId");
+        meta.track("Lead", eventId == null ? null : eventId.toString(), null, email.isEmpty() ? null : email, phone,
+                Acquisition.visitor(acq, req), java.math.BigDecimal.ZERO);
         String team = mailer.teamEmail();
         if (!team.isBlank()) {
             String line = business + " (" + (sector == null ? "kind not given" : sector) + ") · " + contact + " · " + phone
@@ -214,6 +227,9 @@ public class OnboardingController {
                        settings = settings || jsonb_build_object('setupProfile', cast(? as jsonb)) WHERE id = ?""", profile.toString(), tenant);
         if (requestId != null) {
             jdbc.update("UPDATE setup_requests SET tenant_id = ?, status = 'IN_SETUP', updated_at = now() WHERE id = ?", tenant, requestId);
+            // The workspace inherits the ad the request came from, so its first payment is credited to that ad.
+            jdbc.update("UPDATE tenants SET acquisition = (SELECT acquisition FROM setup_requests WHERE id = ?) WHERE id = ? AND acquisition IS NULL",
+                    requestId, tenant);
         }
         admin.audit("workspace.create", tenant, Map.of("business", b.str("businessName"), "sector", b.str("sector")));
         return Map.of("tenantId", tenant, "slug", jdbc.queryForObject("SELECT slug FROM tenants WHERE id = ?", String.class, tenant));

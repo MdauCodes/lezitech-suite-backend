@@ -55,6 +55,14 @@ suite:
   # Where the web app lives (links in emails) and LeziTech's WhatsApp number shown to customers.
   app-url: ${APP_URL:http://localhost:5320}
   support-whatsapp: ${SUPPORT_WHATSAPP:}
+  # The public marketing site (referral links point here).
+  site-url: ${SITE_URL:https://lezitech.site/suite}
+  # Meta Conversions API: leads, trials and payments reported to Meta so ads optimise for paying businesses.
+  # Off until META_PIXEL_ID and META_CAPI_TOKEN are set. META_TEST_EVENT_CODE sends to Events Manager's test tab.
+  meta:
+    pixel-id: ${META_PIXEL_ID:}
+    capi-token: ${META_CAPI_TOKEN:}
+    test-event-code: ${META_TEST_EVENT_CODE:}
   # Where new setup requests are emailed (the LeziTech team inbox).
   team-email: ${TEAM_EMAIL:}
   # Trial reminder emails: EMAIL_PROVIDER off | log | brevo | resend (+ EMAIL_API_KEY, EMAIL_FROM).
