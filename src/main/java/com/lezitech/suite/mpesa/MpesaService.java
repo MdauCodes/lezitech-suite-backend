@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Lipa na M-Pesa for the till and for Lezitech subscriptions.
+ * Lipa na M-Pesa for the till and for LeziTech subscriptions.
  *
  * Flow: the till asks for a prompt (STK push) -> the customer enters their PIN -> Safaricom posts
  * the result to a secret callback URL -> we check it against the request we sent (checkout id and
@@ -98,7 +98,7 @@ public class MpesaService {
                 subscriptionRequestId, TenantContext.tenantId());
         BigDecimal amount = (BigDecimal) r.get("amount");
         UUID id = insertRequest("SUBSCRIPTION", null, subscriptionRequestId, phone, amount);
-        return push(id, cfg.subscriptionShortcode, phone, amount, "Lezitech " + r.get("plan"), "Lezitech plan");
+        return push(id, cfg.subscriptionShortcode, phone, amount, "Lezi Suite " + r.get("plan"), "LeziTech plan");
     }
 
     private UUID insertRequest(String purpose, UUID orderId, UUID subId, String phone, BigDecimal amount) {

@@ -84,7 +84,7 @@ public class AuthController {
         JsonNode pack = sectors.get(b.str("sector"));
         if (fixedSlug == null && Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT exists(SELECT 1 FROM platform_settings WHERE key = 'disabled_sectors' AND value @> to_jsonb(cast(? as text)))""", Boolean.class, pack.get("key").asText()))) {
-            throw ApiException.bad("Signups for this kind of business are paused. Please contact Lezitech.");
+            throw ApiException.bad("Signups for this kind of business are paused. Please contact LeziTech.");
         }
         String color = b.str("brandColor", pack.get("color").asText());
         if (!HEX.matcher(color).matches()) {

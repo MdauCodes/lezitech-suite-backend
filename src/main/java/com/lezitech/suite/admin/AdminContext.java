@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** The signed-in Lezitech staff member for a control-panel request. */
+/** The signed-in LeziTech staff member for a control-panel request. */
 public final class AdminContext {
 
     public record Admin(UUID id, String role, String name) {

@@ -34,8 +34,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Lezitech's own control panel: watch every workspace, run trials and billing, help customers
- * (including signing in as them), switch sectors and modules, manage demos and the Lezitech team.
+ * LeziTech's own control panel: watch every workspace, run trials and billing, help customers
+ * (including signing in as them), switch sectors and modules, manage demos and the LeziTech team.
  * Every change is written to the platform audit log.
  */
 @RestController
@@ -417,7 +417,7 @@ public class AdminController {
         return Map.of("ok", true);
     }
 
-    // ---------- Lezitech team ----------
+    // ---------- LeziTech team ----------
 
     @GetMapping("/team")
     public List<Map<String, Object>> team() {

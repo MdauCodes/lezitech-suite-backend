@@ -41,7 +41,7 @@ public class JwtService {
                 .compact();
     }
 
-    /** Control-panel token for Lezitech staff; carries no tenant. */
+    /** Control-panel token for LeziTech staff; carries no tenant. */
     public String issueAdmin(UUID adminId, String role, String name, int tokenVersion) {
         Instant now = Instant.now();
         return Jwts.builder()

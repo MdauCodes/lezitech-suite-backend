@@ -83,7 +83,7 @@ public class PlanLimits {
         }
         String plan = effectivePlan();
         String next = NEXT.get(plan);
-        String more = next == null ? " Talk to Lezitech about a bigger package."
+        String more = next == null ? " Talk to LeziTech about a bigger package."
                 : " " + NAME.get(next) + " allows " + (BY_PLAN.get(next).get(key) == 0 ? "unlimited " + what : "up to " + BY_PLAN.get(next).get(key) + " " + what)
                 + ". The owner can upgrade under Your plan.";
         throw new ApiException(HttpStatus.FORBIDDEN, "PLAN_LIMIT",

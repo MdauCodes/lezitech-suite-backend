@@ -1,6 +1,7 @@
-# Lezitech Suite
+# Lezi Suite
 
-Multi-tenant POS + CRM + ERP sold as **Lezitech free 7-day trials**. One product; each business picks a
+LeziTech's multi-tenant POS + CRM + ERP, sold as **free 7-day trials**. It is the first LeziTech product under
+lezitech.site: the app runs at `suite.lezitech.site`, its marketing pages at `lezitech.site/suite`. One product; each business picks a
 **sector pack** at signup and gets screens, vocabulary, till layout, defaults and sample data made for it.
 
 | Repo | Path | Stack |
@@ -82,7 +83,7 @@ Off unless `MPESA_MODE` is set. Keys come only from environment variables; nothi
 | `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET` | From the Daraja app on developer.safaricom.co.ke |
 | `MPESA_SHORTCODE`, `MPESA_PASSKEY` | Till/paybill and its Lipa na M-Pesa passkey (sandbox: 174379 and the test passkey from the Daraja portal) |
 | `MPESA_CALLBACK_BASE` | Public https address of this API, e.g. `https://api.lezitech.co.ke`; Safaricom posts results there |
-| `MPESA_SUBSCRIPTION_SHORTCODE` | Lezitech's own paybill for plan payments (defaults to `MPESA_SHORTCODE`) |
+| `MPESA_SUBSCRIPTION_SHORTCODE` | LeziTech's own paybill for plan payments (defaults to `MPESA_SHORTCODE`) |
 | `MPESA_C2B_SECRET` | Long random string; part of the C2B URLs so nobody else can post fake payments |
 | `MPESA_BASE_URL` | `https://sandbox.safaricom.co.ke` (default) or `https://api.safaricom.co.ke` |
 
@@ -100,32 +101,23 @@ Off unless `MPESA_MODE` is set. Keys come only from environment variables; nothi
 - Go-live still needs: each shop's own till number and passkey (today one platform shortcode is used for all
   workspaces), Safaricom production approval, and registering the C2B URLs per till.
 
-## KRA eTIMS
+## KRA eTIMS (switched off for now)
 
-Every completed sale of a workspace that has a KRA PIN in Settings is sent for a signed invoice; every refund gets
-a credit note. The receipt prints the KRA invoice number, control-unit id, signature and QR code. If KRA can't be
-reached the sale still completes and the invoice waits in `etims_queue`, retried every minute (backing off to hourly).
+eTIMS is not offered at launch. The code is kept so it can be switched on later, but `ETIMS_MODE` stays `off`
+(the default), nothing is sent to KRA and no screen mentions it. Receipts still print the business's KRA PIN.
+Instead, businesses get a tax summary that estimates what they owe per day, month and year.
 
-The till only talks to the `EtimsClient` interface (`src/main/java/.../etims`). Today the only client is a **stub**
-(`ETIMS_MODE=stub`) that returns numbers in the same shape, marked "TEST ONLY · not valid for tax"; the default
-`ETIMS_MODE=off` sends nothing. There are no public eTIMS sandbox keys, so the real client isn't written yet.
-
-To go live with OSCU (online, for most shops) or VSCU (high volume):
-1. Each shop's KRA PIN must be registered for eTIMS on the KRA iTax portal and the integrator (Lezitech) approved
-   as a third-party integrator, which gets access to the eTIMS sandbox and its test PINs.
-2. Initialise each device/branch with KRA (the eTIMS device initialisation call) to get the control-unit id and key; store them per
-   workspace/branch (encrypted).
-3. Write `OscuEtimsClient implements EtimsClient` mapping our invoice to KRA's sales call (item classification codes,
-   tax bands A–E: today 16% → B, 8% → E, 0% → C), plus item and stock-movement reporting that KRA also expects.
-4. Pass KRA's sandbox certification tests, then switch `ETIMS_MODE` to the real client.
+The pieces that stay: the `EtimsClient` interface and a stub client in `src/main/java/.../etims`, the
+`etims_queue` table, and receipt fields that only show when an invoice is signed. To bring it back: get LeziTech
+approved as a KRA third-party integrator, write the OSCU client against KRA's sandbox, pass certification, then
+switch `ETIMS_MODE` on and restore the Settings hint.
 
 ## Not built yet (next steps, roughly in order)
 
-1. **KRA eTIMS real client** (OSCU/VSCU) — waiting on KRA sandbox access; see above.
-2. Per-location prices; shop-requests-stock-from-store flow.
-3. Accounting ledger (journal postings, P&L, balance sheet).
-4. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
-5. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
+1. Per-location prices; shop-requests-stock-from-store flow.
+2. Accounting ledger (journal postings, P&L, balance sheet).
+3. Mall / landlord product (rent, service charge, occupancy) as a separate module, per the 29 Oct notes.
+4. `.xlsx` import; a screen for unmatched direct M-Pesa till payments (the API exists).
 
 ## Local demo workspaces
 
@@ -151,9 +143,9 @@ Inside a demo a black bar lets you switch person in one click. Demo businesses (
 created at startup, never expire, are excluded from control-panel numbers, and can be reset from the panel.
 Turn them off with `DEMO_LOGINS=false`.
 
-## Lezitech control panel (`/admin`)
+## LeziTech control panel (`/admin`)
 
-For the Lezitech team only; separate login and token (a workspace token is refused by `/api/admin/**` and an
+For the LeziTech team only; separate login and token (a workspace token is refused by `/api/admin/**` and an
 admin token is refused by workspace endpoints).
 
 - **Overview:** MRR, trials, trial→paid conversion, signups per day, by sector, trials ending (who to call), latest team actions.
@@ -164,7 +156,7 @@ admin token is refused by workspace endpoints).
 - **Billing queue:** owners who chose a plan; confirm the M-Pesa code and activate.
 - **Sectors & packs:** pause or reopen signups per sector.
 - **Demo businesses:** reset any demo to fresh data.
-- **Lezitech team:** add teammates as superadmin, admin, support, sales or developer (permissions per role).
+- **LeziTech team:** add teammates as superadmin, admin, support, sales or developer (permissions per role).
 - **Audit log:** every control-panel action, who did it and to which workspace.
 - **System health:** uptime, memory, database size, migrations, row counts.
 

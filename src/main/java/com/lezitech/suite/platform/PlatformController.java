@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** Public sector list for the signup page, and the Lezitech operator's tenant console. */
+/** Public sector list for the signup page, and the LeziTech operator's tenant console. */
 @RestController
 public class PlatformController {
 

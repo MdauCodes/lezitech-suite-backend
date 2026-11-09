@@ -43,7 +43,7 @@ public class NudgeAdminController {
         return Map.of("nudges", rows, "email", nudges.sender() == null ? "off" : nudges.sender().name());
     }
 
-    /** Someone at Lezitech sent the WhatsApp message (by hand, from their phone). */
+    /** Someone at LeziTech sent the WhatsApp message (by hand, from their phone). */
     @PostMapping("/{id}/whatsapp-sent")
     public Map<String, Object> whatsappSent(@PathVariable UUID id) {
         AdminContext.require("trials");

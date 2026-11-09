@@ -20,7 +20,7 @@ import java.util.UUID;
 /**
  * Reminds trial owners before the trial ends: on day 5 ("2 days left") and day 7 ("ends today").
  * Each reminder goes out once per workspace. Email when a provider is set up; a WhatsApp message is
- * always prepared for the Lezitech team to send from the control panel (Trial reminders).
+ * always prepared for the LeziTech team to send from the control panel (Trial reminders).
  */
 @Service
 public class TrialNudgeService {
@@ -37,7 +37,7 @@ public class TrialNudgeService {
                              @Value("${suite.email.provider:off}") String provider,
                              @Value("${suite.email.api-key:}") String apiKey,
                              @Value("${suite.email.from:}") String from,
-                             @Value("${suite.email.from-name:Lezitech}") String fromName,
+                             @Value("${suite.email.from-name:LeziTech}") String fromName,
                              @Value("${suite.app-url:http://localhost:5320}") String appUrl,
                              @Value("${suite.support-whatsapp:}") String support) {
         this.jdbc = jdbc;
@@ -89,18 +89,18 @@ public class TrialNudgeService {
         String business = (String) t.get("name");
         boolean last = "DAY7".equals(kind);
         String when = ends.isBefore(Instant.now()) ? "has ended" : last ? "ends today" : "ends on " + DAY.format(ends);
-        String subject = last ? "Your Lezitech free trial " + (ends.isBefore(Instant.now()) ? "has ended" : "ends today")
-                : "Your Lezitech free trial ends in 2 days";
+        String subject = last ? "Your Lezi Suite free trial " + (ends.isBefore(Instant.now()) ? "has ended" : "ends today")
+                : "Your Lezi Suite free trial ends in 2 days";
         String link = appUrl + "/billing";
         String text = "Hi " + owner + ",\n\nThe free trial for " + business + " " + when + ". "
                 + "Everything you have entered stays safe.\n\n"
                 + "To keep selling without a break, choose a plan here: " + link + "\nYou can pay by M-Pesa on that page and the plan switches on straight away.\n\n"
-                + (support.isBlank() ? "" : "Questions? WhatsApp us on " + support + ".\n\n") + "Thank you,\nLezitech";
+                + (support.isBlank() ? "" : "Questions? WhatsApp us on " + support + ".\n\n") + "Thank you,\nLeziTech";
         String html = "<p>Hi " + esc(owner) + ",</p><p>The free trial for <b>" + esc(business) + "</b> " + when
                 + ". Everything you have entered stays safe.</p><p>To keep selling without a break, <a href=\"" + link
                 + "\">choose a plan</a>. You can pay by M-Pesa on that page and the plan switches on straight away.</p>"
-                + (support.isBlank() ? "" : "<p>Questions? WhatsApp us on " + esc(support) + ".</p>") + "<p>Thank you,<br>Lezitech</p>";
-        String wa = "Hi " + owner + ", this is Lezitech. The free trial for " + business + " " + when
+                + (support.isBlank() ? "" : "<p>Questions? WhatsApp us on " + esc(support) + ".</p>") + "<p>Thank you,<br>LeziTech</p>";
+        String wa = "Hi " + owner + ", this is LeziTech. The free trial for " + business + " " + when
                 + ". Your data is safe. To keep using it, choose a plan here: " + link + " (you can pay by M-Pesa). Any questions, just reply here.";
         String to = (String) t.get("email");
         // Claim the reminder first: if two servers run the job, only one sends it.

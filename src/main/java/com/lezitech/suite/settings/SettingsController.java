@@ -104,6 +104,6 @@ public class SettingsController {
                 java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null));
         return Map.of("ok", true, "amount", amount, "requestId", id,
                 "message", "Request received. Pay KES " + amount.toPlainString()
-                        + " to Lezitech and we activate your plan within one working hour.");
+                        + " to LeziTech and we activate your plan within one working hour.");
     }
 }
