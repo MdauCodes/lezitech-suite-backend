@@ -139,7 +139,14 @@ Web on `launch`, matching:
 
 ## 8. Next work, in order
 
-1. **Design elevation (started 2026-11-10).** The user finds the app and website "too whitish and generic" and wants them **clean, elegant, unique but simple to understand**.
+1. **Design elevation.** The user found the app and website "too whitish and generic" and wants them **clean, elegant, unique but simple to understand**.
+   - **App: done 2026-11-10** (web commit `7fd83d0`):
+     - tokens in `src/index.css` (`bg-bg`, `bg-side`, `text-soft`, `bg-lime`, `.label-mono`), Manrope and JetBrains Mono in `index.html`
+     - ink sidebar grouped Today, Sell, Stock & people, Money, Business (`AppShell.tsx`)
+     - `Stat feature` gives the ink tile with a lime number; `PageHeader caption` gives the mono date line
+     - Home redesigned; Input, Select and Textarea respect a width class
+   - Still to restyle where they look plain: the control panel (`/admin`), signup, login, POS details, modals.
+   - **Website: still the old plain template at `/`.** Replace it with the Lovable design as part of the SEO step.
    - Direction: the Lovable look, used consistently:
      - off-white canvas `#f6f7f5`, ink `#101415`, lime `#b8f24a` as a fill only
      - Manrope, with JetBrains Mono for labels
