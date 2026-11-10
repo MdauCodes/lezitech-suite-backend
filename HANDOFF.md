@@ -51,7 +51,7 @@ A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, 
 |---|---|
 | API | `J:\backend\lezitech-suite-api`: Spring Boot 3.3, Java 21, JDBC + Flyway, Postgres with row-level security; port **8090** |
 | Web app | `J:\frontend\lezitech-suite-web`: Vite, React 18, TypeScript, Tailwind 4, TanStack Query; port **5320** |
-| Branch | `launch` in both repos. **Nothing is pushed**: `MdauCodes/lezitech-suite-api` and `lezitech-suite-web` don't exist on GitHub yet, so the user must create them. |
+| Branch | `launch` in both repos, with `main` kept equal to it. Pushed 2026-11-11: API to `github.com/MdauCodes/lezitech-suite-backend`, web app to `github.com/MdauCodes/lezitech-suite-frontend` (both `main` and `launch`). |
 | Preview configs | `J:\backend\.claude\launch.json`: `suite-api`, `suite-web`, and `lezi-site-mockup` (Lovable design, port 5330) |
 | Lovable website design | `J:\A lovable apps\erp-crm-pos` (not a git repo). Finished and styled by us: Home, Sectors, 9 sector pages, Pricing, Get set up, Style guide. Styles in `src/lezi.css`, page content in `src/lib/lezi-data.ts` and `lezi-details.ts`. |
 | Second Lovable attempt | `J:\A lovable apps\pixel-perfect-replica-99-main`: weaker and unstyled; ignore it. |
@@ -170,7 +170,7 @@ Web on `launch`, matching:
 
 ## 7. Not done: blockers for go-live
 
-1. **GitHub repos and push.** The user must create the two repos. Then `git push -u origin launch` in both.
+1. ~~GitHub repos and push.~~ Done 2026-11-11 (see section 2). The marketing website folder is not in git yet.
 2. **Brevo email:** API key plus the domain's email DNS records (SPF and DKIM). Without it, password codes don't arrive.
 3. **PayHero:** one real sandbox payment to confirm the field names.
 4. **Deploy:** Contabo + Coolify; a real Postgres with backups; `suite.lezitech.site` with HTTPS. Secrets to set:
