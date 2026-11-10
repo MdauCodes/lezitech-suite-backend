@@ -155,7 +155,7 @@ Web on `launch`, matching:
 ## 6b. Marketing website (Lovable design, wired 2026-11-11)
 
 - Folder: `J:\A lovable apps\pixel-perfect-replica-99-main` (TanStack Start; **not a git repo yet**). Preview config
-  `lezi-replica` (port 5340) in `J:rontend\pest-control-marketplace-main\.claude\launch.json`.
+  `lezi-replica` (port 5340) in `J:\frontend\pest-control-marketplace-main\.claude\launch.json`.
 - Look: same logo and fonts as the app, deep green frame with sage tiles, ~90vh sections, Jania Hub-style short copy.
 - Wiring lives in `src/lib/lezi-app.ts`:
   - `VITE_APP_URL` (app, default http://localhost:5320) and `VITE_API_URL` (API, default http://localhost:8090).
