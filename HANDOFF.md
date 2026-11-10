@@ -145,7 +145,13 @@ Web on `launch`, matching:
      - ink sidebar grouped Today, Sell, Stock & people, Money, Business (`AppShell.tsx`)
      - `Stat feature` gives the ink tile with a lime number; `PageHeader caption` gives the mono date line
      - Home redesigned; Input, Select and Textarea respect a width class
-   - Still to restyle where they look plain: the control panel (`/admin`), signup, login, POS details, modals.
+   - **Done 2026-11-10** (web commit after `7fd83d0`): `AuthLayout` (ink panel + form) for login, reset and the
+     control-panel sign-in; branded `/w/<slug>` sign-in kept in the business's colours; control panel sidebar grouped
+     Today, Businesses, Money, Product, LeziTech in the app's ink style, MRR on the ink tile; signup with an ink side
+     panel and ink/lime steps; till cart with an ink order-type switch and the total on an ink tile; modals with a
+     softer overlay, bolder title and quiet footer.
+   - Still plain: control-panel inner pages (tables), the public customer pages (menu, order board, tracking), Demo and
+     Set-it-up pages.
    - **Website: still the old plain template at `/`.** Replace it with the Lovable design as part of the SEO step.
    - Direction: the Lovable look, used consistently:
      - off-white canvas `#f6f7f5`, ink `#101415`, lime `#b8f24a` as a fill only
