@@ -1,4 +1,4 @@
-# Lezi Suite: handoff for the next session
+﻿# Lezi Suite: handoff for the next session
 
 Read this first. It says where everything is, what is decided, what is built, what isn't, and what to do next.
 Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Coolify.
@@ -28,7 +28,7 @@ Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Cool
 - Hide "Beauty clinic" as coming soon too? It may hold health-like client notes.
 - Turnover Tax default: 1.5% (KRA rate since July 2023, what's built) or the 3% in the old notes?
 
-**Next to build:** SEO, GEO and AEO (section 8, item 2):
+**Next to build:** SEO, GEO and AEO. **Full plan: [docs/SEO-AEO-GEO-PLAN.md](docs/SEO-AEO-GEO-PLAN.md)**, with decisions waiting in its section 9. In short:
 - the website on the Lovable design, replacing the plain `/` page
 - pages for every sector, sub-sector and town
 - structured data, sitemap, `noindex` on app screens
@@ -98,12 +98,12 @@ A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, 
   - TOT defaults to **1.5%** (KRA rate since July 2023). The user's old notes said 3%: confirm with them. All rates are editable.
   - eTIMS code exists but is switched off (`ETIMS_MODE=off`).
 - **Assisted onboarding:**
-  - Public "set it up for me" form → the team creates the workspace in /admin → hand-over starts the trial and sends a 6-digit welcome code.
+  - Public "set it up for me" form â†’ the team creates the workspace in /admin â†’ hand-over starts the trial and sends a 6-digit welcome code.
 - **Growth:**
   - **Ad source:** first-touch UTM, fbclid and gclid are kept in localStorage (`src/lib/tracking.ts`) and sent with signup and setup requests (`tenants.acquisition`, `setup_requests.acquisition`).
   - **Meta Conversions API** (`growth/MetaConversions`): a queue (`marketing_events`) sending Lead, StartTrial, Subscribe and Purchase. Emails and phones are hashed. Off until `META_PIXEL_ID` and `META_CAPI_TOKEN` are set; the browser Pixel needs `VITE_META_PIXEL_ID`.
   - **Referrals:** each workspace has a code; both businesses get a month free on the referred business's first payment.
-  - **Ad results:** /admin/ads shows source and campaign → requests, trials, paying and collected, with spend typed in to get cost per paying customer.
+  - **Ad results:** /admin/ads shows source and campaign â†’ requests, trials, paying and collected, with spend typed in to get cost per paying customer.
 - **Commissions:**
   - `users.commission_rate`, with `items.commission_rate` overriding it.
   - `commission_payouts` table; `GET /api/reports/commissions`, `POST /api/reports/commissions/payouts`.
