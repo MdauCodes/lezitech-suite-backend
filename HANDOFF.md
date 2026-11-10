@@ -3,6 +3,37 @@
 Read this first. It says where everything is, what is decided, what is built, what isn't, and what to do next.
 Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Coolify.
 
+## 0. Status at a glance (2026-11-10, 12 days to go-live)
+
+**Built and committed:**
+- **For businesses:**
+  - 59 personalised sub-sectors (plus 5 coming soon)
+  - each business's own M-Pesa (Daraja or PayHero)
+  - WhatsApp and email receipts
+  - tax summary, commissions, offline till, Excel import
+- **For selling Lezi Suite:**
+  - assisted "set it up for me" onboarding
+  - Meta ad tracking (Conversions API)
+  - referrals
+  - Ad results page in the control panel
+- **A new app look:** ink sidebar, warm canvas, Manrope.
+- 72 API tests passing; the web app typechecks.
+
+**Waiting on the owner (MdauCodes): main risk to the date.** Ask about these at the start of every session until they're done.
+1. **Create the GitHub repos** `MdauCodes/lezitech-suite-api` and `MdauCodes/lezitech-suite-web`. Then push `launch` in both. Nothing is backed up off this machine yet.
+2. **Brevo account plus DNS access** for the sending domain (SPF and DKIM). Password reset and first-password codes depend on email.
+3. **Contabo server and a PayHero sandbox account**, so a test server can be set up early and real payments and callbacks confirmed.
+
+**Decisions still open:**
+- Hide "Beauty clinic" as coming soon too? It may hold health-like client notes.
+- Turnover Tax default: 1.5% (KRA rate since July 2023, what's built) or the 3% in the old notes?
+
+**Next to build:** SEO, GEO and AEO (section 8, item 2):
+- the website on the Lovable design, replacing the plain `/` page
+- pages for every sector, sub-sector and town
+- structured data, sitemap, `noindex` on app screens
+- the fix that carries the ad source from the website to signup
+
 ## 1. What Lezi Suite is
 
 A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, made by LeziTech
