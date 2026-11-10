@@ -98,7 +98,7 @@ suite:
     username: ${PAYHERO_USERNAME:}
     password: ${PAYHERO_PASSWORD:}
     channel-id: ${PAYHERO_CHANNEL_ID:0}
-  cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320}
+  cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320,http://localhost:5340,http://127.0.0.1:5340}
   # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.
   embedded-db:
     enabled: ${EMBEDDED_DB:true}

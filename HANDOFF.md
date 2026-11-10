@@ -152,6 +152,22 @@ Web on `launch`, matching:
 - `8074c5e` rebrand to Lezi Suite
 - `b428b61` plan limits
 
+## 6b. Marketing website (Lovable design, wired 2026-11-11)
+
+- Folder: `J:\A lovable apps\pixel-perfect-replica-99-main` (TanStack Start; **not a git repo yet**). Preview config
+  `lezi-replica` (port 5340) in `J:rontend\pest-control-marketplace-main\.claude\launch.json`.
+- Look: same logo and fonts as the app, deep green frame with sage tiles, ~90vh sections, Jania Hub-style short copy.
+- Wiring lives in `src/lib/lezi-app.ts`:
+  - `VITE_APP_URL` (app, default http://localhost:5320) and `VITE_API_URL` (API, default http://localhost:8090).
+  - "Start free" opens `APP/start?sector=<app sector>` from the business the visitor picked (picker, sector page or
+    setup form; remembered in localStorage `lezi.business`), plus the first-touch UTM/fbclid/gclid/ref tags. This
+    fixes the "ad source lost between domains" bug for the website's links.
+  - "Get set up" form posts to `/api/public/setup-requests` (with source and acquisition), so it lands in
+    /admin/setup. The API's `CORS_ORIGINS` must include the website's address in production.
+- Rule (owner, 2026-11-10): customers must never sense the platform is shared. Copy says "your business", never
+  "each business"/"workspace"; signup carries their business type so the app opens shaped for them.
+- Still to do: Privacy and Terms pages; real photos for hotels, salons, wholesale, services, safaris; typecheck is clean.
+
 ## 7. Not done: blockers for go-live
 
 1. **GitHub repos and push.** The user must create the two repos. Then `git push -u origin launch` in both.
@@ -162,7 +178,7 @@ Web on `launch`, matching:
    - `PAYHERO_*`, `MPESA_*`, `META_*`, `SITE_URL`, `APP_URL`, `CORS_ORIGINS`
 
    Callbacks need public HTTPS. **Suggested: set up a test server early**, so external accounts can be verified while building.
-5. **Ad source lost between domains (bug):** the website on `lezitech.site` and the app on `suite.lezitech.site` don't share localStorage. The website's Start and Setup links must carry the UTM, fbclid, gclid and ref parameters to the app (`captureAcquisition()` already reads them from the URL). Fix this with the SEO pages.
+5. **Ad source lost between domains (bug, fixed for the new website's links; see 6b):** the website on `lezitech.site` and the app on `suite.lezitech.site` don't share localStorage. The website's Start and Setup links must carry the UTM, fbclid, gclid and ref parameters to the app (`captureAcquisition()` already reads them from the URL). Fix this with the SEO pages.
 6. **Privacy policy and terms**, including data processing terms for the data businesses keep about their customers. The website only has placeholders.
 7. **Open questions for the user:**
    - Hide "Beauty clinic" too? It may hold health-like notes.
