@@ -29,7 +29,7 @@ public class CatalogController {
     private static final String ITEM_COLUMNS = """
             i.id, i.category_id, c.name AS category_name, i.name, i.kind, i.sku, i.barcode, i.unit, i.price, i.cost,
             i.wholesale_price, i.wholesale_min_qty, i.tax_rate, i.track_stock, i.reorder_level, i.duration_min, i.station,
-            i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active,
+            i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand""";
 
     private final Db db;
@@ -126,6 +126,10 @@ public class CatalogController {
                 "dur", b.integer("durationMin", null), "station", b.str("station", null),
                 "rx", b.bool("needsPrescription", false), "options", db.toJson(b.raw("options")),
                 "active", b.bool("active", true));
+        // A service's own commission rate (overrides the staff member's); only changed when sent.
+        if (b.has("commissionRate")) {
+            db.exec("UPDATE items SET commission_rate = :cr WHERE id = :id", "id", id, "cr", rate(b.num("commissionRate", null)));
+        }
         return db.one("Item", "SELECT " + ITEM_COLUMNS
                 + " FROM items i LEFT JOIN categories c ON c.id = i.category_id WHERE i.id = :id", "id", id);
     }
@@ -225,5 +229,16 @@ public class CatalogController {
                 "name", b.str("name"), "kind", b.str("kind", "SHOP"),
                 "parentId", b.has("parentId") ? UUID.fromString(b.str("parentId")) : null);
         return db.one("Location", "SELECT * FROM locations WHERE id = :id", "id", id);
+    }
+
+    /** A commission percentage between 0 and 100, or null to clear it. */
+    public static BigDecimal rate(BigDecimal r) {
+        if (r == null) {
+            return null;
+        }
+        if (r.signum() < 0 || r.compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw com.lezitech.suite.common.ApiException.bad("A commission is a percentage between 0 and 100");
+        }
+        return r;
     }
 }

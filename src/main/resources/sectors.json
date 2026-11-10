@@ -405,6 +405,22 @@
           "name": "Mercy Wanjiru"
         }
       ]
+    },
+    "examples": {
+      "business": "Mama Oliech Restaurant",
+      "category": "Drinks",
+      "item": "Beef stew & chapati",
+      "optionGroup": "Side",
+      "optionChoice": "Chips",
+      "tagline": "Fresh food, fast",
+      "note": "no onions",
+      "importRow": [
+        "Beef stew & chapati",
+        "Mains",
+        450,
+        200,
+        0
+      ]
     }
   },
   {
@@ -771,6 +787,22 @@
           "name": "Chef Omondi"
         }
       ]
+    },
+    "examples": {
+      "business": "Acacia Lodge",
+      "category": "Bar",
+      "item": "Room service breakfast",
+      "optionGroup": "Room type",
+      "optionChoice": "Deluxe",
+      "tagline": "Rest by the lake",
+      "note": "late check-in",
+      "importRow": [
+        "Tusker 500ml",
+        "Bar",
+        300,
+        210,
+        48
+      ]
     }
   },
   {
@@ -1037,6 +1069,22 @@
           "name": "John Ouma"
         }
       ]
+    },
+    "examples": {
+      "business": "Kamau Minimart",
+      "category": "Groceries",
+      "item": "Sugar 1kg",
+      "optionGroup": "Size",
+      "optionChoice": "2kg",
+      "tagline": "Everything you need, close to home",
+      "note": "deliver to gate B",
+      "importRow": [
+        "Sugar 1kg",
+        "Groceries",
+        190,
+        160,
+        40
+      ]
     }
   },
   {
@@ -1242,15 +1290,18 @@
       "staff": [
         {
           "name": "Achieng",
-          "role": "STYLIST"
+          "role": "STYLIST",
+          "commission": 30
         },
         {
           "name": "Brian",
-          "role": "STYLIST"
+          "role": "STYLIST",
+          "commission": 30
         },
         {
           "name": "Faith",
-          "role": "STYLIST"
+          "role": "STYLIST",
+          "commission": 30
         }
       ],
       "customers": [
@@ -1305,6 +1356,22 @@
           "label": "Reception / cashier",
           "name": "Faith Muthoni"
         }
+      ]
+    },
+    "examples": {
+      "business": "Glow Studio",
+      "category": "Hair",
+      "item": "Wash & blow-dry",
+      "optionGroup": "Length",
+      "optionChoice": "Long",
+      "tagline": "Look good, feel good",
+      "note": "prefers Mercy",
+      "importRow": [
+        "Wash & blow-dry",
+        "Hair",
+        800,
+        0,
+        0
       ]
     }
   },
@@ -1584,10 +1651,27 @@
           "name": "Ann Wanjiku"
         }
       ]
+    },
+    "examples": {
+      "business": "Rift Valley Distributors",
+      "category": "Bulk goods",
+      "item": "Rice 25kg",
+      "optionGroup": "Pack",
+      "optionChoice": "Bale of 10",
+      "tagline": "Bulk prices, on time",
+      "note": "deliver on Tuesday",
+      "importRow": [
+        "Rice 25kg",
+        "Bulk goods",
+        5200,
+        4700,
+        60
+      ]
     }
   },
   {
-    "key": "pharmacy", "comingSoon": true,
+    "key": "pharmacy",
+    "comingSoon": true,
     "name": "Pharmacies & chemists",
     "tagline": "Batches, expiry alerts and prescription checks at the till",
     "icon": "pill",
@@ -1822,6 +1906,22 @@
           "name": "Brian Kiplagat"
         }
       ]
+    },
+    "examples": {
+      "business": "Afya Plus Chemist",
+      "category": "Pain & fever",
+      "item": "Paracetamol 500mg (10 tabs)",
+      "optionGroup": "Pack",
+      "optionChoice": "10 tablets",
+      "tagline": "Your health, our care",
+      "note": "",
+      "importRow": [
+        "Paracetamol 500mg (10 tabs)",
+        "Pain & fever",
+        50,
+        22,
+        200
+      ]
     }
   },
   {
@@ -2017,6 +2117,22 @@
           "label": "Account manager",
           "name": "Sharon Akinyi"
         }
+      ]
+    },
+    "examples": {
+      "business": "Pixel Point Agency",
+      "category": "Design",
+      "item": "Logo design",
+      "optionGroup": "Package",
+      "optionChoice": "Premium",
+      "tagline": "Ideas that work",
+      "note": "call before the visit",
+      "importRow": [
+        "Logo design",
+        "Design",
+        15000,
+        0,
+        0
       ]
     }
   },
@@ -2301,6 +2417,22 @@
           "name": "Diana Moraa"
         }
       ]
+    },
+    "examples": {
+      "business": "Savannah Trails Safaris",
+      "category": "Safaris",
+      "item": "Maasai Mara 3 days",
+      "optionGroup": "Room",
+      "optionChoice": "Twin share",
+      "tagline": "Unforgettable Kenya",
+      "note": "vegetarian meals",
+      "importRow": [
+        "Maasai Mara 3 days",
+        "Safaris",
+        45000,
+        0,
+        0
+      ]
     }
   },
   {
@@ -2570,6 +2702,22 @@
           "label": "Rent collector / accounts",
           "name": "Moses Kimani"
         }
+      ]
+    },
+    "examples": {
+      "business": "Moi Avenue Plaza",
+      "category": "Charges",
+      "item": "Service charge",
+      "optionGroup": "Rate",
+      "optionChoice": "Monthly",
+      "tagline": "Space to grow",
+      "note": "",
+      "importRow": [
+        "Service charge",
+        "Charges",
+        5000,
+        0,
+        0
       ]
     }
   }

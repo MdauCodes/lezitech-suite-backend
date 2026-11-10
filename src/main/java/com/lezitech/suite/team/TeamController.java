@@ -65,7 +65,7 @@ public class TeamController {
     @GetMapping
     public List<Map<String, Object>> list() {
         return db.list("""
-                SELECT id, email, name, role, active, pin_hash IS NOT NULL AS has_pin, created_at
+                SELECT id, email, name, role, active, pin_hash IS NOT NULL AS has_pin, commission_rate, created_at
                 FROM users WHERE tenant_id = :t ORDER BY role = 'OWNER' DESC, name""");
     }
 
@@ -88,7 +88,7 @@ public class TeamController {
                 VALUES (:t, :email, :name, :hash, :role, :pin) RETURNING id""",
                 "email", email, "name", b.str("name"), "hash", encoder.encode(password), "role", role,
                 "pin", b.has("pin") ? encoder.encode(pin(b)) : null);
-        return db.one("User", "SELECT id, email, name, role, active FROM users WHERE id = :id AND tenant_id = :t", "id", id);
+        return db.one("User", "SELECT id, email, name, role, active, commission_rate FROM users WHERE id = :id AND tenant_id = :t", "id", id);
     }
 
     @PutMapping("/{id}")
@@ -113,10 +113,15 @@ public class TeamController {
         if (b.has("pin")) {
             db.exec("UPDATE users SET pin_hash = :pin WHERE id = :id AND tenant_id = :t", "id", id, "pin", encoder.encode(pin(b)));
         }
+        if (b.has("commissionRate")) {
+            // Their commission on the sales and services credited to them; blank clears it.
+            db.exec("UPDATE users SET commission_rate = :cr WHERE id = :id AND tenant_id = :t", "id", id,
+                    "cr", com.lezitech.suite.catalog.CatalogController.rate(b.num("commissionRate", null)));
+        }
         if (b.has("password")) {
             db.exec("UPDATE users SET password_hash = :h WHERE id = :id AND tenant_id = :t", "id", id, "h", encoder.encode(b.str("password")));
         }
-        return db.one("User", "SELECT id, email, name, role, active FROM users WHERE id = :id AND tenant_id = :t", "id", id);
+        return db.one("User", "SELECT id, email, name, role, active, commission_rate FROM users WHERE id = :id AND tenant_id = :t", "id", id);
     }
 
     private static String role(Body b) {

@@ -1,548 +1,4071 @@
 {
   "restaurant": [
     {
-      "key": "restaurant", "name": "Restaurant",
+      "key": "restaurant",
+      "name": "Restaurant",
       "tagline": "Tables, kitchen tickets, split bills and M-Pesa at the table",
-      "kpis": ["sales_today", "open_bills", "avg_ticket", "kitchen_queue"],
-      "questions": [
-        {"key": "tables", "label": "How many tables do you have?", "type": "number"},
-        {"key": "service", "label": "How do customers order?", "type": "choice", "options": ["Waiters take orders", "Order at the counter", "Both"]}
+      "kpis": [
+        "sales_today",
+        "open_bills",
+        "avg_ticket",
+        "kitchen_queue"
       ],
-      "seo": {"headline": "Restaurant POS for Kenya, with tables, kitchen tickets and M-Pesa", "pitch": "Waiters send orders to the kitchen from their phones, tables split bills, and every M-Pesa and cash payment adds up at closing.", "keywords": ["restaurant POS Kenya", "restaurant system Nairobi", "kitchen order system", "M-Pesa restaurant till"]}
+      "questions": [
+        {
+          "key": "tables",
+          "label": "How many tables do you have?",
+          "type": "number"
+        },
+        {
+          "key": "service",
+          "label": "How do customers order?",
+          "type": "choice",
+          "options": [
+            "Waiters take orders",
+            "Order at the counter",
+            "Both"
+          ]
+        }
+      ],
+      "seo": {
+        "headline": "Restaurant POS for Kenya, with tables, kitchen tickets and M-Pesa",
+        "pitch": "Waiters send orders to the kitchen from their phones, tables split bills, and every M-Pesa and cash payment adds up at closing.",
+        "keywords": [
+          "restaurant POS Kenya",
+          "restaurant system Nairobi",
+          "kitchen order system",
+          "M-Pesa restaurant till"
+        ]
+      }
     },
     {
-      "key": "cafe", "name": "Café",
+      "key": "cafe",
+      "name": "Café",
       "tagline": "A fast counter till for coffee, snacks and regulars",
-      "terms": {"order": "Order", "orders": "Orders"},
-      "features": {"tables": true, "courses": false, "loyalty": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "kitchen_queue"],
-      "seed": {"categories": [
-        {"name": "Coffee", "color": "#92400e", "items": [
-          {"name": "Cappuccino", "price": 280, "cost": 90, "station": "Barista", "options": [{"name": "Size", "required": true, "multi": false, "choices": [{"name": "Regular", "price": 0}, {"name": "Large", "price": 60}]}, {"name": "Milk", "required": false, "multi": false, "choices": [{"name": "Whole", "price": 0}, {"name": "Oat", "price": 50}]}]},
-          {"name": "Kenyan pour-over", "price": 300, "cost": 80, "station": "Barista"},
-          {"name": "Café latte", "price": 300, "cost": 95, "station": "Barista"},
-          {"name": "Chai latte", "price": 250, "cost": 70, "station": "Barista"}]},
-        {"name": "Bakes & bites", "color": "#d97706", "items": [
-          {"name": "Blueberry muffin", "price": 220, "cost": 90, "station": "Counter", "stock": 18},
-          {"name": "Chicken samosa (2)", "price": 180, "cost": 70, "station": "Kitchen"},
-          {"name": "Avocado toast", "price": 450, "cost": 160, "station": "Kitchen"}]},
-        {"name": "Cold drinks", "color": "#0891b2", "items": [
-          {"name": "Fresh passion juice", "price": 250, "cost": 80, "station": "Barista"},
-          {"name": "Iced latte", "price": 330, "cost": 100, "station": "Barista"}]}
-      ]},
-      "questions": [{"key": "loyalty", "label": "Do you give regulars a free cup after a number of visits?", "type": "yesno"}],
-      "seo": {"headline": "Café POS for Kenyan coffee shops", "pitch": "Take orders at the counter in seconds, send drinks to the barista and reward regulars, with M-Pesa straight to your till.", "keywords": ["café POS Kenya", "coffee shop system Nairobi", "café till M-Pesa"]}
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": true,
+        "courses": false,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "kitchen_queue"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Coffee",
+            "color": "#92400e",
+            "items": [
+              {
+                "name": "Cappuccino",
+                "price": 280,
+                "cost": 90,
+                "station": "Barista",
+                "options": [
+                  {
+                    "name": "Size",
+                    "required": true,
+                    "multi": false,
+                    "choices": [
+                      {
+                        "name": "Regular",
+                        "price": 0
+                      },
+                      {
+                        "name": "Large",
+                        "price": 60
+                      }
+                    ]
+                  },
+                  {
+                    "name": "Milk",
+                    "required": false,
+                    "multi": false,
+                    "choices": [
+                      {
+                        "name": "Whole",
+                        "price": 0
+                      },
+                      {
+                        "name": "Oat",
+                        "price": 50
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Kenyan pour-over",
+                "price": 300,
+                "cost": 80,
+                "station": "Barista"
+              },
+              {
+                "name": "Café latte",
+                "price": 300,
+                "cost": 95,
+                "station": "Barista"
+              },
+              {
+                "name": "Chai latte",
+                "price": 250,
+                "cost": 70,
+                "station": "Barista"
+              }
+            ]
+          },
+          {
+            "name": "Bakes & bites",
+            "color": "#d97706",
+            "items": [
+              {
+                "name": "Blueberry muffin",
+                "price": 220,
+                "cost": 90,
+                "station": "Counter",
+                "stock": 18
+              },
+              {
+                "name": "Chicken samosa (2)",
+                "price": 180,
+                "cost": 70,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Avocado toast",
+                "price": 450,
+                "cost": 160,
+                "station": "Kitchen"
+              }
+            ]
+          },
+          {
+            "name": "Cold drinks",
+            "color": "#0891b2",
+            "items": [
+              {
+                "name": "Fresh passion juice",
+                "price": 250,
+                "cost": 80,
+                "station": "Barista"
+              },
+              {
+                "name": "Iced latte",
+                "price": 330,
+                "cost": 100,
+                "station": "Barista"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "loyalty",
+          "label": "Do you give regulars a free cup after a number of visits?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Café POS for Kenyan coffee shops",
+        "pitch": "Take orders at the counter in seconds, send drinks to the barista and reward regulars, with M-Pesa straight to your till.",
+        "keywords": [
+          "café POS Kenya",
+          "coffee shop system Nairobi",
+          "café till M-Pesa"
+        ]
+      },
+      "examples": {
+        "business": "Java Corner Café",
+        "category": "Coffee",
+        "item": "Cappuccino",
+        "optionGroup": "Milk",
+        "optionChoice": "Oat",
+        "tagline": "Good coffee, good mornings",
+        "note": "extra hot",
+        "importRow": [
+          "Cappuccino",
+          "Coffee",
+          280,
+          90,
+          0
+        ]
+      }
     },
     {
-      "key": "bar", "name": "Bar & lounge",
+      "key": "bar",
+      "name": "Bar & lounge",
       "tagline": "Open tabs, bottle stock that adds up and a nightly count",
-      "terms": {"order": "Tab", "orders": "Tabs"},
-      "features": {"tables": true, "kitchen": true, "tips": true},
-      "kpis": ["sales_today", "open_bills", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Beer", "color": "#ca8a04", "items": [
-          {"name": "Tusker lager 500ml", "price": 300, "cost": 210, "station": "Bar", "stock": 96, "reorder": 48},
-          {"name": "Guinness 500ml", "price": 330, "cost": 235, "station": "Bar", "stock": 72, "reorder": 36},
-          {"name": "White Cap 500ml", "price": 300, "cost": 210, "station": "Bar", "stock": 60, "reorder": 36}]},
-        {"name": "Spirits", "color": "#7c2d12", "items": [
-          {"name": "Whisky single (tot)", "price": 350, "cost": 120, "station": "Bar"},
-          {"name": "Gin & tonic", "price": 450, "cost": 150, "station": "Bar"},
-          {"name": "Vodka 750ml bottle", "price": 2800, "cost": 1650, "station": "Bar", "stock": 12, "reorder": 4}]},
-        {"name": "Grill", "color": "#b91c1c", "items": [
-          {"name": "Nyama choma 1/2 kg", "price": 750, "cost": 380, "station": "Grill"},
-          {"name": "Kuku choma (quarter)", "price": 550, "cost": 260, "station": "Grill"},
-          {"name": "Chips masala", "price": 300, "cost": 90, "station": "Kitchen"}]}
-      ]},
-      "questions": [{"key": "hours", "label": "What time do you close on Fridays?", "type": "text"}],
-      "seo": {"headline": "Bar and lounge POS for Kenya, with tabs and bottle stock", "pitch": "Keep open tabs per table, see which bottles are running low and count the night's takings without a calculator.", "keywords": ["bar POS Kenya", "lounge system Nairobi", "bar stock control Kenya"]}
+      "terms": {
+        "order": "Tab",
+        "orders": "Tabs"
+      },
+      "features": {
+        "tables": true,
+        "kitchen": true,
+        "tips": true
+      },
+      "kpis": [
+        "sales_today",
+        "open_bills",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Beer",
+            "color": "#ca8a04",
+            "items": [
+              {
+                "name": "Tusker lager 500ml",
+                "price": 300,
+                "cost": 210,
+                "station": "Bar",
+                "stock": 96,
+                "reorder": 48
+              },
+              {
+                "name": "Guinness 500ml",
+                "price": 330,
+                "cost": 235,
+                "station": "Bar",
+                "stock": 72,
+                "reorder": 36
+              },
+              {
+                "name": "White Cap 500ml",
+                "price": 300,
+                "cost": 210,
+                "station": "Bar",
+                "stock": 60,
+                "reorder": 36
+              }
+            ]
+          },
+          {
+            "name": "Spirits",
+            "color": "#7c2d12",
+            "items": [
+              {
+                "name": "Whisky single (tot)",
+                "price": 350,
+                "cost": 120,
+                "station": "Bar"
+              },
+              {
+                "name": "Gin & tonic",
+                "price": 450,
+                "cost": 150,
+                "station": "Bar"
+              },
+              {
+                "name": "Vodka 750ml bottle",
+                "price": 2800,
+                "cost": 1650,
+                "station": "Bar",
+                "stock": 12,
+                "reorder": 4
+              }
+            ]
+          },
+          {
+            "name": "Grill",
+            "color": "#b91c1c",
+            "items": [
+              {
+                "name": "Nyama choma 1/2 kg",
+                "price": 750,
+                "cost": 380,
+                "station": "Grill"
+              },
+              {
+                "name": "Kuku choma (quarter)",
+                "price": 550,
+                "cost": 260,
+                "station": "Grill"
+              },
+              {
+                "name": "Chips masala",
+                "price": 300,
+                "cost": 90,
+                "station": "Kitchen"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "hours",
+          "label": "What time do you close on Fridays?",
+          "type": "text"
+        }
+      ],
+      "seo": {
+        "headline": "Bar and lounge POS for Kenya, with tabs and bottle stock",
+        "pitch": "Keep open tabs per table, see which bottles are running low and count the night's takings without a calculator.",
+        "keywords": [
+          "bar POS Kenya",
+          "lounge system Nairobi",
+          "bar stock control Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Club Hideout Lounge",
+        "category": "Beer",
+        "item": "Tusker lager 500ml",
+        "optionGroup": "Mixer",
+        "optionChoice": "Tonic",
+        "tagline": "Where the weekend starts",
+        "note": "table 4 tab",
+        "importRow": [
+          "Tusker lager 500ml",
+          "Beer",
+          300,
+          210,
+          96
+        ]
+      }
     },
     {
-      "key": "fast-food", "name": "Fast food",
+      "key": "fast-food",
+      "name": "Fast food",
       "tagline": "Quick counter orders, order numbers on a screen and delivery",
-      "terms": {"order": "Order", "orders": "Orders"},
-      "features": {"tables": false, "courses": false, "orderBoard": true, "channels": ["TAKEAWAY", "DELIVERY", "DINE_IN"]},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "kitchen_queue"],
-      "seed": {"categories": [
-        {"name": "Burgers & chicken", "color": "#dc2626", "items": [
-          {"name": "Beef burger & chips", "price": 650, "cost": 260, "station": "Kitchen"},
-          {"name": "2 pc chicken & chips", "price": 550, "cost": 230, "station": "Kitchen"},
-          {"name": "Chicken wings (6)", "price": 600, "cost": 240, "station": "Kitchen"}]},
-        {"name": "Street favourites", "color": "#ea580c", "items": [
-          {"name": "Chips mayai", "price": 250, "cost": 90, "station": "Kitchen"},
-          {"name": "Smokie pasua", "price": 80, "cost": 35, "station": "Counter"},
-          {"name": "Beef samosa", "price": 60, "cost": 25, "station": "Counter"}]},
-        {"name": "Drinks", "color": "#0891b2", "items": [
-          {"name": "Soda 500ml", "price": 100, "cost": 60, "station": "Counter", "stock": 96, "reorder": 48},
-          {"name": "Milkshake", "price": 300, "cost": 110, "station": "Counter"}]}
-      ]},
-      "questions": [{"key": "delivery", "label": "Do you deliver (your own riders, Glovo, Uber Eats)?", "type": "yesno"}],
-      "seo": {"headline": "Fast food POS for Kenya with order numbers and delivery", "pitch": "Take counter orders fast, show order numbers on a screen and track delivery orders, with M-Pesa straight to your till.", "keywords": ["fast food POS Kenya", "takeaway system Nairobi", "chips shop POS"]}
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": false,
+        "courses": false,
+        "orderBoard": true,
+        "channels": [
+          "TAKEAWAY",
+          "DELIVERY",
+          "DINE_IN"
+        ]
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "kitchen_queue"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Burgers & chicken",
+            "color": "#dc2626",
+            "items": [
+              {
+                "name": "Beef burger & chips",
+                "price": 650,
+                "cost": 260,
+                "station": "Kitchen"
+              },
+              {
+                "name": "2 pc chicken & chips",
+                "price": 550,
+                "cost": 230,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Chicken wings (6)",
+                "price": 600,
+                "cost": 240,
+                "station": "Kitchen"
+              }
+            ]
+          },
+          {
+            "name": "Street favourites",
+            "color": "#ea580c",
+            "items": [
+              {
+                "name": "Chips mayai",
+                "price": 250,
+                "cost": 90,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Smokie pasua",
+                "price": 80,
+                "cost": 35,
+                "station": "Counter"
+              },
+              {
+                "name": "Beef samosa",
+                "price": 60,
+                "cost": 25,
+                "station": "Counter"
+              }
+            ]
+          },
+          {
+            "name": "Drinks",
+            "color": "#0891b2",
+            "items": [
+              {
+                "name": "Soda 500ml",
+                "price": 100,
+                "cost": 60,
+                "station": "Counter",
+                "stock": 96,
+                "reorder": 48
+              },
+              {
+                "name": "Milkshake",
+                "price": 300,
+                "cost": 110,
+                "station": "Counter"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "delivery",
+          "label": "Do you deliver (your own riders, Glovo, Uber Eats)?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Fast food POS for Kenya with order numbers and delivery",
+        "pitch": "Take counter orders fast, show order numbers on a screen and track delivery orders, with M-Pesa straight to your till.",
+        "keywords": [
+          "fast food POS Kenya",
+          "takeaway system Nairobi",
+          "chips shop POS"
+        ]
+      },
+      "examples": {
+        "business": "Chips Mtaani",
+        "category": "Burgers & chicken",
+        "item": "2 pc chicken & chips",
+        "optionGroup": "Sauce",
+        "optionChoice": "Chilli",
+        "tagline": "Hot, fast and tasty",
+        "note": "no salt on chips",
+        "importRow": [
+          "2 pc chicken & chips",
+          "Burgers & chicken",
+          550,
+          230,
+          0
+        ]
+      }
     },
     {
-      "key": "bakery", "name": "Bakery",
+      "key": "bakery",
+      "name": "Bakery",
       "tagline": "Daily bakes, cake orders with deposits and counter sales",
-      "terms": {"order": "Order", "orders": "Orders"},
-      "features": {"tables": false, "deposits": true, "barcode": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Bread", "color": "#b45309", "items": [
-          {"name": "White bread 400g", "price": 65, "cost": 42, "station": "Counter", "stock": 60, "reorder": 20},
-          {"name": "Brown bread 400g", "price": 70, "cost": 45, "station": "Counter", "stock": 40, "reorder": 15},
-          {"name": "Mandazi (4)", "price": 60, "cost": 25, "station": "Counter", "stock": 50}]},
-        {"name": "Cakes", "color": "#db2777", "items": [
-          {"name": "Black forest cake 1kg", "price": 2200, "cost": 900, "station": "Bakery"},
-          {"name": "Birthday cake 2kg (order)", "price": 4500, "cost": 1800, "station": "Bakery"},
-          {"name": "Cupcake", "price": 120, "cost": 45, "station": "Counter", "stock": 36}]},
-        {"name": "Pastries", "color": "#d97706", "items": [
-          {"name": "Croissant", "price": 150, "cost": 60, "station": "Counter", "stock": 24},
-          {"name": "Sausage roll", "price": 120, "cost": 55, "station": "Counter", "stock": 24}]}
-      ]},
-      "questions": [{"key": "customOrders", "label": "Do you take custom cake orders with a deposit?", "type": "yesno"}],
-      "seo": {"headline": "Bakery POS for Kenya, with cake orders and deposits", "pitch": "Sell the day's bakes at the counter, take cake orders with an M-Pesa deposit and know what sold out first.", "keywords": ["bakery POS Kenya", "cake shop system Nairobi", "bakery software Kenya"]}
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": false,
+        "deposits": true,
+        "barcode": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Bread",
+            "color": "#b45309",
+            "items": [
+              {
+                "name": "White bread 400g",
+                "price": 65,
+                "cost": 42,
+                "station": "Counter",
+                "stock": 60,
+                "reorder": 20
+              },
+              {
+                "name": "Brown bread 400g",
+                "price": 70,
+                "cost": 45,
+                "station": "Counter",
+                "stock": 40,
+                "reorder": 15
+              },
+              {
+                "name": "Mandazi (4)",
+                "price": 60,
+                "cost": 25,
+                "station": "Counter",
+                "stock": 50
+              }
+            ]
+          },
+          {
+            "name": "Cakes",
+            "color": "#db2777",
+            "items": [
+              {
+                "name": "Black forest cake 1kg",
+                "price": 2200,
+                "cost": 900,
+                "station": "Bakery"
+              },
+              {
+                "name": "Birthday cake 2kg (order)",
+                "price": 4500,
+                "cost": 1800,
+                "station": "Bakery"
+              },
+              {
+                "name": "Cupcake",
+                "price": 120,
+                "cost": 45,
+                "station": "Counter",
+                "stock": 36
+              }
+            ]
+          },
+          {
+            "name": "Pastries",
+            "color": "#d97706",
+            "items": [
+              {
+                "name": "Croissant",
+                "price": 150,
+                "cost": 60,
+                "station": "Counter",
+                "stock": 24
+              },
+              {
+                "name": "Sausage roll",
+                "price": 120,
+                "cost": 55,
+                "station": "Counter",
+                "stock": 24
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "customOrders",
+          "label": "Do you take custom cake orders with a deposit?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Bakery POS for Kenya, with cake orders and deposits",
+        "pitch": "Sell the day's bakes at the counter, take cake orders with an M-Pesa deposit and know what sold out first.",
+        "keywords": [
+          "bakery POS Kenya",
+          "cake shop system Nairobi",
+          "bakery software Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Mkate Fresh Bakery",
+        "category": "Cakes",
+        "item": "Black forest cake 1kg",
+        "optionGroup": "Message",
+        "optionChoice": "Happy birthday",
+        "tagline": "Baked fresh every morning",
+        "note": "write 'Happy birthday Amani'",
+        "importRow": [
+          "White bread 400g",
+          "Bread",
+          65,
+          42,
+          60
+        ]
+      }
     },
     {
-      "key": "restaurant-rooms", "name": "Restaurant with rooms",
+      "key": "restaurant-rooms",
+      "name": "Restaurant with rooms",
       "tagline": "Your restaurant and a few rooms, billed together",
-      "features": {"rooms": true, "deposits": true},
-      "kpis": ["sales_today", "occupancy_today", "open_bills", "arrivals_today"],
-      "seo": {"headline": "Restaurant and rooms software for Kenya", "pitch": "Run the restaurant and a few guest rooms from one screen: room charges, meals on the room bill and M-Pesa deposits.", "keywords": ["restaurant with rooms Kenya", "small hotel restaurant system"]}
+      "features": {
+        "rooms": true,
+        "deposits": true
+      },
+      "kpis": [
+        "sales_today",
+        "occupancy_today",
+        "open_bills",
+        "arrivals_today"
+      ],
+      "seo": {
+        "headline": "Restaurant and rooms software for Kenya",
+        "pitch": "Run the restaurant and a few guest rooms from one screen: room charges, meals on the room bill and M-Pesa deposits.",
+        "keywords": [
+          "restaurant with rooms Kenya",
+          "small hotel restaurant system"
+        ]
+      }
     },
     {
-      "key": "ice-cream", "name": "Ice-cream & desserts",
+      "key": "ice-cream",
+      "name": "Ice-cream & desserts",
       "tagline": "Scoops, toppings and fast counter sales",
-      "terms": {"order": "Order", "orders": "Orders"},
-      "features": {"tables": false, "courses": false, "kitchen": false, "loyalty": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Ice-cream", "color": "#ec4899", "items": [
-          {"name": "Single scoop cone", "price": 150, "cost": 50, "station": "Counter", "options": [{"name": "Flavour", "required": true, "multi": false, "choices": [{"name": "Vanilla", "price": 0}, {"name": "Chocolate", "price": 0}, {"name": "Strawberry", "price": 0}, {"name": "Mango", "price": 0}]}]},
-          {"name": "Double scoop cup", "price": 250, "cost": 90, "station": "Counter"},
-          {"name": "Sundae", "price": 400, "cost": 140, "station": "Counter", "options": [{"name": "Topping", "required": false, "multi": true, "choices": [{"name": "Chocolate sauce", "price": 0}, {"name": "Nuts", "price": 50}, {"name": "Sprinkles", "price": 30}]}]}]},
-        {"name": "Desserts & shakes", "color": "#a855f7", "items": [
-          {"name": "Milkshake", "price": 350, "cost": 120, "station": "Counter"},
-          {"name": "Waffle with ice-cream", "price": 450, "cost": 160, "station": "Counter"},
-          {"name": "1 litre tub", "price": 900, "cost": 380, "station": "Counter", "stock": 20, "reorder": 6}]}
-      ]},
-      "seo": {"headline": "Ice-cream parlour POS for Kenya", "pitch": "Sell scoops, toppings and tubs in seconds, see your best flavours and keep a loyalty count for regulars.", "keywords": ["ice cream shop POS Kenya", "dessert parlour system"]}
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": false,
+        "courses": false,
+        "kitchen": false,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Ice-cream",
+            "color": "#ec4899",
+            "items": [
+              {
+                "name": "Single scoop cone",
+                "price": 150,
+                "cost": 50,
+                "station": "Counter",
+                "options": [
+                  {
+                    "name": "Flavour",
+                    "required": true,
+                    "multi": false,
+                    "choices": [
+                      {
+                        "name": "Vanilla",
+                        "price": 0
+                      },
+                      {
+                        "name": "Chocolate",
+                        "price": 0
+                      },
+                      {
+                        "name": "Strawberry",
+                        "price": 0
+                      },
+                      {
+                        "name": "Mango",
+                        "price": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Double scoop cup",
+                "price": 250,
+                "cost": 90,
+                "station": "Counter"
+              },
+              {
+                "name": "Sundae",
+                "price": 400,
+                "cost": 140,
+                "station": "Counter",
+                "options": [
+                  {
+                    "name": "Topping",
+                    "required": false,
+                    "multi": true,
+                    "choices": [
+                      {
+                        "name": "Chocolate sauce",
+                        "price": 0
+                      },
+                      {
+                        "name": "Nuts",
+                        "price": 50
+                      },
+                      {
+                        "name": "Sprinkles",
+                        "price": 30
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Desserts & shakes",
+            "color": "#a855f7",
+            "items": [
+              {
+                "name": "Milkshake",
+                "price": 350,
+                "cost": 120,
+                "station": "Counter"
+              },
+              {
+                "name": "Waffle with ice-cream",
+                "price": 450,
+                "cost": 160,
+                "station": "Counter"
+              },
+              {
+                "name": "1 litre tub",
+                "price": 900,
+                "cost": 380,
+                "station": "Counter",
+                "stock": 20,
+                "reorder": 6
+              }
+            ]
+          }
+        ]
+      },
+      "seo": {
+        "headline": "Ice-cream parlour POS for Kenya",
+        "pitch": "Sell scoops, toppings and tubs in seconds, see your best flavours and keep a loyalty count for regulars.",
+        "keywords": [
+          "ice cream shop POS Kenya",
+          "dessert parlour system"
+        ]
+      },
+      "examples": {
+        "business": "Scoops & Smiles",
+        "category": "Ice-cream",
+        "item": "Double scoop cup",
+        "optionGroup": "Flavour",
+        "optionChoice": "Mango",
+        "tagline": "Cool treats all day",
+        "note": "extra sprinkles",
+        "importRow": [
+          "Single scoop cone",
+          "Ice-cream",
+          150,
+          50,
+          0
+        ]
+      }
     }
   ],
   "hotel": [
-    {"key": "hotel", "name": "Hotel", "tagline": "Rooms, restaurant, bar and conferences on one chart",
-     "seo": {"headline": "Hotel management software for Kenya", "pitch": "Room chart, check-in and check-out, guest folios, housekeeping and your restaurant and bar, with M-Pesa deposits.", "keywords": ["hotel management system Kenya", "hotel software Nairobi", "hotel PMS Kenya"]}},
-    {"key": "safari-lodge", "name": "Safari lodge or camp", "tagline": "Full-board stays, park guests and the camp bar",
-     "terms": {"location": "Camp"},
-     "questions": [{"key": "board", "label": "Do most guests stay full board?", "type": "yesno"}],
-     "seo": {"headline": "Safari lodge and camp software for Kenya", "pitch": "Full-board stays, tents and cottages on one chart, bar tabs on the guest's bill and deposits by M-Pesa or card.", "keywords": ["safari lodge software Kenya", "tented camp management system"]}},
-    {"key": "guest-house", "name": "Guest house / B&B", "tagline": "A handful of rooms, breakfast and simple check-in",
-     "kpis": ["occupancy_today", "arrivals_today", "departures_today", "sales_today"],
-     "seo": {"headline": "Guest house and B&B software for Kenya", "pitch": "A simple room chart, breakfast on the bill and M-Pesa deposits, made for small guest houses.", "keywords": ["guest house software Kenya", "B&B booking system Kenya"]}},
-    {"key": "serviced-apartments", "name": "Serviced apartments", "tagline": "Nightly and monthly stays with cleaning schedules",
-     "terms": {"customer": "Guest", "customers": "Guests"},
-     "seo": {"headline": "Serviced apartment management in Kenya", "pitch": "Nightly and monthly stays, deposits, cleaning and extras like laundry on one bill.", "keywords": ["serviced apartments software Kenya", "apartment booking system Nairobi"]}},
-    {"key": "airbnb-host", "name": "Airbnb host", "tagline": "Your units, bookings from every channel, cleaning and payouts",
-     "kpis": ["occupancy_today", "arrivals_today", "departures_today", "sales_today"],
-     "questions": [{"key": "units", "label": "How many units do you host?", "type": "number"}],
-     "seo": {"headline": "Software for Airbnb hosts in Kenya", "pitch": "See every unit's bookings in one calendar, schedule cleaning between guests and track direct M-Pesa bookings.", "keywords": ["Airbnb host software Kenya", "short stay management Nairobi"]}},
-    {"key": "conference", "name": "Conference & events venue", "tagline": "Halls, packages per head and event deposits",
-     "seo": {"headline": "Conference and events venue software for Kenya", "pitch": "Quote packages per head, take deposits by M-Pesa and bill catering and rooms on one invoice.", "keywords": ["conference venue software Kenya", "events venue booking system"]}}
+    {
+      "key": "hotel",
+      "name": "Hotel",
+      "tagline": "Rooms, restaurant, bar and conferences on one chart",
+      "seo": {
+        "headline": "Hotel management software for Kenya",
+        "pitch": "Room chart, check-in and check-out, guest folios, housekeeping and your restaurant and bar, with M-Pesa deposits.",
+        "keywords": [
+          "hotel management system Kenya",
+          "hotel software Nairobi",
+          "hotel PMS Kenya"
+        ]
+      }
+    },
+    {
+      "key": "safari-lodge",
+      "name": "Safari lodge or camp",
+      "tagline": "Full-board stays, park guests and the camp bar",
+      "terms": {
+        "location": "Camp"
+      },
+      "questions": [
+        {
+          "key": "board",
+          "label": "Do most guests stay full board?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Safari lodge and camp software for Kenya",
+        "pitch": "Full-board stays, tents and cottages on one chart, bar tabs on the guest's bill and deposits by M-Pesa or card.",
+        "keywords": [
+          "safari lodge software Kenya",
+          "tented camp management system"
+        ]
+      },
+      "examples": {
+        "business": "Mara Acacia Camp",
+        "category": "Bar",
+        "item": "Sundowner package",
+        "optionGroup": "Board",
+        "optionChoice": "Full board",
+        "tagline": "Wake up to the wild",
+        "note": "honeymoon couple"
+      }
+    },
+    {
+      "key": "guest-house",
+      "name": "Guest house / B&B",
+      "tagline": "A handful of rooms, breakfast and simple check-in",
+      "kpis": [
+        "occupancy_today",
+        "arrivals_today",
+        "departures_today",
+        "sales_today"
+      ],
+      "seo": {
+        "headline": "Guest house and B&B software for Kenya",
+        "pitch": "A simple room chart, breakfast on the bill and M-Pesa deposits, made for small guest houses.",
+        "keywords": [
+          "guest house software Kenya",
+          "B&B booking system Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Nyumbani Guest House",
+        "category": "Breakfast",
+        "item": "Full breakfast",
+        "optionGroup": "Room type",
+        "optionChoice": "Double",
+        "tagline": "Home away from home",
+        "note": "arriving late"
+      }
+    },
+    {
+      "key": "serviced-apartments",
+      "name": "Serviced apartments",
+      "tagline": "Nightly and monthly stays with cleaning schedules",
+      "terms": {
+        "customer": "Guest",
+        "customers": "Guests"
+      },
+      "seo": {
+        "headline": "Serviced apartment management in Kenya",
+        "pitch": "Nightly and monthly stays, deposits, cleaning and extras like laundry on one bill.",
+        "keywords": [
+          "serviced apartments software Kenya",
+          "apartment booking system Nairobi"
+        ]
+      }
+    },
+    {
+      "key": "airbnb-host",
+      "name": "Airbnb host",
+      "tagline": "Your units on one calendar, cleaning between guests and direct bookings",
+      "kpis": [
+        "occupancy_today",
+        "arrivals_today",
+        "departures_today",
+        "sales_today"
+      ],
+      "questions": [
+        {
+          "key": "units",
+          "label": "How many units do you host?",
+          "type": "number"
+        }
+      ],
+      "seo": {
+        "headline": "Software for Airbnb hosts in Kenya",
+        "pitch": "See every unit's bookings in one calendar, schedule cleaning between guests and take direct bookings by M-Pesa.",
+        "keywords": [
+          "Airbnb host software Kenya",
+          "short stay management Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Kilimani Stays",
+        "category": "Extras",
+        "item": "Airport pickup",
+        "optionGroup": "Unit",
+        "optionChoice": "1-bedroom",
+        "tagline": "Your stay, sorted",
+        "note": "self check-in"
+      }
+    },
+    {
+      "key": "conference",
+      "name": "Conference & events venue",
+      "tagline": "Halls, packages per head and event deposits",
+      "seo": {
+        "headline": "Conference and events venue software for Kenya",
+        "pitch": "Quote packages per head, take deposits by M-Pesa and bill catering and rooms on one invoice.",
+        "keywords": [
+          "conference venue software Kenya",
+          "events venue booking system"
+        ]
+      },
+      "examples": {
+        "business": "Lakeview Conference Centre",
+        "category": "Packages",
+        "item": "Full-day conference package",
+        "optionGroup": "Package",
+        "optionChoice": "Half day",
+        "tagline": "Meet, eat, decide",
+        "note": "projector needed"
+      }
+    }
   ],
   "retail": [
     {
-      "key": "minimart", "name": "Minimart / supermarket",
+      "key": "minimart",
+      "name": "Minimart / supermarket",
       "tagline": "A fast barcode till, stock alerts and M-Pesa at the counter",
-      "seo": {"headline": "Supermarket and minimart POS for Kenya", "pitch": "Scan, send the M-Pesa prompt and move the queue, even offline. Know what's running low before suppliers call.", "keywords": ["supermarket POS Kenya", "minimart POS", "shop till system Kenya", "duka POS"]}
+      "seo": {
+        "headline": "Supermarket and minimart POS for Kenya",
+        "pitch": "Scan, send the M-Pesa prompt and move the queue, even offline. Know what's running low before suppliers call.",
+        "keywords": [
+          "supermarket POS Kenya",
+          "minimart POS",
+          "shop till system Kenya",
+          "duka POS"
+        ]
+      }
     },
     {
-      "key": "boutique", "name": "Boutique & fashion",
-      "tagline": "Sizes and colours, new stock, regular customers and lay-bys",
-      "features": {"barcode": true, "loyalty": true, "deposits": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Ladies", "color": "#db2777", "items": [
-          {"name": "Ankara dress", "price": 3500, "cost": 1800, "stock": 8, "reorder": 2, "options": [{"name": "Size", "required": true, "multi": false, "choices": [{"name": "S", "price": 0}, {"name": "M", "price": 0}, {"name": "L", "price": 0}, {"name": "XL", "price": 0}]}]},
-          {"name": "Denim jeans", "price": 2500, "cost": 1300, "stock": 12, "reorder": 3},
-          {"name": "Handbag", "price": 2800, "cost": 1400, "stock": 6, "reorder": 2}]},
-        {"name": "Men", "color": "#1d4ed8", "items": [
-          {"name": "Cotton shirt", "price": 1800, "cost": 900, "stock": 10, "reorder": 3},
-          {"name": "Chinos", "price": 2200, "cost": 1100, "stock": 8, "reorder": 2}]},
-        {"name": "Shoes", "color": "#78350f", "items": [
-          {"name": "Leather sandals", "price": 1500, "cost": 700, "stock": 10, "reorder": 3},
-          {"name": "Sneakers", "price": 3800, "cost": 2200, "stock": 6, "reorder": 2}]}
-      ]},
-      "questions": [{"key": "layby", "label": "Do customers pay in instalments (lay-by)?", "type": "yesno"}],
-      "seo": {"headline": "Boutique and fashion shop POS for Kenya", "pitch": "Sell by size and colour, see what's selling, keep lay-by balances and reward your regular customers.", "keywords": ["boutique POS Kenya", "clothes shop system Nairobi", "fashion store software Kenya"]}
+      "key": "boutique",
+      "name": "Boutique & fashion",
+      "tagline": "Clothes and shoes, new stock, regular customers and lay-bys",
+      "features": {
+        "barcode": true,
+        "loyalty": true,
+        "deposits": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Ladies",
+            "color": "#db2777",
+            "items": [
+              {
+                "name": "Ankara dress",
+                "price": 3500,
+                "cost": 1800,
+                "stock": 8,
+                "reorder": 2,
+                "options": [
+                  {
+                    "name": "Size",
+                    "required": true,
+                    "multi": false,
+                    "choices": [
+                      {
+                        "name": "S",
+                        "price": 0
+                      },
+                      {
+                        "name": "M",
+                        "price": 0
+                      },
+                      {
+                        "name": "L",
+                        "price": 0
+                      },
+                      {
+                        "name": "XL",
+                        "price": 0
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "name": "Denim jeans",
+                "price": 2500,
+                "cost": 1300,
+                "stock": 12,
+                "reorder": 3
+              },
+              {
+                "name": "Handbag",
+                "price": 2800,
+                "cost": 1400,
+                "stock": 6,
+                "reorder": 2
+              }
+            ]
+          },
+          {
+            "name": "Men",
+            "color": "#1d4ed8",
+            "items": [
+              {
+                "name": "Cotton shirt",
+                "price": 1800,
+                "cost": 900,
+                "stock": 10,
+                "reorder": 3
+              },
+              {
+                "name": "Chinos",
+                "price": 2200,
+                "cost": 1100,
+                "stock": 8,
+                "reorder": 2
+              }
+            ]
+          },
+          {
+            "name": "Shoes",
+            "color": "#78350f",
+            "items": [
+              {
+                "name": "Leather sandals",
+                "price": 1500,
+                "cost": 700,
+                "stock": 10,
+                "reorder": 3
+              },
+              {
+                "name": "Sneakers",
+                "price": 3800,
+                "cost": 2200,
+                "stock": 6,
+                "reorder": 2
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "layby",
+          "label": "Do customers pay in instalments (lay-by)?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Boutique and fashion shop POS for Kenya",
+        "pitch": "Pick the size at the till, see what's selling, keep lay-by balances and reward your regular customers.",
+        "keywords": [
+          "boutique POS Kenya",
+          "clothes shop system Nairobi",
+          "fashion store software Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Zuri Fashion House",
+        "category": "Ladies",
+        "item": "Ankara dress",
+        "optionGroup": "Size",
+        "optionChoice": "M",
+        "tagline": "Style for every day",
+        "note": "keep for collection Friday",
+        "importRow": [
+          "Ankara dress",
+          "Ladies",
+          3500,
+          1800,
+          8
+        ]
+      }
     },
     {
-      "key": "phones", "name": "Electronics & phones",
-      "tagline": "Serial numbers, warranties, accessories and phone repairs",
-      "terms": {"item": "Product", "items": "Products"},
-      "features": {"barcode": true, "credit": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Phones", "color": "#0f172a", "items": [
-          {"name": "Samsung Galaxy A15 128GB", "price": 21500, "cost": 18200, "barcode": "8806095000001", "stock": 6, "reorder": 2},
-          {"name": "Tecno Spark 20", "price": 15500, "cost": 13000, "barcode": "6941059000002", "stock": 8, "reorder": 2},
-          {"name": "Infinix Hot 40i", "price": 14000, "cost": 11800, "barcode": "6941812000003", "stock": 8, "reorder": 2}]},
-        {"name": "Accessories", "color": "#2563eb", "items": [
-          {"name": "Fast charger 20W", "price": 1200, "cost": 550, "stock": 25, "reorder": 8},
-          {"name": "Screen protector (fitted)", "price": 500, "cost": 120, "stock": 40, "reorder": 15},
-          {"name": "Earphones", "price": 800, "cost": 300, "stock": 30, "reorder": 10},
-          {"name": "Power bank 10000mAh", "price": 2200, "cost": 1300, "stock": 12, "reorder": 4}]},
-        {"name": "Repairs", "color": "#16a34a", "items": [
-          {"name": "Screen replacement (labour)", "price": 1500, "cost": 0, "kind": "SERVICE"},
-          {"name": "Charging port repair", "price": 1000, "cost": 0, "kind": "SERVICE"}]}
-      ]},
-      "questions": [{"key": "repairs", "label": "Do you also repair phones?", "type": "yesno"}],
-      "seo": {"headline": "Phone shop and electronics POS for Kenya", "pitch": "Track phones by model, sell accessories fast, record repairs and see your margin on every handset.", "keywords": ["phone shop POS Kenya", "electronics shop system Nairobi", "Luthuli phone shop software"]}
+      "key": "phones",
+      "name": "Electronics & phones",
+      "tagline": "Phones, accessories and repair jobs, with your margin on every handset",
+      "terms": {
+        "item": "Product",
+        "items": "Products"
+      },
+      "features": {
+        "barcode": true,
+        "credit": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Phones",
+            "color": "#0f172a",
+            "items": [
+              {
+                "name": "Samsung Galaxy A15 128GB",
+                "price": 21500,
+                "cost": 18200,
+                "barcode": "8806095000001",
+                "stock": 6,
+                "reorder": 2
+              },
+              {
+                "name": "Tecno Spark 20",
+                "price": 15500,
+                "cost": 13000,
+                "barcode": "6941059000002",
+                "stock": 8,
+                "reorder": 2
+              },
+              {
+                "name": "Infinix Hot 40i",
+                "price": 14000,
+                "cost": 11800,
+                "barcode": "6941812000003",
+                "stock": 8,
+                "reorder": 2
+              }
+            ]
+          },
+          {
+            "name": "Accessories",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Fast charger 20W",
+                "price": 1200,
+                "cost": 550,
+                "stock": 25,
+                "reorder": 8
+              },
+              {
+                "name": "Screen protector (fitted)",
+                "price": 500,
+                "cost": 120,
+                "stock": 40,
+                "reorder": 15
+              },
+              {
+                "name": "Earphones",
+                "price": 800,
+                "cost": 300,
+                "stock": 30,
+                "reorder": 10
+              },
+              {
+                "name": "Power bank 10000mAh",
+                "price": 2200,
+                "cost": 1300,
+                "stock": 12,
+                "reorder": 4
+              }
+            ]
+          },
+          {
+            "name": "Repairs",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "Screen replacement (labour)",
+                "price": 1500,
+                "cost": 0,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Charging port repair",
+                "price": 1000,
+                "cost": 0,
+                "kind": "SERVICE"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "repairs",
+          "label": "Do you also repair phones?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Phone shop and electronics POS for Kenya",
+        "pitch": "Sell phones and accessories fast, record repair jobs and see your margin on every handset.",
+        "keywords": [
+          "phone shop POS Kenya",
+          "electronics shop system Nairobi",
+          "Luthuli phone shop software"
+        ]
+      },
+      "examples": {
+        "business": "Luthuli Phones & Accessories",
+        "category": "Accessories",
+        "item": "Fast charger 20W",
+        "optionGroup": "Colour",
+        "optionChoice": "Black",
+        "tagline": "Genuine phones, fair prices",
+        "note": "screen repair, collect 4pm",
+        "importRow": [
+          "Fast charger 20W",
+          "Accessories",
+          1200,
+          550,
+          25
+        ]
+      }
     },
     {
-      "key": "hardware", "name": "Hardware",
+      "key": "hardware",
+      "name": "Hardware",
       "tagline": "Sell by piece, metre and bag, with fundi credit and quotations",
-      "terms": {"customer": "Customer", "customers": "Customers"},
-      "features": {"barcode": true, "credit": true, "wholesalePricing": true},
-      "kpis": ["sales_today", "transactions_today", "open_quotes", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Building", "color": "#78716c", "items": [
-          {"name": "Cement 50kg (Bamburi)", "price": 780, "cost": 700, "unit": "bag", "stock": 120, "reorder": 40, "wholesale": 750, "wholesaleMin": 20},
-          {"name": "Y12 steel bar 12m", "price": 1150, "cost": 980, "stock": 60, "reorder": 20},
-          {"name": "Ballast (tonne)", "price": 2800, "cost": 2200, "unit": "t", "stock": 10, "reorder": 3}]},
-        {"name": "Roofing", "color": "#b91c1c", "items": [
-          {"name": "Iron sheet gauge 30 (3m)", "price": 950, "cost": 780, "stock": 80, "reorder": 25},
-          {"name": "Roofing nails 1kg", "price": 250, "cost": 180, "unit": "kg", "stock": 40, "reorder": 10}]},
-        {"name": "Plumbing & electrical", "color": "#2563eb", "items": [
-          {"name": "PVC pipe 1/2 inch (6m)", "price": 380, "cost": 280, "stock": 50, "reorder": 15},
-          {"name": "Electrical cable 2.5mm (metre)", "price": 85, "cost": 60, "unit": "m", "stock": 500, "reorder": 100},
-          {"name": "Paint 4L (white)", "price": 1900, "cost": 1500, "stock": 20, "reorder": 6}]}
-      ]},
-      "questions": [
-        {"key": "credit", "label": "Do you sell on credit to fundis and contractors?", "type": "yesno"},
-        {"key": "delivery", "label": "Do you deliver to sites?", "type": "yesno"}
+      "terms": {
+        "customer": "Customer",
+        "customers": "Customers"
+      },
+      "features": {
+        "barcode": true,
+        "credit": true,
+        "wholesalePricing": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "open_quotes",
+        "low_stock"
       ],
-      "seo": {"headline": "Hardware shop POS for Kenya", "pitch": "Sell cement by the bag and cable by the metre, give fundis credit with a limit, and turn quotations into sales.", "keywords": ["hardware POS Kenya", "hardware shop system", "hardware software Nairobi", "building materials shop system"]}
+      "seed": {
+        "categories": [
+          {
+            "name": "Building",
+            "color": "#78716c",
+            "items": [
+              {
+                "name": "Cement 50kg (Bamburi)",
+                "price": 780,
+                "cost": 700,
+                "unit": "bag",
+                "stock": 120,
+                "reorder": 40,
+                "wholesale": 750,
+                "wholesaleMin": 20
+              },
+              {
+                "name": "Y12 steel bar 12m",
+                "price": 1150,
+                "cost": 980,
+                "stock": 60,
+                "reorder": 20
+              },
+              {
+                "name": "Ballast (tonne)",
+                "price": 2800,
+                "cost": 2200,
+                "unit": "t",
+                "stock": 10,
+                "reorder": 3
+              }
+            ]
+          },
+          {
+            "name": "Roofing",
+            "color": "#b91c1c",
+            "items": [
+              {
+                "name": "Iron sheet gauge 30 (3m)",
+                "price": 950,
+                "cost": 780,
+                "stock": 80,
+                "reorder": 25
+              },
+              {
+                "name": "Roofing nails 1kg",
+                "price": 250,
+                "cost": 180,
+                "unit": "kg",
+                "stock": 40,
+                "reorder": 10
+              }
+            ]
+          },
+          {
+            "name": "Plumbing & electrical",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "PVC pipe 1/2 inch (6m)",
+                "price": 380,
+                "cost": 280,
+                "stock": 50,
+                "reorder": 15
+              },
+              {
+                "name": "Electrical cable 2.5mm (metre)",
+                "price": 85,
+                "cost": 60,
+                "unit": "m",
+                "stock": 500,
+                "reorder": 100
+              },
+              {
+                "name": "Paint 4L (white)",
+                "price": 1900,
+                "cost": 1500,
+                "stock": 20,
+                "reorder": 6
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "credit",
+          "label": "Do you sell on credit to fundis and contractors?",
+          "type": "yesno"
+        },
+        {
+          "key": "delivery",
+          "label": "Do you deliver to sites?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Hardware shop POS for Kenya",
+        "pitch": "Sell cement by the bag and cable by the metre, give fundis credit with a limit, and turn quotations into sales.",
+        "keywords": [
+          "hardware POS Kenya",
+          "hardware shop system",
+          "hardware software Nairobi",
+          "building materials shop system"
+        ]
+      },
+      "examples": {
+        "business": "Kamau Hardware",
+        "category": "Roofing",
+        "item": "Cement 50kg",
+        "optionGroup": "Gauge",
+        "optionChoice": "30",
+        "tagline": "Build it right",
+        "note": "deliver to site, Ruiru",
+        "importRow": [
+          "Cement 50kg",
+          "Building",
+          780,
+          700,
+          120
+        ]
+      }
     },
     {
-      "key": "agrovet", "name": "Agrovet",
+      "key": "agrovet",
+      "name": "Agrovet",
       "tagline": "Seeds, feeds, chemicals and vet drugs, with expiry and seasons",
-      "features": {"barcode": true, "expiry": true, "credit": true},
-      "kpis": ["sales_today", "transactions_today", "expiring_soon", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Feeds", "color": "#65a30d", "items": [
-          {"name": "Dairy meal 70kg", "price": 3200, "cost": 2850, "unit": "bag", "stock": 30, "reorder": 10},
-          {"name": "Layers mash 70kg", "price": 3600, "cost": 3200, "unit": "bag", "stock": 25, "reorder": 8},
-          {"name": "Chick mash 2kg", "price": 280, "cost": 220, "stock": 40, "reorder": 12}]},
-        {"name": "Seeds & fertiliser", "color": "#ca8a04", "items": [
-          {"name": "Maize seed H614 2kg", "price": 650, "cost": 540, "stock": 50, "reorder": 15},
-          {"name": "DAP fertiliser 50kg", "price": 3500, "cost": 3100, "unit": "bag", "stock": 20, "reorder": 6},
-          {"name": "Sukuma wiki seed 50g", "price": 150, "cost": 90, "stock": 60, "reorder": 20}]},
-        {"name": "Vet & chemicals", "color": "#dc2626", "items": [
-          {"name": "Dewormer 100ml", "price": 450, "cost": 300, "stock": 24, "reorder": 8, "batch": "DW2611", "expiryDays": 300},
-          {"name": "Tick grease / acaricide 100ml", "price": 380, "cost": 260, "stock": 30, "reorder": 10, "batch": "AC2610", "expiryDays": 420},
-          {"name": "Newcastle vaccine (100 doses)", "price": 350, "cost": 240, "stock": 15, "reorder": 5, "batch": "NC2612", "expiryDays": 90}]}
-      ]},
-      "questions": [{"key": "vet", "label": "Do you also sell vet drugs or offer vet services?", "type": "yesno"}],
-      "seo": {"headline": "Agrovet POS and stock system for Kenya", "pitch": "Track feeds, seeds and vet drugs with expiry dates, sell by the bag and give farmers credit until harvest.", "keywords": ["agrovet POS Kenya", "agrovet software", "agrovet stock system", "farm shop system Kenya"]}
-    },
-    {
-      "key": "bookshop", "name": "Bookshop & stationery",
-      "tagline": "School lists, back-to-school rush and printing services",
-      "features": {"barcode": true, "credit": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Stationery", "color": "#2563eb", "items": [
-          {"name": "Exercise book 96 pages", "price": 60, "cost": 40, "stock": 300, "reorder": 100},
-          {"name": "Biro pen (blue)", "price": 20, "cost": 10, "stock": 500, "reorder": 150},
-          {"name": "Geometry set", "price": 250, "cost": 150, "stock": 40, "reorder": 15}]},
-        {"name": "Books", "color": "#7c3aed", "items": [
-          {"name": "CBC Grade 5 Maths textbook", "price": 750, "cost": 600, "stock": 20, "reorder": 6},
-          {"name": "Kiswahili dictionary", "price": 950, "cost": 760, "stock": 10, "reorder": 3}]},
-        {"name": "Services", "color": "#16a34a", "items": [
-          {"name": "Printing (per page)", "price": 10, "cost": 3, "kind": "SERVICE"},
-          {"name": "Photocopy (per page)", "price": 5, "cost": 2, "kind": "SERVICE"},
-          {"name": "Lamination A4", "price": 50, "cost": 15, "kind": "SERVICE"}]}
-      ]},
-      "seo": {"headline": "Bookshop and stationery POS for Kenya", "pitch": "Handle the back-to-school rush, sell from school lists and charge for printing and photocopies on the same till.", "keywords": ["bookshop POS Kenya", "stationery shop system", "cyber and bookshop software"]}
-    },
-    {
-      "key": "liquor", "name": "Liquor store",
-      "tagline": "Bottle stock by brand and size, age checks and fast M-Pesa",
-      "features": {"barcode": true, "credit": false},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Whisky & brandy", "color": "#92400e", "items": [
-          {"name": "Jameson 750ml", "price": 3300, "cost": 2750, "barcode": "5011007003001", "stock": 12, "reorder": 4},
-          {"name": "Richot brandy 750ml", "price": 1350, "cost": 1050, "barcode": "6161101000002", "stock": 24, "reorder": 6},
-          {"name": "Kenya Cane 750ml", "price": 950, "cost": 760, "barcode": "6161101000003", "stock": 30, "reorder": 10}]},
-        {"name": "Beer & cider", "color": "#ca8a04", "items": [
-          {"name": "Tusker 500ml", "price": 220, "cost": 180, "barcode": "6161101000004", "stock": 96, "reorder": 48},
-          {"name": "Balozi 500ml", "price": 200, "cost": 165, "barcode": "6161101000005", "stock": 72, "reorder": 36},
-          {"name": "Savanna cider 330ml", "price": 280, "cost": 220, "barcode": "6001108000006", "stock": 48, "reorder": 24}]},
-        {"name": "Wine & mixers", "color": "#be123c", "items": [
-          {"name": "4th Street red 750ml", "price": 1100, "cost": 850, "barcode": "6001495000007", "stock": 18, "reorder": 6},
-          {"name": "Tonic water 500ml", "price": 120, "cost": 80, "stock": 48, "reorder": 24}]}
-      ]},
-      "questions": [{"key": "licence", "label": "Which months does your liquor licence renew?", "type": "text"}],
-      "seo": {"headline": "Liquor store POS for Kenya (wines and spirits)", "pitch": "Scan bottles, see stock by brand and size, and take M-Pesa without a queue on Friday evening.", "keywords": ["liquor store POS Kenya", "wines and spirits system Nairobi", "liquor shop software"]}
-    },
-    {
-      "key": "butchery", "name": "Butchery",
-      "tagline": "Sell by the kilo, track carcasses and daily waste",
-      "terms": {"item": "Cut", "items": "Meat & cuts"},
-      "features": {"barcode": false, "credit": true, "allowNegativeStock": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Beef", "color": "#b91c1c", "items": [
-          {"name": "Beef on bone", "price": 650, "cost": 520, "unit": "kg", "stock": 60, "reorder": 15},
-          {"name": "Steak (boneless)", "price": 800, "cost": 640, "unit": "kg", "stock": 20, "reorder": 5},
-          {"name": "Minced beef", "price": 750, "cost": 600, "unit": "kg", "stock": 15, "reorder": 5}]},
-        {"name": "Goat & chicken", "color": "#ea580c", "items": [
-          {"name": "Goat meat", "price": 850, "cost": 700, "unit": "kg", "stock": 30, "reorder": 8},
-          {"name": "Kienyeji chicken (whole)", "price": 1200, "cost": 950, "stock": 10, "reorder": 3},
-          {"name": "Broiler chicken (whole)", "price": 650, "cost": 520, "stock": 15, "reorder": 5}]},
-        {"name": "Extras", "color": "#65a30d", "items": [
-          {"name": "Matumbo", "price": 400, "cost": 280, "unit": "kg", "stock": 10},
-          {"name": "Sausages 500g", "price": 350, "cost": 250, "stock": 20, "reorder": 6}]}
-      ]},
-      "questions": [{"key": "choma", "label": "Do you also roast meat (nyama choma) on site?", "type": "yesno"}],
-      "seo": {"headline": "Butchery POS for Kenya, selling by the kilo", "pitch": "Weigh and sell by the kilo, see how much of each carcass you sold, and keep hotel and restaurant customers on credit.", "keywords": ["butchery POS Kenya", "butchery software", "meat shop system Nairobi"]}
-    },
-    {
-      "key": "auto-spares", "name": "Auto spares",
-      "tagline": "Part numbers, fitment notes, mechanic credit and quotations",
-      "terms": {"item": "Part", "items": "Parts"},
-      "features": {"barcode": true, "credit": true, "wholesalePricing": true},
-      "kpis": ["sales_today", "transactions_today", "open_quotes", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Service parts", "color": "#0f172a", "items": [
-          {"name": "Oil filter (Toyota)", "price": 650, "cost": 420, "stock": 30, "reorder": 10},
-          {"name": "Engine oil 5W-30 4L", "price": 4200, "cost": 3500, "stock": 20, "reorder": 6},
-          {"name": "Air filter (Probox)", "price": 900, "cost": 600, "stock": 15, "reorder": 5}]},
-        {"name": "Brakes & suspension", "color": "#b91c1c", "items": [
-          {"name": "Brake pads front (Probox)", "price": 2800, "cost": 1900, "stock": 12, "reorder": 4},
-          {"name": "Shock absorber (rear)", "price": 4500, "cost": 3200, "stock": 8, "reorder": 2}]},
-        {"name": "Electrical", "color": "#ca8a04", "items": [
-          {"name": "Battery N50", "price": 9500, "cost": 7800, "stock": 6, "reorder": 2},
-          {"name": "Headlight bulb H4", "price": 450, "cost": 250, "stock": 30, "reorder": 10}]}
-      ]},
-      "questions": [{"key": "mechanics", "label": "Do mechanics buy from you on credit?", "type": "yesno"}],
-      "seo": {"headline": "Auto spares shop POS for Kenya", "pitch": "Find parts fast, give mechanics credit with limits, quote for garages and see which parts move.", "keywords": ["auto spares POS Kenya", "spare parts shop system Kirinyaga Road", "motor spares software"]}
-    },
-    {
-      "key": "petrol-station", "name": "Petrol station",
-      "tagline": "Fuel sold by the litre, the shop, and every attendant's shift",
-      "terms": {"item": "Product", "items": "Fuel & shop", "staff": "Attendants"},
-      "features": {"barcode": true, "credit": true, "allowNegativeStock": false},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-      "seed": {"categories": [
-        {"name": "Fuel", "color": "#dc2626", "items": [
-          {"name": "Super petrol", "price": 186, "cost": 176, "unit": "L", "stock": 8000, "reorder": 2000},
-          {"name": "Diesel", "price": 171, "cost": 162, "unit": "L", "stock": 10000, "reorder": 2500},
-          {"name": "Kerosene", "price": 155, "cost": 146, "unit": "L", "stock": 2000, "reorder": 500}]},
-        {"name": "Lubricants & gas", "color": "#0f172a", "items": [
-          {"name": "Engine oil 1L", "price": 1100, "cost": 850, "stock": 40, "reorder": 12},
-          {"name": "LPG gas refill 13kg", "price": 2900, "cost": 2550, "stock": 15, "reorder": 5}]},
-        {"name": "Shop & car wash", "color": "#2563eb", "items": [
-          {"name": "Bottled water 500ml", "price": 60, "cost": 35, "stock": 96, "reorder": 48},
-          {"name": "Car wash (saloon)", "price": 400, "cost": 0, "kind": "SERVICE"}]}
-      ]},
-      "questions": [
-        {"key": "pumps", "label": "How many pumps (nozzles) do you have?", "type": "number"},
-        {"key": "fleet", "label": "Do companies fuel on credit (fleet accounts)?", "type": "yesno"}
+      "features": {
+        "barcode": true,
+        "expiry": true,
+        "credit": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "expiring_soon",
+        "low_stock"
       ],
-      "seo": {"headline": "Petrol station software for Kenya", "pitch": "Record fuel sold by the litre per attendant shift, run the forecourt shop and keep fleet customers on credit.", "keywords": ["petrol station software Kenya", "fuel station management system", "petrol station POS"]}
+      "seed": {
+        "categories": [
+          {
+            "name": "Feeds",
+            "color": "#65a30d",
+            "items": [
+              {
+                "name": "Dairy meal 70kg",
+                "price": 3200,
+                "cost": 2850,
+                "unit": "bag",
+                "stock": 30,
+                "reorder": 10
+              },
+              {
+                "name": "Layers mash 70kg",
+                "price": 3600,
+                "cost": 3200,
+                "unit": "bag",
+                "stock": 25,
+                "reorder": 8
+              },
+              {
+                "name": "Chick mash 2kg",
+                "price": 280,
+                "cost": 220,
+                "stock": 40,
+                "reorder": 12
+              }
+            ]
+          },
+          {
+            "name": "Seeds & fertiliser",
+            "color": "#ca8a04",
+            "items": [
+              {
+                "name": "Maize seed H614 2kg",
+                "price": 650,
+                "cost": 540,
+                "stock": 50,
+                "reorder": 15
+              },
+              {
+                "name": "DAP fertiliser 50kg",
+                "price": 3500,
+                "cost": 3100,
+                "unit": "bag",
+                "stock": 20,
+                "reorder": 6
+              },
+              {
+                "name": "Sukuma wiki seed 50g",
+                "price": 150,
+                "cost": 90,
+                "stock": 60,
+                "reorder": 20
+              }
+            ]
+          },
+          {
+            "name": "Vet & chemicals",
+            "color": "#dc2626",
+            "items": [
+              {
+                "name": "Dewormer 100ml",
+                "price": 450,
+                "cost": 300,
+                "stock": 24,
+                "reorder": 8,
+                "batch": "DW2611",
+                "expiryDays": 300
+              },
+              {
+                "name": "Tick grease / acaricide 100ml",
+                "price": 380,
+                "cost": 260,
+                "stock": 30,
+                "reorder": 10,
+                "batch": "AC2610",
+                "expiryDays": 420
+              },
+              {
+                "name": "Newcastle vaccine (100 doses)",
+                "price": 350,
+                "cost": 240,
+                "stock": 15,
+                "reorder": 5,
+                "batch": "NC2612",
+                "expiryDays": 90
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "vet",
+          "label": "Do you also sell vet drugs or offer vet services?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Agrovet POS and stock system for Kenya",
+        "pitch": "Track feeds, seeds and vet drugs with expiry dates, sell by the bag and give farmers credit until harvest.",
+        "keywords": [
+          "agrovet POS Kenya",
+          "agrovet software",
+          "agrovet stock system",
+          "farm shop system Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Shamba Bora Agrovet",
+        "category": "Feeds",
+        "item": "Dairy meal 70kg",
+        "optionGroup": "Pack",
+        "optionChoice": "70kg",
+        "tagline": "For a better harvest",
+        "note": "farmer pays at harvest",
+        "importRow": [
+          "Dairy meal 70kg",
+          "Feeds",
+          3200,
+          2850,
+          30
+        ]
+      }
+    },
+    {
+      "key": "bookshop",
+      "name": "Bookshop & stationery",
+      "tagline": "School lists, back-to-school rush and printing services",
+      "features": {
+        "barcode": true,
+        "credit": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Stationery",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Exercise book 96 pages",
+                "price": 60,
+                "cost": 40,
+                "stock": 300,
+                "reorder": 100
+              },
+              {
+                "name": "Biro pen (blue)",
+                "price": 20,
+                "cost": 10,
+                "stock": 500,
+                "reorder": 150
+              },
+              {
+                "name": "Geometry set",
+                "price": 250,
+                "cost": 150,
+                "stock": 40,
+                "reorder": 15
+              }
+            ]
+          },
+          {
+            "name": "Books",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "CBC Grade 5 Maths textbook",
+                "price": 750,
+                "cost": 600,
+                "stock": 20,
+                "reorder": 6
+              },
+              {
+                "name": "Kiswahili dictionary",
+                "price": 950,
+                "cost": 760,
+                "stock": 10,
+                "reorder": 3
+              }
+            ]
+          },
+          {
+            "name": "Services",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "Printing (per page)",
+                "price": 10,
+                "cost": 3,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Photocopy (per page)",
+                "price": 5,
+                "cost": 2,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Lamination A4",
+                "price": 50,
+                "cost": 15,
+                "kind": "SERVICE"
+              }
+            ]
+          }
+        ]
+      },
+      "seo": {
+        "headline": "Bookshop and stationery POS for Kenya",
+        "pitch": "Handle the back-to-school rush, sell from school lists and charge for printing and photocopies on the same till.",
+        "keywords": [
+          "bookshop POS Kenya",
+          "stationery shop system",
+          "cyber and bookshop software"
+        ]
+      },
+      "examples": {
+        "business": "Elimu Bookshop",
+        "category": "Stationery",
+        "item": "Exercise book 96 pages",
+        "optionGroup": "Pages",
+        "optionChoice": "200",
+        "tagline": "Everything for school",
+        "note": "school list for Grade 4",
+        "importRow": [
+          "Exercise book 96 pages",
+          "Stationery",
+          60,
+          40,
+          300
+        ]
+      }
+    },
+    {
+      "key": "liquor",
+      "name": "Liquor store",
+      "tagline": "Bottle stock by brand and size, age checks and fast M-Pesa",
+      "features": {
+        "barcode": true,
+        "credit": false
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Whisky & brandy",
+            "color": "#92400e",
+            "items": [
+              {
+                "name": "Jameson 750ml",
+                "price": 3300,
+                "cost": 2750,
+                "barcode": "5011007003001",
+                "stock": 12,
+                "reorder": 4
+              },
+              {
+                "name": "Richot brandy 750ml",
+                "price": 1350,
+                "cost": 1050,
+                "barcode": "6161101000002",
+                "stock": 24,
+                "reorder": 6
+              },
+              {
+                "name": "Kenya Cane 750ml",
+                "price": 950,
+                "cost": 760,
+                "barcode": "6161101000003",
+                "stock": 30,
+                "reorder": 10
+              }
+            ]
+          },
+          {
+            "name": "Beer & cider",
+            "color": "#ca8a04",
+            "items": [
+              {
+                "name": "Tusker 500ml",
+                "price": 220,
+                "cost": 180,
+                "barcode": "6161101000004",
+                "stock": 96,
+                "reorder": 48
+              },
+              {
+                "name": "Balozi 500ml",
+                "price": 200,
+                "cost": 165,
+                "barcode": "6161101000005",
+                "stock": 72,
+                "reorder": 36
+              },
+              {
+                "name": "Savanna cider 330ml",
+                "price": 280,
+                "cost": 220,
+                "barcode": "6001108000006",
+                "stock": 48,
+                "reorder": 24
+              }
+            ]
+          },
+          {
+            "name": "Wine & mixers",
+            "color": "#be123c",
+            "items": [
+              {
+                "name": "4th Street red 750ml",
+                "price": 1100,
+                "cost": 850,
+                "barcode": "6001495000007",
+                "stock": 18,
+                "reorder": 6
+              },
+              {
+                "name": "Tonic water 500ml",
+                "price": 120,
+                "cost": 80,
+                "stock": 48,
+                "reorder": 24
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "licence",
+          "label": "Which months does your liquor licence renew?",
+          "type": "text"
+        }
+      ],
+      "seo": {
+        "headline": "Liquor store POS for Kenya (wines and spirits)",
+        "pitch": "Scan bottles, see stock by brand and size, and take M-Pesa without a queue on Friday evening.",
+        "keywords": [
+          "liquor store POS Kenya",
+          "wines and spirits system Nairobi",
+          "liquor shop software"
+        ]
+      },
+      "examples": {
+        "business": "Spirits & Wines Corner",
+        "category": "Whisky & brandy",
+        "item": "Kenya Cane 750ml",
+        "optionGroup": "Size",
+        "optionChoice": "350ml",
+        "tagline": "Cheers, responsibly",
+        "note": "",
+        "importRow": [
+          "Kenya Cane 750ml",
+          "Whisky & brandy",
+          950,
+          760,
+          30
+        ]
+      }
+    },
+    {
+      "key": "butchery",
+      "name": "Butchery",
+      "tagline": "Sell by the kilo, track carcasses and daily waste",
+      "terms": {
+        "item": "Cut",
+        "items": "Meat & cuts"
+      },
+      "features": {
+        "barcode": false,
+        "credit": true,
+        "allowNegativeStock": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Beef",
+            "color": "#b91c1c",
+            "items": [
+              {
+                "name": "Beef on bone",
+                "price": 650,
+                "cost": 520,
+                "unit": "kg",
+                "stock": 60,
+                "reorder": 15
+              },
+              {
+                "name": "Steak (boneless)",
+                "price": 800,
+                "cost": 640,
+                "unit": "kg",
+                "stock": 20,
+                "reorder": 5
+              },
+              {
+                "name": "Minced beef",
+                "price": 750,
+                "cost": 600,
+                "unit": "kg",
+                "stock": 15,
+                "reorder": 5
+              }
+            ]
+          },
+          {
+            "name": "Goat & chicken",
+            "color": "#ea580c",
+            "items": [
+              {
+                "name": "Goat meat",
+                "price": 850,
+                "cost": 700,
+                "unit": "kg",
+                "stock": 30,
+                "reorder": 8
+              },
+              {
+                "name": "Kienyeji chicken (whole)",
+                "price": 1200,
+                "cost": 950,
+                "stock": 10,
+                "reorder": 3
+              },
+              {
+                "name": "Broiler chicken (whole)",
+                "price": 650,
+                "cost": 520,
+                "stock": 15,
+                "reorder": 5
+              }
+            ]
+          },
+          {
+            "name": "Extras",
+            "color": "#65a30d",
+            "items": [
+              {
+                "name": "Matumbo",
+                "price": 400,
+                "cost": 280,
+                "unit": "kg",
+                "stock": 10
+              },
+              {
+                "name": "Sausages 500g",
+                "price": 350,
+                "cost": 250,
+                "stock": 20,
+                "reorder": 6
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "choma",
+          "label": "Do you also roast meat (nyama choma) on site?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Butchery POS for Kenya, selling by the kilo",
+        "pitch": "Weigh and sell by the kilo, see how much of each carcass you sold, and keep hotel and restaurant customers on credit.",
+        "keywords": [
+          "butchery POS Kenya",
+          "butchery software",
+          "meat shop system Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Nyama Bora Butchery",
+        "category": "Beef",
+        "item": "Beef on bone",
+        "optionGroup": "Cut",
+        "optionChoice": "Steak",
+        "tagline": "Fresh meat daily",
+        "note": "cut into small pieces",
+        "importRow": [
+          "Beef on bone",
+          "Beef",
+          650,
+          520,
+          60
+        ]
+      }
+    },
+    {
+      "key": "auto-spares",
+      "name": "Auto spares",
+      "tagline": "Part numbers, fitment notes, mechanic credit and quotations",
+      "terms": {
+        "item": "Part",
+        "items": "Parts"
+      },
+      "features": {
+        "barcode": true,
+        "credit": true,
+        "wholesalePricing": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "open_quotes",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Service parts",
+            "color": "#0f172a",
+            "items": [
+              {
+                "name": "Oil filter (Toyota)",
+                "price": 650,
+                "cost": 420,
+                "stock": 30,
+                "reorder": 10
+              },
+              {
+                "name": "Engine oil 5W-30 4L",
+                "price": 4200,
+                "cost": 3500,
+                "stock": 20,
+                "reorder": 6
+              },
+              {
+                "name": "Air filter (Probox)",
+                "price": 900,
+                "cost": 600,
+                "stock": 15,
+                "reorder": 5
+              }
+            ]
+          },
+          {
+            "name": "Brakes & suspension",
+            "color": "#b91c1c",
+            "items": [
+              {
+                "name": "Brake pads front (Probox)",
+                "price": 2800,
+                "cost": 1900,
+                "stock": 12,
+                "reorder": 4
+              },
+              {
+                "name": "Shock absorber (rear)",
+                "price": 4500,
+                "cost": 3200,
+                "stock": 8,
+                "reorder": 2
+              }
+            ]
+          },
+          {
+            "name": "Electrical",
+            "color": "#ca8a04",
+            "items": [
+              {
+                "name": "Battery N50",
+                "price": 9500,
+                "cost": 7800,
+                "stock": 6,
+                "reorder": 2
+              },
+              {
+                "name": "Headlight bulb H4",
+                "price": 450,
+                "cost": 250,
+                "stock": 30,
+                "reorder": 10
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "mechanics",
+          "label": "Do mechanics buy from you on credit?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Auto spares shop POS for Kenya",
+        "pitch": "Find parts fast, give mechanics credit with limits, quote for garages and see which parts move.",
+        "keywords": [
+          "auto spares POS Kenya",
+          "spare parts shop system Kirinyaga Road",
+          "motor spares software"
+        ]
+      },
+      "examples": {
+        "business": "Kirinyaga Road Spares",
+        "category": "Service parts",
+        "item": "Oil filter (Toyota)",
+        "optionGroup": "Fits",
+        "optionChoice": "Probox",
+        "tagline": "The right part, first time",
+        "note": "for KDA 123A",
+        "importRow": [
+          "Oil filter (Toyota)",
+          "Service parts",
+          650,
+          420,
+          30
+        ]
+      }
+    },
+    {
+      "key": "petrol-station",
+      "name": "Petrol station",
+      "tagline": "Fuel by the litre, the forecourt shop and each attendant's cash-up",
+      "terms": {
+        "item": "Product",
+        "items": "Fuel & shop",
+        "staff": "Attendants"
+      },
+      "features": {
+        "barcode": true,
+        "credit": true,
+        "allowNegativeStock": false
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Fuel",
+            "color": "#dc2626",
+            "items": [
+              {
+                "name": "Super petrol",
+                "price": 186,
+                "cost": 176,
+                "unit": "L",
+                "stock": 8000,
+                "reorder": 2000
+              },
+              {
+                "name": "Diesel",
+                "price": 171,
+                "cost": 162,
+                "unit": "L",
+                "stock": 10000,
+                "reorder": 2500
+              },
+              {
+                "name": "Kerosene",
+                "price": 155,
+                "cost": 146,
+                "unit": "L",
+                "stock": 2000,
+                "reorder": 500
+              }
+            ]
+          },
+          {
+            "name": "Lubricants & gas",
+            "color": "#0f172a",
+            "items": [
+              {
+                "name": "Engine oil 1L",
+                "price": 1100,
+                "cost": 850,
+                "stock": 40,
+                "reorder": 12
+              },
+              {
+                "name": "LPG gas refill 13kg",
+                "price": 2900,
+                "cost": 2550,
+                "stock": 15,
+                "reorder": 5
+              }
+            ]
+          },
+          {
+            "name": "Shop & car wash",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Bottled water 500ml",
+                "price": 60,
+                "cost": 35,
+                "stock": 96,
+                "reorder": 48
+              },
+              {
+                "name": "Car wash (saloon)",
+                "price": 400,
+                "cost": 0,
+                "kind": "SERVICE"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "pumps",
+          "label": "How many pumps (nozzles) do you have?",
+          "type": "number"
+        },
+        {
+          "key": "fleet",
+          "label": "Do companies fuel on credit (fleet accounts)?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Petrol station software for Kenya",
+        "pitch": "Sell fuel by the litre and the forecourt shop on one till, cash up each attendant's shift and keep fleet customers on credit.",
+        "keywords": [
+          "petrol station software Kenya",
+          "fuel station management system",
+          "petrol station POS"
+        ]
+      },
+      "examples": {
+        "business": "Highway Service Station",
+        "category": "Lubricants & gas",
+        "item": "Engine oil 1L",
+        "optionGroup": "Grade",
+        "optionChoice": "10W-40",
+        "tagline": "Fuel up and go",
+        "note": "fleet: KBZ 456X",
+        "importRow": [
+          "Engine oil 1L",
+          "Lubricants & gas",
+          1100,
+          850,
+          40
+        ]
+      }
+    },
+    {
+      "key": "gas-water",
+      "name": "Gas & water refill",
+      "tagline": "LPG refills and cylinders, water refills and deliveries",
+      "terms": {
+        "item": "Product",
+        "items": "Gas & water"
+      },
+      "features": {
+        "barcode": false,
+        "credit": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Gas",
+            "color": "#dc2626",
+            "items": [
+              {
+                "name": "6kg gas refill",
+                "price": 1250,
+                "cost": 1080,
+                "stock": 30,
+                "reorder": 10
+              },
+              {
+                "name": "13kg gas refill",
+                "price": 2900,
+                "cost": 2550,
+                "stock": 20,
+                "reorder": 6
+              },
+              {
+                "name": "New 6kg cylinder with gas",
+                "price": 4800,
+                "cost": 4100,
+                "stock": 8,
+                "reorder": 3
+              },
+              {
+                "name": "Gas burner and grill",
+                "price": 1200,
+                "cost": 800,
+                "stock": 10,
+                "reorder": 3
+              }
+            ]
+          },
+          {
+            "name": "Water",
+            "color": "#0284c7",
+            "items": [
+              {
+                "name": "20L water refill",
+                "price": 50,
+                "cost": 15,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "New 20L bottle with water",
+                "price": 450,
+                "cost": 280,
+                "stock": 25,
+                "reorder": 8
+              },
+              {
+                "name": "Delivery (within estate)",
+                "price": 100,
+                "cost": 0,
+                "kind": "SERVICE"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "delivery",
+          "label": "Do you deliver gas and water?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Gas and water refill shop software for Kenya",
+        "pitch": "Sell gas refills, cylinders and water on one till, track cylinder stock and record every delivery.",
+        "keywords": [
+          "gas shop POS Kenya",
+          "LPG dealer software",
+          "water refill station system"
+        ]
+      },
+      "examples": {
+        "business": "Moto Gas & Water",
+        "category": "Gas",
+        "item": "13kg gas refill",
+        "optionGroup": "Brand",
+        "optionChoice": "K-Gas",
+        "tagline": "Gas and water to your door",
+        "note": "deliver to house 12",
+        "importRow": [
+          "13kg gas refill",
+          "Gas",
+          2900,
+          2550,
+          20
+        ]
+      }
     }
   ],
   "beauty": [
-    {"key": "hair-salon", "name": "Hair salon", "tagline": "Bookings by stylist, services and commissions",
-     "seo": {"headline": "Hair salon software for Kenya", "pitch": "Book clients by stylist, check out services with M-Pesa and pay commissions without notebook arguments.", "keywords": ["salon software Kenya", "hair salon booking system Nairobi", "salon POS Kenya"]}},
-    {"key": "barbershop", "name": "Barbershop", "tagline": "Walk-ins, a quick queue and each barber's takings",
-     "terms": {"staff": "Barbers"},
-     "kpis": ["sales_today", "transactions_today", "avg_ticket", "top_staff"],
-     "seed": {"categories": [
-       {"name": "Cuts", "color": "#0f172a", "items": [
-         {"name": "Haircut", "price": 300, "kind": "SERVICE", "duration": 30},
-         {"name": "Haircut & beard", "price": 450, "kind": "SERVICE", "duration": 40},
-         {"name": "Kids cut", "price": 200, "kind": "SERVICE", "duration": 20},
-         {"name": "Clean shave", "price": 200, "kind": "SERVICE", "duration": 20}]},
-       {"name": "Extras", "color": "#2563eb", "items": [
-         {"name": "Hair dye", "price": 500, "kind": "SERVICE", "duration": 30},
-         {"name": "Scalp treatment", "price": 600, "kind": "SERVICE", "duration": 30},
-         {"name": "Hair food 250ml", "price": 350, "cost": 200, "stock": 20, "reorder": 6}]}
-     ]},
-     "seo": {"headline": "Barbershop POS for Kenya", "pitch": "Take walk-ins in order, see each barber's takings and commissions, and get paid by M-Pesa.", "keywords": ["barbershop software Kenya", "kinyozi POS", "barber shop system"]}},
-    {"key": "spa", "name": "Spa & massage", "tagline": "Rooms, therapists, packages and gift vouchers",
-     "seo": {"headline": "Spa and massage software for Kenya", "pitch": "Book therapists and rooms, sell packages and vouchers and see which treatments earn the most.", "keywords": ["spa software Kenya", "massage booking system Nairobi"]}},
-    {"key": "nail-bar", "name": "Nail bar", "tagline": "Quick bookings, add-ons and technician commissions",
-     "seo": {"headline": "Nail bar booking and POS for Kenya", "pitch": "Book technicians, add gel and art as add-ons and track every technician's commission.", "keywords": ["nail bar software Kenya", "nail salon system"]}},
-    {"key": "cosmetics", "name": "Cosmetics shop", "tagline": "Beauty products by shade, fast till and loyalty",
-     "features": {"barcode": true, "appointments": false, "loyalty": true},
-     "kpis": ["sales_today", "transactions_today", "avg_ticket", "low_stock"],
-     "seo": {"headline": "Cosmetics shop POS for Kenya", "pitch": "Sell beauty products by brand and shade, reward loyal customers and know what to reorder.", "keywords": ["cosmetics shop POS Kenya", "beauty shop system"]}},
-    {"key": "beauty-clinic", "name": "Beauty clinic", "tagline": "Treatment plans, sessions and before-and-after notes",
-     "terms": {"customer": "Client", "customers": "Clients"},
-     "seo": {"headline": "Beauty and aesthetics clinic software for Kenya", "pitch": "Book treatment sessions, sell packages and keep notes for every client.", "keywords": ["aesthetics clinic software Kenya", "beauty clinic system"]}},
     {
-      "key": "car-wash", "name": "Car wash",
+      "key": "hair-salon",
+      "name": "Hair salon",
+      "tagline": "Bookings by stylist, services and commissions",
+      "seo": {
+        "headline": "Hair salon software for Kenya",
+        "pitch": "Book clients by stylist, check out services with M-Pesa and pay commissions without notebook arguments.",
+        "keywords": [
+          "salon software Kenya",
+          "hair salon booking system Nairobi",
+          "salon POS Kenya"
+        ]
+      }
+    },
+    {
+      "key": "barbershop",
+      "name": "Barbershop",
+      "tagline": "Walk-ins, a quick queue and each barber's takings",
+      "terms": {
+        "staff": "Barbers"
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "top_staff"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Cuts",
+            "color": "#0f172a",
+            "items": [
+              {
+                "name": "Haircut",
+                "price": 300,
+                "kind": "SERVICE",
+                "duration": 30
+              },
+              {
+                "name": "Haircut & beard",
+                "price": 450,
+                "kind": "SERVICE",
+                "duration": 40
+              },
+              {
+                "name": "Kids cut",
+                "price": 200,
+                "kind": "SERVICE",
+                "duration": 20
+              },
+              {
+                "name": "Clean shave",
+                "price": 200,
+                "kind": "SERVICE",
+                "duration": 20
+              }
+            ]
+          },
+          {
+            "name": "Extras",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Hair dye",
+                "price": 500,
+                "kind": "SERVICE",
+                "duration": 30
+              },
+              {
+                "name": "Scalp treatment",
+                "price": 600,
+                "kind": "SERVICE",
+                "duration": 30
+              },
+              {
+                "name": "Hair food 250ml",
+                "price": 350,
+                "cost": 200,
+                "stock": 20,
+                "reorder": 6
+              }
+            ]
+          }
+        ]
+      },
+      "seo": {
+        "headline": "Barbershop POS for Kenya",
+        "pitch": "Take walk-ins in order, see each barber's takings and commissions, and get paid by M-Pesa.",
+        "keywords": [
+          "barbershop software Kenya",
+          "kinyozi POS",
+          "barber shop system"
+        ]
+      },
+      "examples": {
+        "business": "Fresh Cuts Kinyozi",
+        "category": "Cuts",
+        "item": "Haircut & beard",
+        "optionGroup": "Style",
+        "optionChoice": "Fade",
+        "tagline": "Look sharp",
+        "note": "walk-in",
+        "importRow": [
+          "Haircut",
+          "Cuts",
+          300,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "spa",
+      "name": "Spa & massage",
+      "tagline": "Rooms, therapists, packages and gift vouchers",
+      "seo": {
+        "headline": "Spa and massage software for Kenya",
+        "pitch": "Book therapists and rooms, sell packages and vouchers and see which treatments earn the most.",
+        "keywords": [
+          "spa software Kenya",
+          "massage booking system Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Serenity Spa",
+        "category": "Massage",
+        "item": "Full body massage 60 min",
+        "optionGroup": "Oil",
+        "optionChoice": "Lavender",
+        "tagline": "Relax and restore",
+        "note": "prefers female therapist"
+      }
+    },
+    {
+      "key": "nail-bar",
+      "name": "Nail bar",
+      "tagline": "Quick bookings, add-ons and technician commissions",
+      "seo": {
+        "headline": "Nail bar booking and POS for Kenya",
+        "pitch": "Book technicians, add gel and art as add-ons and track every technician's commission.",
+        "keywords": [
+          "nail bar software Kenya",
+          "nail salon system"
+        ]
+      },
+      "examples": {
+        "business": "Polished Nail Bar",
+        "category": "Nails",
+        "item": "Gel manicure",
+        "optionGroup": "Finish",
+        "optionChoice": "French tips",
+        "tagline": "Nails done right",
+        "note": ""
+      }
+    },
+    {
+      "key": "cosmetics",
+      "name": "Cosmetics shop",
+      "tagline": "Beauty products by shade, fast till and loyalty",
+      "features": {
+        "barcode": true,
+        "appointments": false,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "low_stock"
+      ],
+      "seo": {
+        "headline": "Cosmetics shop POS for Kenya",
+        "pitch": "Sell beauty products by brand and shade, reward loyal customers and know what to reorder.",
+        "keywords": [
+          "cosmetics shop POS Kenya",
+          "beauty shop system"
+        ]
+      },
+      "examples": {
+        "business": "Glow Beauty Shop",
+        "category": "Skin care",
+        "item": "Body lotion 400ml",
+        "optionGroup": "Shade",
+        "optionChoice": "Medium",
+        "tagline": "Beauty for every shade",
+        "note": "",
+        "importRow": [
+          "Body lotion 400ml",
+          "Skin care",
+          650,
+          420,
+          24
+        ]
+      }
+    },
+    {
+      "key": "beauty-clinic",
+      "name": "Beauty clinic",
+      "tagline": "Treatment plans, sessions and before-and-after notes",
+      "terms": {
+        "customer": "Client",
+        "customers": "Clients"
+      },
+      "seo": {
+        "headline": "Beauty and aesthetics clinic software for Kenya",
+        "pitch": "Book treatment sessions, sell packages and keep notes for every client.",
+        "keywords": [
+          "aesthetics clinic software Kenya",
+          "beauty clinic system"
+        ]
+      },
+      "examples": {
+        "business": "Radiance Aesthetics",
+        "category": "Treatments",
+        "item": "Facial treatment",
+        "optionGroup": "Package",
+        "optionChoice": "5 sessions",
+        "tagline": "Healthy skin, confident you",
+        "note": ""
+      }
+    },
+    {
+      "key": "car-wash",
+      "name": "Car wash",
       "tagline": "A queue of cars, washers' commissions and quick M-Pesa",
-      "terms": {"customer": "Customer", "customers": "Customers", "staff": "Washers", "order": "Wash", "orders": "Washes"},
-      "features": {"appointments": false, "commissions": true, "loyalty": true},
-      "kpis": ["sales_today", "transactions_today", "avg_ticket", "top_staff"],
-      "seed": {"categories": [
-        {"name": "Washes", "color": "#0284c7", "items": [
-          {"name": "Saloon exterior wash", "price": 300, "kind": "SERVICE", "duration": 20},
-          {"name": "Saloon full wash", "price": 500, "kind": "SERVICE", "duration": 40},
-          {"name": "SUV full wash", "price": 700, "kind": "SERVICE", "duration": 45},
-          {"name": "Matatu / van wash", "price": 800, "kind": "SERVICE", "duration": 50}]},
-        {"name": "Detailing", "color": "#7c3aed", "items": [
-          {"name": "Engine wash", "price": 500, "kind": "SERVICE", "duration": 30},
-          {"name": "Interior shampoo", "price": 2500, "kind": "SERVICE", "duration": 120},
-          {"name": "Waxing & polish", "price": 1500, "kind": "SERVICE", "duration": 60}]},
-        {"name": "Shop", "color": "#16a34a", "items": [
-          {"name": "Air freshener", "price": 250, "cost": 120, "stock": 30, "reorder": 10}]}
-      ]},
-      "questions": [{"key": "pay", "label": "How do you pay washers?", "type": "choice", "options": ["Commission per car", "Daily wage", "Both"]}],
-      "seo": {"headline": "Car wash software for Kenya", "pitch": "Log every car in the queue, pay washers their commission and reward regular customers, with M-Pesa at the exit.", "keywords": ["car wash software Kenya", "car wash POS", "car wash management system Nairobi"]}
+      "terms": {
+        "customer": "Customer",
+        "customers": "Customers",
+        "staff": "Washers",
+        "order": "Wash",
+        "orders": "Washes"
+      },
+      "features": {
+        "appointments": false,
+        "commissions": true,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "top_staff"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Washes",
+            "color": "#0284c7",
+            "items": [
+              {
+                "name": "Saloon exterior wash",
+                "price": 300,
+                "kind": "SERVICE",
+                "duration": 20
+              },
+              {
+                "name": "Saloon full wash",
+                "price": 500,
+                "kind": "SERVICE",
+                "duration": 40
+              },
+              {
+                "name": "SUV full wash",
+                "price": 700,
+                "kind": "SERVICE",
+                "duration": 45
+              },
+              {
+                "name": "Matatu / van wash",
+                "price": 800,
+                "kind": "SERVICE",
+                "duration": 50
+              }
+            ]
+          },
+          {
+            "name": "Detailing",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "Engine wash",
+                "price": 500,
+                "kind": "SERVICE",
+                "duration": 30
+              },
+              {
+                "name": "Interior shampoo",
+                "price": 2500,
+                "kind": "SERVICE",
+                "duration": 120
+              },
+              {
+                "name": "Waxing & polish",
+                "price": 1500,
+                "kind": "SERVICE",
+                "duration": 60
+              }
+            ]
+          },
+          {
+            "name": "Shop",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "Air freshener",
+                "price": 250,
+                "cost": 120,
+                "stock": 30,
+                "reorder": 10
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "pay",
+          "label": "How do you pay washers?",
+          "type": "choice",
+          "options": [
+            "Commission per car",
+            "Daily wage",
+            "Both"
+          ]
+        }
+      ],
+      "seo": {
+        "headline": "Car wash software for Kenya",
+        "pitch": "Log every car in the queue, pay washers their commission and reward regular customers, with M-Pesa at the exit.",
+        "keywords": [
+          "car wash software Kenya",
+          "car wash POS",
+          "car wash management system Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Splash Car Wash",
+        "category": "Washes",
+        "item": "SUV full wash",
+        "optionGroup": "Vehicle",
+        "optionChoice": "SUV",
+        "tagline": "Clean cars, quick service",
+        "note": "plate KDA 123A",
+        "importRow": [
+          "SUV full wash",
+          "Washes",
+          700,
+          0,
+          0
+        ]
+      }
     },
     {
-      "key": "gym", "name": "Gym & fitness",
+      "key": "gym",
+      "name": "Gym & fitness",
       "tagline": "Memberships, day passes, classes and trainer sessions",
-      "terms": {"customer": "Member", "customers": "Members", "staff": "Trainers", "order": "Payment", "orders": "Payments"},
-      "features": {"appointments": true, "commissions": true, "loyalty": false, "credit": false},
-      "kpis": ["sales_today", "bookings_today", "transactions_today", "top_staff"],
-      "seed": {"categories": [
-        {"name": "Memberships", "color": "#16a34a", "items": [
-          {"name": "Monthly membership", "price": 3500, "kind": "SERVICE"},
-          {"name": "3-month membership", "price": 9500, "kind": "SERVICE"},
-          {"name": "Day pass", "price": 500, "kind": "SERVICE"}]},
-        {"name": "Classes & training", "color": "#ea580c", "items": [
-          {"name": "Personal training session", "price": 1500, "kind": "SERVICE", "duration": 60},
-          {"name": "Aerobics class", "price": 400, "kind": "SERVICE", "duration": 60},
-          {"name": "Zumba class", "price": 400, "kind": "SERVICE", "duration": 60}]},
-        {"name": "Shop", "color": "#2563eb", "items": [
-          {"name": "Protein shake", "price": 350, "cost": 150, "stock": 30, "reorder": 10},
-          {"name": "Bottled water 500ml", "price": 60, "cost": 35, "stock": 60, "reorder": 24}]}
-      ]},
-      "questions": [{"key": "members", "label": "Roughly how many active members do you have?", "type": "number"}],
-      "seo": {"headline": "Gym management software for Kenya", "pitch": "Sell memberships and day passes by M-Pesa, book classes and trainers and see who is due to renew.", "keywords": ["gym software Kenya", "gym management system Nairobi", "fitness centre system"]}
+      "terms": {
+        "customer": "Member",
+        "customers": "Members",
+        "staff": "Trainers",
+        "order": "Payment",
+        "orders": "Payments"
+      },
+      "features": {
+        "appointments": true,
+        "commissions": true,
+        "loyalty": false,
+        "credit": false
+      },
+      "kpis": [
+        "sales_today",
+        "bookings_today",
+        "transactions_today",
+        "top_staff"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Memberships",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "Monthly membership",
+                "price": 3500,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "3-month membership",
+                "price": 9500,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Day pass",
+                "price": 500,
+                "kind": "SERVICE"
+              }
+            ]
+          },
+          {
+            "name": "Classes & training",
+            "color": "#ea580c",
+            "items": [
+              {
+                "name": "Personal training session",
+                "price": 1500,
+                "kind": "SERVICE",
+                "duration": 60
+              },
+              {
+                "name": "Aerobics class",
+                "price": 400,
+                "kind": "SERVICE",
+                "duration": 60
+              },
+              {
+                "name": "Zumba class",
+                "price": 400,
+                "kind": "SERVICE",
+                "duration": 60
+              }
+            ]
+          },
+          {
+            "name": "Shop",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Protein shake",
+                "price": 350,
+                "cost": 150,
+                "stock": 30,
+                "reorder": 10
+              },
+              {
+                "name": "Bottled water 500ml",
+                "price": 60,
+                "cost": 35,
+                "stock": 60,
+                "reorder": 24
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "members",
+          "label": "Roughly how many active members do you have?",
+          "type": "number"
+        }
+      ],
+      "seo": {
+        "headline": "Gym management software for Kenya",
+        "pitch": "Sell memberships and day passes by M-Pesa, book classes and trainers and see every member's payments.",
+        "keywords": [
+          "gym software Kenya",
+          "gym management system Nairobi",
+          "fitness centre system"
+        ]
+      },
+      "examples": {
+        "business": "Mazoezi Fitness Club",
+        "category": "Memberships",
+        "item": "Monthly membership",
+        "optionGroup": "Plan",
+        "optionChoice": "Couples",
+        "tagline": "Stronger every day",
+        "note": "",
+        "importRow": [
+          "Monthly membership",
+          "Memberships",
+          3500,
+          0,
+          0
+        ]
+      }
     },
     {
-      "key": "clinic", "name": "Medical & dental clinic", "comingSoon": true,
+      "key": "clinic",
+      "name": "Medical & dental clinic",
+      "comingSoon": true,
       "tagline": "Appointments, consultations, procedures and the dispensary",
-      "terms": {"customer": "Patient", "customers": "Patients", "staff": "Clinicians", "order": "Visit", "orders": "Visits", "item": "Service", "items": "Services & drugs"},
-      "features": {"appointments": true, "commissions": false, "loyalty": false, "credit": true, "expiry": true, "prescriptions": true},
-      "kpis": ["sales_today", "bookings_today", "avg_ticket", "expiring_soon"],
-      "seed": {"categories": [
-        {"name": "Consultations", "color": "#0891b2", "items": [
-          {"name": "General consultation", "price": 1000, "kind": "SERVICE", "duration": 20},
-          {"name": "Specialist review", "price": 2500, "kind": "SERVICE", "duration": 30},
-          {"name": "Dental check-up", "price": 1500, "kind": "SERVICE", "duration": 30}]},
-        {"name": "Procedures & lab", "color": "#7c3aed", "items": [
-          {"name": "Malaria test", "price": 500, "kind": "SERVICE", "duration": 15},
-          {"name": "Full blood count", "price": 800, "kind": "SERVICE", "duration": 20},
-          {"name": "Tooth extraction", "price": 3000, "kind": "SERVICE", "duration": 30}]},
-        {"name": "Dispensary", "color": "#16a34a", "items": [
-          {"name": "Paracetamol 500mg (10 tabs)", "price": 50, "cost": 22, "stock": 200, "reorder": 50, "batch": "PCM2611", "expiryDays": 400},
-          {"name": "Amoxicillin 500mg (21 caps)", "price": 350, "cost": 180, "stock": 60, "reorder": 20, "rx": true, "batch": "AMX2610", "expiryDays": 300}]}
-      ]},
-      "questions": [{"key": "insurance", "label": "Do you bill insurance (SHA or private covers)?", "type": "yesno"}],
-      "seo": {"headline": "Clinic management software for Kenya", "pitch": "Book patients, bill consultations, tests and drugs on one visit and keep the dispensary's expiry dates in check.", "keywords": ["clinic software Kenya", "clinic management system", "dental clinic software Kenya", "hospital billing system small clinic"]}
+      "terms": {
+        "customer": "Patient",
+        "customers": "Patients",
+        "staff": "Clinicians",
+        "order": "Visit",
+        "orders": "Visits",
+        "item": "Service",
+        "items": "Services & drugs"
+      },
+      "features": {
+        "appointments": true,
+        "commissions": false,
+        "loyalty": false,
+        "credit": true,
+        "expiry": true,
+        "prescriptions": true
+      },
+      "kpis": [
+        "sales_today",
+        "bookings_today",
+        "avg_ticket",
+        "expiring_soon"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Consultations",
+            "color": "#0891b2",
+            "items": [
+              {
+                "name": "General consultation",
+                "price": 1000,
+                "kind": "SERVICE",
+                "duration": 20
+              },
+              {
+                "name": "Specialist review",
+                "price": 2500,
+                "kind": "SERVICE",
+                "duration": 30
+              },
+              {
+                "name": "Dental check-up",
+                "price": 1500,
+                "kind": "SERVICE",
+                "duration": 30
+              }
+            ]
+          },
+          {
+            "name": "Procedures & lab",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "Malaria test",
+                "price": 500,
+                "kind": "SERVICE",
+                "duration": 15
+              },
+              {
+                "name": "Full blood count",
+                "price": 800,
+                "kind": "SERVICE",
+                "duration": 20
+              },
+              {
+                "name": "Tooth extraction",
+                "price": 3000,
+                "kind": "SERVICE",
+                "duration": 30
+              }
+            ]
+          },
+          {
+            "name": "Dispensary",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "Paracetamol 500mg (10 tabs)",
+                "price": 50,
+                "cost": 22,
+                "stock": 200,
+                "reorder": 50,
+                "batch": "PCM2611",
+                "expiryDays": 400
+              },
+              {
+                "name": "Amoxicillin 500mg (21 caps)",
+                "price": 350,
+                "cost": 180,
+                "stock": 60,
+                "reorder": 20,
+                "rx": true,
+                "batch": "AMX2610",
+                "expiryDays": 300
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "insurance",
+          "label": "Do you bill insurance (SHA or private covers)?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Clinic management software for Kenya",
+        "pitch": "Book patients, bill consultations, tests and drugs on one visit and keep the dispensary's expiry dates in check.",
+        "keywords": [
+          "clinic software Kenya",
+          "clinic management system",
+          "dental clinic software Kenya",
+          "hospital billing system small clinic"
+        ]
+      },
+      "examples": {
+        "business": "Afya Bora Clinic",
+        "category": "Consultations",
+        "item": "General consultation",
+        "optionGroup": "Visit",
+        "optionChoice": "Review",
+        "tagline": "Care close to home",
+        "note": ""
+      }
     }
   ],
   "wholesale": [
-    {"key": "packaging", "name": "Packaging supplier", "tagline": "Cartons, bags and containers sold by the bundle",
-     "seo": {"headline": "Packaging supplier software for Kenya", "pitch": "Price by the piece and the bundle, quote restaurants and shops, and track credit customers.", "keywords": ["packaging supplier system Kenya", "packaging business software"]}},
-    {"key": "fmcg", "name": "FMCG wholesaler", "tagline": "Price tiers, route customers and stock that feeds shops",
-     "seo": {"headline": "FMCG wholesale software for Kenya", "pitch": "Price tiers for shops and retailers, quotations, credit limits and a store that feeds your branches.", "keywords": ["wholesale software Kenya", "FMCG distribution system", "wholesaler POS Kenya"]}},
-    {"key": "distributor", "name": "Distributor", "tagline": "Sales reps, routes, orders and receivables",
-     "kpis": ["sales_today", "receivables", "open_quotes", "low_stock"],
-     "seo": {"headline": "Distributor management software for Kenya", "pitch": "Take orders from reps, invoice retailers, track what each customer owes and restock on time.", "keywords": ["distributor software Kenya", "distribution management system"]}},
-    {"key": "manufacturer", "name": "Manufacturer", "tagline": "Raw materials, finished goods and orders from buyers",
-     "seo": {"headline": "Small manufacturer software for Kenya", "pitch": "Buy raw materials, sell finished goods by the carton and keep buyers' orders and payments in view.", "keywords": ["manufacturing software Kenya small business"]}},
-    {"key": "building-materials", "name": "Building materials", "tagline": "Bulk cement, steel and timber with site delivery",
-     "seo": {"headline": "Building materials supplier software for Kenya", "pitch": "Quote contractors, deliver to sites and keep every credit account and balance in order.", "keywords": ["building materials software Kenya", "construction supplier system"]}}
+    {
+      "key": "packaging",
+      "name": "Packaging supplier",
+      "tagline": "Cartons, bags and containers sold by the bundle",
+      "seo": {
+        "headline": "Packaging supplier software for Kenya",
+        "pitch": "Price by the piece and the bundle, quote restaurants and shops, and track credit customers.",
+        "keywords": [
+          "packaging supplier system Kenya",
+          "packaging business software"
+        ]
+      },
+      "examples": {
+        "business": "Pack It Supplies",
+        "category": "Food packaging",
+        "item": "Takeaway boxes (100)",
+        "optionGroup": "Size",
+        "optionChoice": "Large",
+        "tagline": "Packaging that delivers",
+        "note": ""
+      }
+    },
+    {
+      "key": "fmcg",
+      "name": "FMCG wholesaler",
+      "tagline": "Price tiers, route customers and stock that feeds shops",
+      "seo": {
+        "headline": "FMCG wholesale software for Kenya",
+        "pitch": "Price tiers for shops and retailers, quotations, credit limits and a store that feeds your branches.",
+        "keywords": [
+          "wholesale software Kenya",
+          "FMCG distribution system",
+          "wholesaler POS Kenya"
+        ]
+      }
+    },
+    {
+      "key": "distributor",
+      "name": "Distributor",
+      "tagline": "Orders, invoices, price tiers and receivables",
+      "kpis": [
+        "sales_today",
+        "receivables",
+        "open_quotes",
+        "low_stock"
+      ],
+      "seo": {
+        "headline": "Distributor management software for Kenya",
+        "pitch": "Invoice retailers at the right price tier, track what each customer owes and restock on time.",
+        "keywords": [
+          "distributor software Kenya",
+          "distribution management system"
+        ]
+      }
+    },
+    {
+      "key": "manufacturer",
+      "name": "Manufacturer",
+      "tagline": "Raw materials, finished goods and orders from buyers",
+      "seo": {
+        "headline": "Small manufacturer software for Kenya",
+        "pitch": "Buy raw materials, sell finished goods by the carton and keep buyers' orders and payments in view.",
+        "keywords": [
+          "manufacturing software Kenya small business"
+        ]
+      },
+      "examples": {
+        "business": "Tamu Foods Ltd",
+        "category": "Finished goods",
+        "item": "Peanut butter 400g (carton of 12)",
+        "optionGroup": "Pack",
+        "optionChoice": "Carton",
+        "tagline": "Made in Kenya",
+        "note": ""
+      }
+    },
+    {
+      "key": "building-materials",
+      "name": "Building materials",
+      "tagline": "Bulk cement, steel and timber with site delivery",
+      "seo": {
+        "headline": "Building materials supplier software for Kenya",
+        "pitch": "Quote contractors, deliver to sites and keep every credit account and balance in order.",
+        "keywords": [
+          "building materials software Kenya",
+          "construction supplier system"
+        ]
+      },
+      "examples": {
+        "business": "Jenga Supplies",
+        "category": "Steel",
+        "item": "Y12 steel bar 12m",
+        "optionGroup": "Size",
+        "optionChoice": "Y16",
+        "tagline": "Materials on time",
+        "note": "site delivery"
+      }
+    }
   ],
   "pharmacy": [
-    {"key": "retail-pharmacy", "name": "Retail pharmacy", "tagline": "Batches, expiry alerts and prescription checks at the till",
-     "seo": {"headline": "Pharmacy software for Kenya", "pitch": "Track every batch and expiry date, ask for a prescription before restricted sales and reorder before shelves run empty.", "keywords": ["pharmacy software Kenya", "pharmacy POS Nairobi", "chemist system Kenya"]}},
-    {"key": "chemist", "name": "Chemist", "tagline": "A fast till for over-the-counter sales and personal care",
-     "seo": {"headline": "Chemist POS for Kenya", "pitch": "Sell over-the-counter medicine and personal care fast, with expiry alerts and M-Pesa.", "keywords": ["chemist POS Kenya", "chemist software"]}},
-    {"key": "clinic-dispensary", "name": "Clinic dispensary", "tagline": "Dispense against visits and keep the drug store in check",
-     "seo": {"headline": "Clinic dispensary software for Kenya", "pitch": "Dispense drugs against each patient visit and keep batches and expiry dates under control.", "keywords": ["dispensary software Kenya"]}},
-    {"key": "vet-pharmacy", "name": "Agrovet & vet pharmacy", "tagline": "Vet drugs, vaccines and farm inputs with expiry dates",
-     "seo": {"headline": "Vet pharmacy software for Kenya", "pitch": "Track vaccines and vet drugs by batch and expiry and sell feeds and inputs on the same till.", "keywords": ["vet pharmacy software Kenya", "veterinary shop system"]}}
+    {
+      "key": "retail-pharmacy",
+      "name": "Retail pharmacy",
+      "tagline": "Batches, expiry alerts and prescription checks at the till",
+      "seo": {
+        "headline": "Pharmacy software for Kenya",
+        "pitch": "Track every batch and expiry date, ask for a prescription before restricted sales and reorder before shelves run empty.",
+        "keywords": [
+          "pharmacy software Kenya",
+          "pharmacy POS Nairobi",
+          "chemist system Kenya"
+        ]
+      }
+    },
+    {
+      "key": "chemist",
+      "name": "Chemist",
+      "tagline": "A fast till for over-the-counter sales and personal care",
+      "seo": {
+        "headline": "Chemist POS for Kenya",
+        "pitch": "Sell over-the-counter medicine and personal care fast, with expiry alerts and M-Pesa.",
+        "keywords": [
+          "chemist POS Kenya",
+          "chemist software"
+        ]
+      }
+    },
+    {
+      "key": "clinic-dispensary",
+      "name": "Clinic dispensary",
+      "tagline": "Dispense against visits and keep the drug store in check",
+      "seo": {
+        "headline": "Clinic dispensary software for Kenya",
+        "pitch": "Dispense drugs against each patient visit and keep batches and expiry dates under control.",
+        "keywords": [
+          "dispensary software Kenya"
+        ]
+      }
+    },
+    {
+      "key": "vet-pharmacy",
+      "name": "Agrovet & vet pharmacy",
+      "tagline": "Vet drugs, vaccines and farm inputs with expiry dates",
+      "seo": {
+        "headline": "Vet pharmacy software for Kenya",
+        "pitch": "Track vaccines and vet drugs by batch and expiry and sell feeds and inputs on the same till.",
+        "keywords": [
+          "vet pharmacy software Kenya",
+          "veterinary shop system"
+        ]
+      }
+    }
   ],
   "services": [
-    {"key": "agency", "name": "Agency / marketing", "tagline": "Pipeline, quotations, retainers and invoices",
-     "seo": {"headline": "Agency management software for Kenya", "pitch": "Follow every lead from first call to paid invoice, send quotations and keep retainers billed on time.", "keywords": ["agency software Kenya", "marketing agency CRM Kenya"]}},
-    {"key": "consultancy", "name": "Consultancy", "tagline": "Proposals, engagements and invoices",
-     "seo": {"headline": "Consultancy CRM and invoicing for Kenya", "pitch": "Track proposals, win engagements and invoice clients with M-Pesa or bank payments.", "keywords": ["consultancy software Kenya", "CRM for consultants Kenya"]}},
-    {"key": "real-estate", "name": "Real estate", "tagline": "Buyers, viewings, offers and commissions",
-     "terms": {"customer": "Client", "customers": "Clients"},
-     "seo": {"headline": "Real estate agency CRM for Kenya", "pitch": "Track buyers and tenants from enquiry to viewing to offer, and see every deal's commission.", "keywords": ["real estate CRM Kenya", "property agent software"]}},
-    {"key": "school", "name": "Training & schools", "tagline": "Students, fees, term invoices and balances",
-     "terms": {"customer": "Student", "customers": "Students", "order": "Fee invoice", "orders": "Fee invoices", "item": "Fee item", "items": "Fees & items"},
-     "kpis": ["receivables", "won_this_month", "pipeline_value", "tasks_due"],
-     "seed": {"categories": [
-       {"name": "Fees", "color": "#2563eb", "items": [
-         {"name": "Tuition (term)", "price": 25000, "kind": "SERVICE", "tax": 0},
-         {"name": "Lunch programme (term)", "price": 6000, "kind": "SERVICE", "tax": 0},
-         {"name": "Transport (term)", "price": 9000, "kind": "SERVICE", "tax": 0}]},
-       {"name": "Courses", "color": "#7c3aed", "items": [
-         {"name": "Computer packages course", "price": 8000, "kind": "SERVICE", "tax": 0},
-         {"name": "Driving course", "price": 15000, "kind": "SERVICE", "tax": 0}]},
-       {"name": "Items", "color": "#16a34a", "items": [
-         {"name": "School uniform set", "price": 3500, "cost": 2400, "stock": 40, "reorder": 10}]}
-     ]},
-     "questions": [{"key": "students", "label": "How many students or trainees do you have?", "type": "number"}],
-     "seo": {"headline": "School fees and training centre software for Kenya", "pitch": "Invoice term fees, take payments by M-Pesa and see every student's balance before the term starts.", "keywords": ["school fees software Kenya", "school management system Kenya", "training college system"]}},
-    {"key": "logistics", "name": "Logistics", "tagline": "Quotes per trip, deliveries and customer accounts",
-     "seo": {"headline": "Logistics and courier software for Kenya", "pitch": "Quote per trip or per kilo, invoice customers and track who still owes for deliveries.", "keywords": ["logistics software Kenya", "courier business system"]}},
-    {"key": "cleaning", "name": "Cleaning & pest control", "tagline": "Site visits, contracts and repeat jobs",
-     "seo": {"headline": "Cleaning and pest control software for Kenya", "pitch": "Quote site visits, schedule repeat jobs and invoice contracts every month.", "keywords": ["cleaning company software Kenya", "pest control business system"]}},
-    {"key": "repairs", "name": "Repairs & installations", "tagline": "Job cards, parts used and labour charges",
-     "seo": {"headline": "Repair and installation business software for Kenya", "pitch": "Open a job card, add parts and labour, and get paid by M-Pesa when the job is done.", "keywords": ["repair shop software Kenya", "job card system"]}},
     {
-      "key": "laundry", "name": "Laundry & dry cleaning",
-      "tagline": "Drop-off tickets, ready-for-collection and pay on pickup",
-      "terms": {"customer": "Customer", "customers": "Customers", "order": "Ticket", "orders": "Tickets"},
+      "key": "agency",
+      "name": "Agency / marketing",
+      "tagline": "Pipeline, quotations, retainers and invoices",
+      "seo": {
+        "headline": "Agency management software for Kenya",
+        "pitch": "Follow every lead from first call to paid invoice, send quotations and keep retainers billed on time.",
+        "keywords": [
+          "agency software Kenya",
+          "marketing agency CRM Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Pixel Point Agency",
+        "category": "Design",
+        "item": "Logo design",
+        "optionGroup": "Package",
+        "optionChoice": "Premium",
+        "tagline": "Ideas that work",
+        "note": ""
+      }
+    },
+    {
+      "key": "consultancy",
+      "name": "Consultancy",
+      "tagline": "Proposals, engagements and invoices",
+      "seo": {
+        "headline": "Consultancy CRM and invoicing for Kenya",
+        "pitch": "Track proposals, win engagements and invoice clients with M-Pesa or bank payments.",
+        "keywords": [
+          "consultancy software Kenya",
+          "CRM for consultants Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Mwanzo Consulting",
+        "category": "Advisory",
+        "item": "Business plan",
+        "optionGroup": "Package",
+        "optionChoice": "Full",
+        "tagline": "Clear advice, real results",
+        "note": "",
+        "importRow": [
+          "Business plan",
+          "Advisory",
+          50000,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "real-estate",
+      "name": "Real estate",
+      "tagline": "Buyers, viewings, offers and commissions",
+      "terms": {
+        "customer": "Client",
+        "customers": "Clients"
+      },
+      "seo": {
+        "headline": "Real estate agency CRM for Kenya",
+        "pitch": "Track buyers and tenants from enquiry to viewing to offer, and see every deal's commission.",
+        "keywords": [
+          "real estate CRM Kenya",
+          "property agent software"
+        ]
+      },
+      "examples": {
+        "business": "Makao Realtors",
+        "category": "Commissions",
+        "item": "Sale commission",
+        "optionGroup": "Type",
+        "optionChoice": "Residential",
+        "tagline": "Find your place",
+        "note": ""
+      }
+    },
+    {
+      "key": "school",
+      "name": "Training & schools",
+      "tagline": "Students, term fee invoices and payments",
+      "terms": {
+        "customer": "Student",
+        "customers": "Students",
+        "order": "Fee invoice",
+        "orders": "Fee invoices",
+        "item": "Fee item",
+        "items": "Fees & items"
+      },
+      "kpis": [
+        "receivables",
+        "won_this_month",
+        "pipeline_value",
+        "tasks_due"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Fees",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Tuition (term)",
+                "price": 25000,
+                "kind": "SERVICE",
+                "tax": 0
+              },
+              {
+                "name": "Lunch programme (term)",
+                "price": 6000,
+                "kind": "SERVICE",
+                "tax": 0
+              },
+              {
+                "name": "Transport (term)",
+                "price": 9000,
+                "kind": "SERVICE",
+                "tax": 0
+              }
+            ]
+          },
+          {
+            "name": "Courses",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "Computer packages course",
+                "price": 8000,
+                "kind": "SERVICE",
+                "tax": 0
+              },
+              {
+                "name": "Driving course",
+                "price": 15000,
+                "kind": "SERVICE",
+                "tax": 0
+              }
+            ]
+          },
+          {
+            "name": "Items",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "School uniform set",
+                "price": 3500,
+                "cost": 2400,
+                "stock": 40,
+                "reorder": 10
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "students",
+          "label": "How many students or trainees do you have?",
+          "type": "number"
+        }
+      ],
+      "seo": {
+        "headline": "School fees and training centre software for Kenya",
+        "pitch": "Invoice term fees, take payments by M-Pesa and see what each student still owes.",
+        "keywords": [
+          "school fees software Kenya",
+          "school management system Kenya",
+          "training college system"
+        ]
+      },
+      "examples": {
+        "business": "Bright Future Academy",
+        "category": "Fees",
+        "item": "Tuition (term)",
+        "optionGroup": "Class",
+        "optionChoice": "Grade 5",
+        "tagline": "Learning for life",
+        "note": "",
+        "importRow": [
+          "Tuition (term)",
+          "Fees",
+          25000,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "logistics",
+      "name": "Logistics",
+      "tagline": "Quotes per trip, deliveries and customer accounts",
+      "seo": {
+        "headline": "Logistics and courier software for Kenya",
+        "pitch": "Quote per trip or per kilo, invoice customers and track who still owes for deliveries.",
+        "keywords": [
+          "logistics software Kenya",
+          "courier business system"
+        ]
+      },
+      "examples": {
+        "business": "Haraka Couriers",
+        "category": "Deliveries",
+        "item": "Same-day delivery, Nairobi",
+        "optionGroup": "Weight",
+        "optionChoice": "Up to 5kg",
+        "tagline": "Delivered on time",
+        "note": "fragile",
+        "importRow": [
+          "Same-day delivery, Nairobi",
+          "Deliveries",
+          500,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "cleaning",
+      "name": "Cleaning & pest control",
+      "tagline": "Site visits, contracts and repeat jobs",
+      "seo": {
+        "headline": "Cleaning and pest control software for Kenya",
+        "pitch": "Quote site visits, schedule repeat jobs and invoice contracts every month.",
+        "keywords": [
+          "cleaning company software Kenya",
+          "pest control business system"
+        ]
+      },
+      "examples": {
+        "business": "Safi Cleaners",
+        "category": "Cleaning",
+        "item": "Office deep clean",
+        "optionGroup": "Size",
+        "optionChoice": "3 bedrooms",
+        "tagline": "Clean spaces, happy people",
+        "note": ""
+      }
+    },
+    {
+      "key": "repairs",
+      "name": "Repairs & installations",
+      "tagline": "Job cards, parts used and labour charges",
+      "seo": {
+        "headline": "Repair and installation business software for Kenya",
+        "pitch": "Open a job card, add parts and labour, and get paid by M-Pesa when the job is done.",
+        "keywords": [
+          "repair shop software Kenya",
+          "job card system"
+        ]
+      },
+      "examples": {
+        "business": "Fundi Fix",
+        "category": "Labour",
+        "item": "Electrical repair (call-out)",
+        "optionGroup": "Urgency",
+        "optionChoice": "Same day",
+        "tagline": "Fixed right, first time",
+        "note": ""
+      }
+    },
+    {
+      "key": "laundry",
+      "name": "Laundry & dry cleaning",
+      "tagline": "Drop-off tickets, deposits and payment on pickup",
+      "terms": {
+        "customer": "Customer",
+        "customers": "Customers",
+        "order": "Ticket",
+        "orders": "Tickets"
+      },
       "posMode": "RETAIL",
-      "kpis": ["sales_today", "transactions_today", "receivables", "tasks_due"],
-      "seed": {"categories": [
-        {"name": "Wash & fold", "color": "#0284c7", "items": [
-          {"name": "Wash & fold (per kg)", "price": 200, "kind": "SERVICE", "unit": "kg"},
-          {"name": "Duvet (large)", "price": 800, "kind": "SERVICE"},
-          {"name": "Curtains (per panel)", "price": 350, "kind": "SERVICE"}]},
-        {"name": "Dry cleaning", "color": "#7c3aed", "items": [
-          {"name": "Suit (2 piece)", "price": 700, "kind": "SERVICE"},
-          {"name": "Shirt (pressed)", "price": 150, "kind": "SERVICE"},
-          {"name": "Wedding dress", "price": 3000, "kind": "SERVICE"}]}
-      ]},
-      "questions": [{"key": "pickup", "label": "Do you pick up and deliver?", "type": "yesno"}],
-      "seo": {"headline": "Laundry and dry cleaning software for Kenya", "pitch": "Issue drop-off tickets, text customers when clothes are ready and take payment by M-Pesa on pickup.", "keywords": ["laundry software Kenya", "dry cleaning system Nairobi", "laundromat POS"]}
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "receivables",
+        "tasks_due"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Wash & fold",
+            "color": "#0284c7",
+            "items": [
+              {
+                "name": "Wash & fold (per kg)",
+                "price": 200,
+                "kind": "SERVICE",
+                "unit": "kg"
+              },
+              {
+                "name": "Duvet (large)",
+                "price": 800,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Curtains (per panel)",
+                "price": 350,
+                "kind": "SERVICE"
+              }
+            ]
+          },
+          {
+            "name": "Dry cleaning",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "Suit (2 piece)",
+                "price": 700,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Shirt (pressed)",
+                "price": 150,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Wedding dress",
+                "price": 3000,
+                "kind": "SERVICE"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "pickup",
+          "label": "Do you pick up and deliver?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Laundry and dry cleaning software for Kenya",
+        "pitch": "Issue a ticket at drop-off, send the receipt by WhatsApp and take payment by M-Pesa on pickup.",
+        "keywords": [
+          "laundry software Kenya",
+          "dry cleaning system Nairobi",
+          "laundromat POS"
+        ]
+      },
+      "examples": {
+        "business": "Fresh Fold Laundry",
+        "category": "Dry cleaning",
+        "item": "Suit (2 piece)",
+        "optionGroup": "Service",
+        "optionChoice": "Express",
+        "tagline": "Clean clothes, no stress",
+        "note": "ready by Friday",
+        "importRow": [
+          "Suit (2 piece)",
+          "Dry cleaning",
+          700,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "garage",
+      "name": "Garage & mechanic",
+      "tagline": "Job cards with parts and labour, mechanics and fleet credit",
+      "terms": {
+        "customer": "Customer",
+        "customers": "Customers",
+        "item": "Part or labour",
+        "items": "Parts & labour",
+        "order": "Job card",
+        "orders": "Job cards",
+        "staff": "Mechanic",
+        "location": "Garage"
+      },
+      "modules": [
+        "dashboard",
+        "pos",
+        "quotes",
+        "crm",
+        "customers",
+        "items",
+        "stock",
+        "purchasing",
+        "reports",
+        "team",
+        "settings"
+      ],
+      "home": "/pos",
+      "features": {
+        "credit": true,
+        "deposits": true,
+        "commissions": true,
+        "appointments": false
+      },
+      "kpis": [
+        "sales_today",
+        "open_quotes",
+        "receivables",
+        "low_stock"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Labour",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Full service (labour)",
+                "price": 2500,
+                "kind": "SERVICE",
+                "duration": 120
+              },
+              {
+                "name": "Brake pads fitting",
+                "price": 800,
+                "kind": "SERVICE",
+                "duration": 45
+              },
+              {
+                "name": "Wheel alignment",
+                "price": 1500,
+                "kind": "SERVICE",
+                "duration": 40
+              },
+              {
+                "name": "Diagnostics (computer scan)",
+                "price": 2000,
+                "kind": "SERVICE",
+                "duration": 30
+              }
+            ]
+          },
+          {
+            "name": "Parts",
+            "color": "#0f172a",
+            "items": [
+              {
+                "name": "Oil filter (Toyota)",
+                "price": 650,
+                "cost": 420,
+                "stock": 20,
+                "reorder": 6
+              },
+              {
+                "name": "Engine oil 5W-30 4L",
+                "price": 4200,
+                "cost": 3500,
+                "stock": 12,
+                "reorder": 4
+              },
+              {
+                "name": "Brake pads front (Probox)",
+                "price": 2800,
+                "cost": 1900,
+                "stock": 8,
+                "reorder": 3
+              },
+              {
+                "name": "Spark plug",
+                "price": 450,
+                "cost": 280,
+                "stock": 24,
+                "reorder": 8
+              }
+            ]
+          },
+          {
+            "name": "Tyres",
+            "color": "#78716c",
+            "items": [
+              {
+                "name": "Tyre 195/65 R15",
+                "price": 8500,
+                "cost": 7000,
+                "stock": 8,
+                "reorder": 4
+              },
+              {
+                "name": "Puncture repair",
+                "price": 300,
+                "kind": "SERVICE",
+                "duration": 20
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "fleet",
+          "label": "Do companies or matatu owners service with you on credit?",
+          "type": "yesno"
+        },
+        {
+          "key": "mechanics",
+          "label": "How many mechanics work with you?",
+          "type": "number"
+        }
+      ],
+      "seo": {
+        "headline": "Garage management software for Kenya",
+        "pitch": "Open a job card, add parts and labour, quote before you start, pay mechanics their commission and keep fleet owners on credit.",
+        "keywords": [
+          "garage software Kenya",
+          "garage management system",
+          "mechanic job card system Nairobi",
+          "motor vehicle garage POS"
+        ]
+      },
+      "examples": {
+        "business": "Mwangi Auto Garage",
+        "category": "Parts",
+        "item": "Full service (labour)",
+        "optionGroup": "Vehicle",
+        "optionChoice": "Probox",
+        "tagline": "Fixed right, back on the road",
+        "note": "KCA 123B, 140,000 km",
+        "importRow": [
+          "Oil filter (Toyota)",
+          "Parts",
+          650,
+          420,
+          20
+        ]
+      }
+    },
+    {
+      "key": "furniture",
+      "name": "Furniture & carpentry",
+      "tagline": "Made-to-order pieces, quotes, deposits and timber stock",
+      "terms": {
+        "order": "Order",
+        "orders": "Orders",
+        "item": "Product",
+        "items": "Products & materials",
+        "staff": "Fundi"
+      },
+      "modules": [
+        "dashboard",
+        "pos",
+        "quotes",
+        "crm",
+        "customers",
+        "items",
+        "stock",
+        "purchasing",
+        "reports",
+        "team",
+        "settings"
+      ],
+      "home": "/quotes",
+      "features": {
+        "credit": true,
+        "deposits": true
+      },
+      "kpis": [
+        "sales_today",
+        "open_quotes",
+        "receivables",
+        "pipeline_value"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Furniture",
+            "color": "#92400e",
+            "items": [
+              {
+                "name": "3-seater sofa",
+                "price": 45000,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Bed 5x6 (mahogany)",
+                "price": 28000,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Dining table, 6 seats",
+                "price": 35000,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Kitchen cabinets (per foot)",
+                "price": 6500,
+                "kind": "SERVICE",
+                "unit": "ft"
+              }
+            ]
+          },
+          {
+            "name": "Materials",
+            "color": "#65a30d",
+            "items": [
+              {
+                "name": "Timber 2x4 (per foot)",
+                "price": 90,
+                "cost": 70,
+                "unit": "ft",
+                "stock": 600,
+                "reorder": 150
+              },
+              {
+                "name": "Plywood 18mm sheet",
+                "price": 3800,
+                "cost": 3200,
+                "stock": 20,
+                "reorder": 6
+              },
+              {
+                "name": "Wood varnish 4L",
+                "price": 2600,
+                "cost": 2100,
+                "stock": 8,
+                "reorder": 3
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "deposit",
+          "label": "How much deposit do you take before starting an order?",
+          "type": "choice",
+          "options": [
+            "Half",
+            "A third",
+            "It depends"
+          ]
+        }
+      ],
+      "seo": {
+        "headline": "Furniture workshop software for Kenya",
+        "pitch": "Quote made-to-order furniture, take an M-Pesa deposit, track timber stock and see what each customer still owes.",
+        "keywords": [
+          "furniture shop software Kenya",
+          "carpentry workshop system",
+          "furniture business POS Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Mbao Furniture Works",
+        "category": "Furniture",
+        "item": "3-seater sofa",
+        "optionGroup": "Wood",
+        "optionChoice": "Mahogany",
+        "tagline": "Built to last",
+        "note": "deposit paid, deliver in 2 weeks",
+        "importRow": [
+          "3-seater sofa",
+          "Furniture",
+          45000,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "tailoring",
+      "name": "Tailoring & dressmaking",
+      "tagline": "Orders with measurements, fittings, deposits and collection",
+      "terms": {
+        "order": "Order",
+        "orders": "Orders",
+        "item": "Garment or service",
+        "items": "Garments & services",
+        "staff": "Tailor"
+      },
+      "features": {
+        "credit": true,
+        "deposits": true,
+        "appointments": true
+      },
+      "kpis": [
+        "sales_today",
+        "receivables",
+        "open_quotes",
+        "tasks_due"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Made to measure",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "Suit, 2 piece (tailor-made)",
+                "price": 12000,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Kitenge dress",
+                "price": 3500,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "School uniform set",
+                "price": 2500,
+                "kind": "SERVICE"
+              }
+            ]
+          },
+          {
+            "name": "Alterations",
+            "color": "#db2777",
+            "items": [
+              {
+                "name": "Trouser hemming",
+                "price": 200,
+                "kind": "SERVICE",
+                "duration": 20
+              },
+              {
+                "name": "Dress taking in",
+                "price": 500,
+                "kind": "SERVICE",
+                "duration": 40
+              },
+              {
+                "name": "Zip replacement",
+                "price": 300,
+                "kind": "SERVICE",
+                "duration": 30
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "fittings",
+          "label": "Do customers come back for fittings?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Tailoring and dressmaking software for Kenya",
+        "pitch": "Record each order with its deposit, book fittings and know what every customer owes on collection.",
+        "keywords": [
+          "tailoring business software Kenya",
+          "fashion designer order system",
+          "dressmaker records app"
+        ]
+      },
+      "examples": {
+        "business": "Mshoni Designs",
+        "category": "Made to measure",
+        "item": "Kitenge dress",
+        "optionGroup": "Fit",
+        "optionChoice": "Slim",
+        "tagline": "Made for you",
+        "note": "fitting on Saturday",
+        "importRow": [
+          "Kitenge dress",
+          "Made to measure",
+          3500,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "key": "printing",
+      "name": "Printing & branding",
+      "tagline": "Quotes, artwork deposits, print jobs and corporate clients",
+      "terms": {
+        "order": "Job",
+        "orders": "Jobs",
+        "item": "Product",
+        "items": "Products & services"
+      },
+      "modules": [
+        "dashboard",
+        "pos",
+        "quotes",
+        "crm",
+        "customers",
+        "items",
+        "stock",
+        "purchasing",
+        "reports",
+        "team",
+        "settings"
+      ],
+      "home": "/quotes",
+      "features": {
+        "credit": true,
+        "deposits": true
+      },
+      "kpis": [
+        "sales_today",
+        "open_quotes",
+        "receivables",
+        "pipeline_value"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Print",
+            "color": "#2563eb",
+            "items": [
+              {
+                "name": "Business cards (500)",
+                "price": 2500,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "A5 flyers (1,000)",
+                "price": 6000,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Roll-up banner",
+                "price": 7500,
+                "kind": "SERVICE"
+              },
+              {
+                "name": "Large format (per square metre)",
+                "price": 1200,
+                "kind": "SERVICE",
+                "unit": "sqm"
+              }
+            ]
+          },
+          {
+            "name": "Branding",
+            "color": "#ea580c",
+            "items": [
+              {
+                "name": "Branded T-shirt",
+                "price": 650,
+                "cost": 380,
+                "stock": 100,
+                "reorder": 30
+              },
+              {
+                "name": "Branded mug",
+                "price": 550,
+                "cost": 250,
+                "stock": 60,
+                "reorder": 20
+              },
+              {
+                "name": "Logo design",
+                "price": 15000,
+                "kind": "SERVICE"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "corporate",
+          "label": "Do corporate clients pay you on invoice later?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Printing and branding business software for Kenya",
+        "pitch": "Quote print jobs, take artwork deposits by M-Pesa, invoice corporate clients and see who still owes.",
+        "keywords": [
+          "printing business software Kenya",
+          "branding company system Nairobi",
+          "print shop POS"
+        ]
+      },
+      "examples": {
+        "business": "Chapa Print & Brand",
+        "category": "Print",
+        "item": "Business cards (500)",
+        "optionGroup": "Paper",
+        "optionChoice": "Matte",
+        "tagline": "Your brand, printed right",
+        "note": "artwork from client",
+        "importRow": [
+          "Business cards (500)",
+          "Print",
+          2500,
+          0,
+          0
+        ]
+      }
     }
   ],
   "tours": [
-    {"key": "safari-operator", "name": "Safari operator", "tagline": "Packages, departures, deposits and balances",
-     "seo": {"headline": "Safari operator software for Kenya", "pitch": "Sell packages and departures, take deposits by M-Pesa or card and chase balances before the trip.", "keywords": ["safari booking software Kenya", "tour operator system Kenya"]}},
-    {"key": "tour-company", "name": "Tour company", "tagline": "Day tours, group trips and agents' commissions",
-     "seo": {"headline": "Tour company software for Kenya", "pitch": "Fill seats on day tours and group trips, track agents' commissions and every guest's balance.", "keywords": ["tour company software Kenya"]}},
-    {"key": "travel-agency", "name": "Travel agency", "tagline": "Enquiries, quotes, bookings and payments",
-     "seo": {"headline": "Travel agency CRM for Kenya", "pitch": "Turn enquiries into quotes and bookings and keep every payment and balance in one place.", "keywords": ["travel agency software Kenya", "travel CRM Kenya"]}},
-    {"key": "excursions", "name": "Excursions & activities", "tagline": "Daily slots, walk-ins and group bookings",
-     "seo": {"headline": "Excursions and activity booking software for Kenya", "pitch": "Book daily activity slots, sell walk-in tickets and take group deposits.", "keywords": ["activity booking system Kenya", "excursions software Mombasa"]}},
-    {"key": "car-hire", "name": "Car hire with driver", "tagline": "Vehicles, drivers, trips and deposits",
-     "seo": {"headline": "Car hire business software for Kenya", "pitch": "Book vehicles and drivers per trip, take deposits and see which cars earn the most.", "keywords": ["car hire software Kenya", "car rental system Nairobi"]}}
+    {
+      "key": "safari-operator",
+      "name": "Safari operator",
+      "tagline": "Packages, departures, deposits and balances",
+      "seo": {
+        "headline": "Safari operator software for Kenya",
+        "pitch": "Sell packages and departures, take deposits by M-Pesa or card and chase balances before the trip.",
+        "keywords": [
+          "safari booking software Kenya",
+          "tour operator system Kenya"
+        ]
+      }
+    },
+    {
+      "key": "tour-company",
+      "name": "Tour company",
+      "tagline": "Day tours, group trips and agents' commissions",
+      "seo": {
+        "headline": "Tour company software for Kenya",
+        "pitch": "Fill seats on day tours and group trips, track agents' commissions and every guest's balance.",
+        "keywords": [
+          "tour company software Kenya"
+        ]
+      }
+    },
+    {
+      "key": "travel-agency",
+      "name": "Travel agency",
+      "tagline": "Enquiries, quotes, bookings and payments",
+      "seo": {
+        "headline": "Travel agency CRM for Kenya",
+        "pitch": "Turn enquiries into quotes and bookings and keep every payment and balance in one place.",
+        "keywords": [
+          "travel agency software Kenya",
+          "travel CRM Kenya"
+        ]
+      }
+    },
+    {
+      "key": "excursions",
+      "name": "Excursions & activities",
+      "tagline": "Daily slots, walk-ins and group bookings",
+      "seo": {
+        "headline": "Excursions and activity booking software for Kenya",
+        "pitch": "Book daily activity slots, sell walk-in tickets and take group deposits.",
+        "keywords": [
+          "activity booking system Kenya",
+          "excursions software Mombasa"
+        ]
+      },
+      "examples": {
+        "business": "Mombasa Marine Trips",
+        "category": "Excursions",
+        "item": "Dhow sunset cruise",
+        "optionGroup": "Ticket",
+        "optionChoice": "Child",
+        "tagline": "Make memories",
+        "note": ""
+      }
+    },
+    {
+      "key": "car-hire",
+      "name": "Car hire with driver",
+      "tagline": "Vehicles, drivers, trips and deposits",
+      "seo": {
+        "headline": "Car hire business software for Kenya",
+        "pitch": "Book vehicles and drivers per trip, take deposits and see which cars earn the most.",
+        "keywords": [
+          "car hire software Kenya",
+          "car rental system Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Safari Wheels Car Hire",
+        "category": "Vehicles",
+        "item": "Land Cruiser with driver (day)",
+        "optionGroup": "Vehicle",
+        "optionChoice": "Van",
+        "tagline": "Go further",
+        "note": "pickup at JKIA"
+      }
+    }
   ],
   "property": [
-    {"key": "mall", "name": "Mall / shopping centre", "tagline": "Units, leases, rent, service charge and occupancy",
-     "seo": {"headline": "Mall and shopping centre management software for Kenya", "pitch": "Every unit on one grid, monthly rent and service charge invoices, M-Pesa payments matched to tenants and an arrears list.", "keywords": ["mall management software Kenya", "shopping centre system", "commercial property software Kenya"]}},
-    {"key": "market-stalls", "name": "Market stalls", "tagline": "Daily or monthly stall fees and collections",
-     "seo": {"headline": "Market stall management software for Kenya", "pitch": "Bill stalls daily or monthly, match M-Pesa payments and see who hasn't paid.", "keywords": ["market stalls management Kenya"]}},
-    {"key": "commercial-building", "name": "Commercial building", "tagline": "Offices, leases and service charges",
-     "seo": {"headline": "Commercial building management software for Kenya", "pitch": "Leases, monthly rent and service charges for offices, with arrears and occupancy at a glance.", "keywords": ["office building management Kenya"]}},
-    {"key": "apartments", "name": "Residential apartments", "tagline": "Tenants, rent, deposits and water bills",
-     "terms": {"customer": "Tenant", "customers": "Tenants"},
-     "seo": {"headline": "Rental apartment management software for Kenya", "pitch": "Invoice rent and water every month, match M-Pesa payments to units and chase arrears early.", "keywords": ["rent management software Kenya", "landlord app Kenya", "apartment management system Nairobi"]}},
-    {"key": "property-agent", "name": "Property agent", "tagline": "Managed properties, landlords and collections",
-     "seo": {"headline": "Property management software for agents in Kenya", "pitch": "Collect rent for many landlords, send statements and keep every unit and tenant in order.", "keywords": ["property management software Kenya", "letting agent system Kenya"]}}
+    {
+      "key": "mall",
+      "name": "Mall / shopping centre",
+      "tagline": "Units, leases, rent, service charge and occupancy",
+      "seo": {
+        "headline": "Mall and shopping centre management software for Kenya",
+        "pitch": "Every unit on one grid, monthly rent and service charge invoices, M-Pesa payments matched to tenants and an arrears list.",
+        "keywords": [
+          "mall management software Kenya",
+          "shopping centre system",
+          "commercial property software Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Moi Avenue Plaza",
+        "category": "Charges",
+        "item": "Service charge",
+        "optionGroup": "Rate",
+        "optionChoice": "Monthly",
+        "tagline": "Space to grow",
+        "note": ""
+      }
+    },
+    {
+      "key": "market-stalls",
+      "name": "Market stalls",
+      "tagline": "Monthly stall rent and collections",
+      "seo": {
+        "headline": "Market stall management software for Kenya",
+        "pitch": "Bill stalls every month, match M-Pesa payments and see who hasn't paid.",
+        "keywords": [
+          "market stalls management Kenya"
+        ]
+      }
+    },
+    {
+      "key": "commercial-building",
+      "name": "Commercial building",
+      "tagline": "Offices, leases and service charges",
+      "seo": {
+        "headline": "Commercial building management software for Kenya",
+        "pitch": "Leases, monthly rent and service charges for offices, with arrears and occupancy at a glance.",
+        "keywords": [
+          "office building management Kenya"
+        ]
+      }
+    },
+    {
+      "key": "apartments",
+      "name": "Residential apartments",
+      "tagline": "Tenants, monthly rent, deposits and arrears",
+      "terms": {
+        "customer": "Tenant",
+        "customers": "Tenants"
+      },
+      "seo": {
+        "headline": "Rental apartment management software for Kenya",
+        "pitch": "Invoice rent every month, match M-Pesa payments to units and chase arrears early.",
+        "keywords": [
+          "rent management software Kenya",
+          "landlord app Kenya",
+          "apartment management system Nairobi"
+        ]
+      },
+      "examples": {
+        "business": "Kileleshwa Heights",
+        "category": "Charges",
+        "item": "Garbage collection",
+        "optionGroup": "Rate",
+        "optionChoice": "Monthly",
+        "tagline": "A home you love",
+        "note": ""
+      }
+    },
+    {
+      "key": "property-agent",
+      "name": "Property agent",
+      "tagline": "Managed properties, landlords and collections",
+      "seo": {
+        "headline": "Property management software for agents in Kenya",
+        "pitch": "Collect rent for many landlords, send statements and keep every unit and tenant in order.",
+        "keywords": [
+          "property management software Kenya",
+          "letting agent system Kenya"
+        ]
+      }
+    }
   ]
 }

@@ -154,10 +154,11 @@ public class SeedService {
         int n = 1;
         for (JsonNode s : seed.path("staff")) {
             db.exec("""
-                    INSERT INTO users (tenant_id, email, name, password_hash, role, active)
-                    VALUES (:t, :email, :name, :hash, :role, true)""",
+                    INSERT INTO users (tenant_id, email, name, password_hash, role, active, commission_rate)
+                    VALUES (:t, :email, :name, :hash, :role, true, :rate)""",
                     "email", "staff" + n++ + "@" + tenantSlug + ".suite.local", "name", s.get("name").asText(),
-                    "hash", encoder.encode(UUID.randomUUID().toString()), "role", s.path("role").asText("CASHIER"));
+                    "hash", encoder.encode(UUID.randomUUID().toString()), "role", s.path("role").asText("CASHIER"),
+                    "rate", s.has("commission") ? new java.math.BigDecimal(s.get("commission").asText()) : null);
         }
     }
 

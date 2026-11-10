@@ -24,7 +24,7 @@ import java.util.Set;
  *
  * Sub-sectors (subsectors.json) personalise a pack: a hardware shop and a boutique are both "retail", but they
  * sell differently, count different things and start with different sample items. A sub-sector can override:
- *  terms, features         merged key by key over the pack's
+ *  terms, features, examples   merged key by key over the pack's (examples: placeholder text on screens)
  *  kpis, modules, home, posMode, tagline, extras, stages   replaced
  *  seed                    merged key by key (e.g. its own categories and items; the pack's locations stay)
  *  questions               extra setup questions asked at signup, answers kept in settings.setupAnswers
@@ -35,7 +35,7 @@ import java.util.Set;
 public class SectorCatalog {
 
     private static final Set<String> REPLACED = Set.of("kpis", "modules", "home", "posMode", "tagline", "extras", "stages");
-    private static final Set<String> MERGED = Set.of("terms", "features", "seed");
+    private static final Set<String> MERGED = Set.of("terms", "features", "seed", "examples");
 
     private final Map<String, JsonNode> packs = new LinkedHashMap<>();
     private final Map<String, List<JsonNode>> subSectors = new LinkedHashMap<>();
@@ -156,6 +156,9 @@ public class SectorCatalog {
                 }
                 if (s.has("seo")) {
                     d.set("seo", s.get("seo").deepCopy());
+                }
+                if (s.has("examples")) {
+                    d.set("examples", s.get("examples").deepCopy());
                 }
             }
         }
