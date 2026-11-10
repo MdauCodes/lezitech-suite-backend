@@ -1587,7 +1587,7 @@
     }
   },
   {
-    "key": "pharmacy",
+    "key": "pharmacy", "comingSoon": true,
     "name": "Pharmacies & chemists",
     "tagline": "Batches, expiry alerts and prescription checks at the till",
     "icon": "pill",

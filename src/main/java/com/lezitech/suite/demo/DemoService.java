@@ -56,6 +56,9 @@ public class DemoService implements ApplicationRunner {
         }
         for (JsonNode pack : sectors.all()) {
             String key = pack.get("key").asText();
+            if (pack.path("comingSoon").asBoolean(false)) {
+                continue; // no demo for sectors that aren't open yet
+            }
             if (!exists(key)) {
                 try {
                     create(key);
@@ -71,6 +74,9 @@ public class DemoService implements ApplicationRunner {
         List<Map<String, Object>> out = new ArrayList<>();
         for (JsonNode pack : sectors.all()) {
             String key = pack.get("key").asText();
+            if (pack.path("comingSoon").asBoolean(false)) {
+                continue;
+            }
             JsonNode demo = pack.path("demo");
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("sector", key);

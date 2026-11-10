@@ -425,7 +425,7 @@
       "seo": {"headline": "Gym management software for Kenya", "pitch": "Sell memberships and day passes by M-Pesa, book classes and trainers and see who is due to renew.", "keywords": ["gym software Kenya", "gym management system Nairobi", "fitness centre system"]}
     },
     {
-      "key": "clinic", "name": "Medical & dental clinic",
+      "key": "clinic", "name": "Medical & dental clinic", "comingSoon": true,
       "tagline": "Appointments, consultations, procedures and the dispensary",
       "terms": {"customer": "Patient", "customers": "Patients", "staff": "Clinicians", "order": "Visit", "orders": "Visits", "item": "Service", "items": "Services & drugs"},
       "features": {"appointments": true, "commissions": false, "loyalty": false, "credit": true, "expiry": true, "prescriptions": true},

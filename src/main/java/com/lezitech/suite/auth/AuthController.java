@@ -102,6 +102,11 @@ public class AuthController {
         String business = b.str("businessName");
         // The pack personalised for the chosen sub-sector (its own wording, features, KPIs and sample items).
         JsonNode pack = sectors.get(b.str("sector"), b.str("subSector", null));
+        // Coming-soon sectors (pharmacy, clinics: patients' health data) can't be opened yet, by anyone.
+        if (sectors.comingSoon(b.str("sector"), b.str("subSector", null))) {
+            throw ApiException.bad("Lezi Suite for " + pack.path("subSector").asText(pack.get("name").asText()).toLowerCase()
+                    + " is coming soon. Ask us to tell you when it's ready.");
+        }
         if (fixedSlug == null && Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT exists(SELECT 1 FROM platform_settings WHERE key = 'disabled_sectors' AND value @> to_jsonb(cast(? as text)))""", Boolean.class, pack.get("key").asText()))) {
             throw ApiException.bad("Signups for this kind of business are paused. Please contact LeziTech.");

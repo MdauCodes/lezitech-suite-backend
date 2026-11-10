@@ -89,12 +89,39 @@ class SubSectorTest extends IntegrationTest {
         assertThat(retail.has("seed")).isFalse();
     }
 
+    /** Pharmacy and medical clinics are "coming soon" (patients' health data): listed, but nobody can open one yet. */
+    @Test
+    void comingSoonSectorsCantBeOpened() {
+        Res pharmacy = signupAs("pharmacy", null, Map.of());
+        assertThat(pharmacy.status()).isEqualTo(400);
+        assertThat(pharmacy.at("/message").asText()).contains("coming soon");
+        assertThat(signupAs("beauty", "clinic", Map.of()).status()).isEqualTo(400);
+        // Nor can the LeziTech team create one from the control panel.
+        String admin = post("/admin/auth/demo", null, Map.of("role", "ADMIN")).at("/token").asText();
+        assertThat(post("/admin/workspaces", admin, Map.of("businessName", "Afya Chemist", "sector", "pharmacy", "name", "Owner",
+                "email", "soon-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local")).status()).isEqualTo(400);
+        // The beauty picker no longer offers clinics, but the details say they're coming.
+        JsonNode beauty = null;
+        for (JsonNode p : get("/public/sectors", null).body()) {
+            if ("beauty".equals(p.get("key").asText())) {
+                beauty = p;
+            }
+        }
+        assertThat(beauty.get("subSectors").toString()).doesNotContain("Medical & dental clinic").contains("Car wash");
+        assertThat(beauty.at("/subSectorDetails").toString()).contains("\"key\":\"clinic\"").contains("\"comingSoon\":true");
+        // No demo workspace for pharmacy.
+        assertThat(get("/public/demo", null).body().toString()).doesNotContain("\"sector\":\"pharmacy\"");
+    }
+
     /** Every sub-sector's sample data loads: a typo in subsectors.json fails here, not on a customer's signup. */
     @Test
     void everySubSectorSignsUpWithItsSampleData() {
         int checked = 0;
         for (JsonNode pack : get("/public/sectors", null).body()) {
             for (JsonNode sub : pack.path("subSectorDetails")) {
+                if (pack.path("comingSoon").asBoolean(false) || sub.path("comingSoon").asBoolean(false)) {
+                    continue;
+                }
                 Res s = signupAs(pack.get("key").asText(), sub.get("key").asText(), Map.of());
                 assertThat(s.status()).as(pack.get("key").asText() + "/" + sub.get("key").asText() + ": " + s.body()).isEqualTo(200);
                 assertThat(s.at("/pack/subSectorKey").asText()).isEqualTo(sub.get("key").asText());
@@ -102,6 +129,6 @@ class SubSectorTest extends IntegrationTest {
                 checked++;
             }
         }
-        assertThat(checked).isGreaterThanOrEqualTo(59);
+        assertThat(checked).isGreaterThanOrEqualTo(54);
     }
 }

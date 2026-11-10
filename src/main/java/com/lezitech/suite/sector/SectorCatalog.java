@@ -101,6 +101,18 @@ public class SectorCatalog {
         return out;
     }
 
+    /**
+     * Sectors and sub-sectors shown as "coming soon": listed with a "tell me when it's ready" link, but no new workspaces.
+     * At launch: the pharmacy pack and medical & dental clinics, which would hold patients' health data.
+     */
+    public boolean comingSoon(String key, String subSector) {
+        if (get(key).path("comingSoon").asBoolean(false)) {
+            return true;
+        }
+        JsonNode sub = findSub(key, subSector);
+        return sub != null && sub.path("comingSoon").asBoolean(false);
+    }
+
     /** The sub-sector's definition, or null. */
     public JsonNode findSub(String key, String subSector) {
         if (subSector == null || subSector.isBlank()) {
@@ -130,11 +142,15 @@ public class SectorCatalog {
             ArrayNode names = copy.putArray("subSectors");
             ArrayNode details = copy.putArray("subSectorDetails");
             for (JsonNode s : subs) {
-                names.add(s.get("name").asText());
+                boolean soon = s.path("comingSoon").asBoolean(false);
+                if (!soon) {
+                    names.add(s.get("name").asText());
+                }
                 ObjectNode d = details.addObject();
                 d.put("key", s.get("key").asText());
                 d.put("name", s.get("name").asText());
                 d.put("tagline", s.path("tagline").asText(""));
+                d.put("comingSoon", soon);
                 if (s.has("questions")) {
                     d.set("questions", s.get("questions").deepCopy());
                 }
