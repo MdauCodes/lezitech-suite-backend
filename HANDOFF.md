@@ -176,6 +176,22 @@ Decisions and how things fit together: `docs/how-the-platform-is-organised.md` (
 report tabs, owner's "who can do what", receipts and printing, custom work). Client hardware and capability
 guide for the team: `docs/client-guide.md` (public version: website `/what-you-need`).
 
+## 6d. Activity log, lowest price, branded email, problems (2026-11-11)
+
+- **Lowest price:** an item's wholesale price doubles as the lowest a cashier may sell it for. Between shelf and lowest
+  is the cashier's call (owner can switch that off: Settings, `settings.bargainToLowest`, default on); below the lowest
+  needs a manager's PIN. On the till, tap a cart line's amount to change its price.
+- **Activity log** (`activity_log`, fenced; `/activity` for owner, manager, accountant): price changes, sales below
+  the lowest price, discounts, hand-typed items, cancelled bills, refunds, item price edits, stock count differences,
+  cash short or over, access and staff changes. Totals per person (given up, refunded, cash short). Written in the
+  same transaction as the action.
+- **Email in the background:** Email on a receipt queues a job (`email_jobs`); the till shows "Sending…" then sent or
+  failed. Three tries, then a `problems` row: the business sees it under "Needs attention" (sidebar count, a message on
+  screen, Try again), LeziTech sees it with the technical reason in the control panel under "System problems".
+  The email carries only the business's own name, logo and colour.
+- **Sector study:** `docs/sector-study.md` (per sector: inventory shape, what POS/CRM/ERP must do, gaps, build order).
+  The build order there is proposed, not approved.
+
 ## 7. Not done: blockers for go-live
 
 1. ~~GitHub repos and push.~~ Done 2026-11-11 (see section 2). The marketing website is in the web repo's `website/`.
