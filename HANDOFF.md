@@ -53,7 +53,8 @@ A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, 
 | Web app | `J:\frontend\lezitech-suite-web`: Vite, React 18, TypeScript, Tailwind 4, TanStack Query; port **5320** |
 | Branch | `launch` in both repos, with `main` kept equal to it. Pushed 2026-11-11: API to `github.com/MdauCodes/lezitech-suite-backend`, web app to `github.com/MdauCodes/lezitech-suite-frontend` (both `main` and `launch`). |
 | Preview configs | `J:\backend\.claude\launch.json`: `suite-api`, `suite-web`, and `lezi-site-mockup` (Lovable design, port 5330) |
-| Lovable website design | `J:\A lovable apps\erp-crm-pos` (not a git repo). Finished and styled by us: Home, Sectors, 9 sector pages, Pricing, Get set up, Style guide. Styles in `src/lezi.css`, page content in `src/lib/lezi-data.ts` and `lezi-details.ts`. |
+| Marketing website (current) | `website/` in the web app repo; see section 6b. |
+| Older Lovable website design | `J:\A lovable apps\erp-crm-pos` (not a git repo), superseded by `website/`. Finished and styled by us: Home, Sectors, 9 sector pages, Pricing, Get set up, Style guide. Styles in `src/lezi.css`, page content in `src/lib/lezi-data.ts` and `lezi-details.ts`. |
 | Second Lovable attempt | `J:\A lovable apps\pixel-perfect-replica-99-main`: weaker and unstyled; ignore it. |
 | Lovable prompt we wrote | `J:\backend\lovable-prompt-lezi-suite.md` |
 | Memory | `C:\Users\lenovo\.claude\projects\J--backend\memory\` (`lezi-suite-health-data.md`) and `C:\Users\lenovo\.claude\projects\C--Work-backend\memory\lezitech-suite-direction.md` (the original decisions) |
@@ -154,8 +155,9 @@ Web on `launch`, matching:
 
 ## 6b. Marketing website (Lovable design, wired 2026-11-11)
 
-- Folder: `J:\A lovable apps\pixel-perfect-replica-99-main` (TanStack Start; **not a git repo yet**). Preview config
-  `lezi-replica` (port 5340) in `J:\frontend\pest-control-marketplace-main\.claude\launch.json`.
+- Folder: `website/` in the web app repo (`J:\frontend\lezitech-suite-web\website`, pushed to
+  `lezitech-suite-frontend`). TanStack Start, its own package.json; preview config `suite-website` (port 5340).
+  Moved there 2026-11-11 from the Lovable project `pixel-perfect-replica-99-main`; no longer synced with Lovable.
 - Look: same logo and fonts as the app, deep green frame with sage tiles, ~90vh sections, Jania Hub-style short copy.
 - Wiring lives in `src/lib/lezi-app.ts`:
   - `VITE_APP_URL` (app, default http://localhost:5320) and `VITE_API_URL` (API, default http://localhost:8090).
@@ -170,7 +172,7 @@ Web on `launch`, matching:
 
 ## 7. Not done: blockers for go-live
 
-1. ~~GitHub repos and push.~~ Done 2026-11-11 (see section 2). The marketing website folder is not in git yet.
+1. ~~GitHub repos and push.~~ Done 2026-11-11 (see section 2). The marketing website is in the web repo's `website/`.
 2. **Brevo email:** API key plus the domain's email DNS records (SPF and DKIM). Without it, password codes don't arrive.
 3. **PayHero:** one real sandbox payment to confirm the field names.
 4. **Deploy:** Contabo + Coolify; a real Postgres with backups; `suite.lezitech.site` with HTTPS. Secrets to set:
