@@ -37,6 +37,11 @@ public class PublicController {
     private com.lezitech.suite.restaurant.TableOrderService tableOrders;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.KitchenService kitchen;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.TablePayService pay;
+
+    /** Payment prompts from one tracking link: 3 per 10 minutes. */
+    public static final RateLimit PER_ORDER_PAY = new RateLimit(3, 600_000);
 
     /** Orders from one table, and from one phone or network, per hour. */
     public static final RateLimit PER_TABLE = new RateLimit(5, 3_600_000);
@@ -70,7 +75,57 @@ public class PublicController {
         Map<String, Object> t = tenant(slug);
         Map<String, Object> out = brand(t);
         out.put("order", as(t, () -> service.track(token)));
+        out.put("payment", as(t, () -> pay.progress(service.orderOfToken(token))));
+        out.put("tipPresets", ordering(t).get("tipPresets"));
         return out;
+    }
+
+    /** The diner pays everything from their phone (with an optional tip). */
+    @PostMapping("/track/{slug}/{token}/pay")
+    public Map<String, Object> payFromPhone(@PathVariable String slug, @PathVariable UUID token, @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        limitPay(token);
+        var b = new com.lezitech.suite.common.Body(raw);
+        return as(t, () -> {
+            UUID order = orderOr404(token);
+            Map<String, Object> req = pay.payAll(order, b.str("phone", ""), b.num("tip", java.math.BigDecimal.ZERO));
+            return Map.of("ok", true, "status", req.get("status"));
+        });
+    }
+
+    /** Split between phones; prompts go out one at a time. */
+    @PostMapping("/track/{slug}/{token}/split")
+    public Map<String, Object> splitFromPhone(@PathVariable String slug, @PathVariable UUID token, @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        limitPay(token);
+        var b = new com.lezitech.suite.common.Body(raw);
+        return as(t, () -> pay.split(orderOr404(token), b.list("payers"), b.num("tip", java.math.BigDecimal.ZERO)));
+    }
+
+    @PostMapping("/track/{slug}/{token}/rating")
+    public Map<String, Object> rate(@PathVariable String slug, @PathVariable UUID token, @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        var b = new com.lezitech.suite.common.Body(raw);
+        as(t, () -> {
+            pay.rate(orderOr404(token), b.integer("stars", 0), b.str("comment", null));
+            return null;
+        });
+        return Map.of("ok", true);
+    }
+
+    private UUID orderOr404(UUID token) {
+        UUID id = service.orderOfToken(token);
+        if (id == null) {
+            throw ApiException.notFound("Order");
+        }
+        return id;
+    }
+
+    private static void limitPay(UUID token) {
+        if (!PER_ORDER_PAY.allow(token.toString())) {
+            throw new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY",
+                    "Several payment prompts were sent just now. Wait a few minutes, or ask your waiter to help.");
+        }
     }
 
     /** The diner answers "would X do instead?" from their tracking page. */

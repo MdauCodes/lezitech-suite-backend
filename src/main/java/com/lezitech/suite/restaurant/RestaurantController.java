@@ -189,7 +189,9 @@ public class RestaurantController {
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id
                 LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
                 LEFT JOIN order_lines l ON l.order_id = o.id
-                WHERE o.status = 'OPEN' AND o.kind = 'SALE' AND o.channel IN ('DINE_IN', 'TAKEAWAY')
+                WHERE o.kind = 'SALE' AND o.channel IN ('DINE_IN', 'TAKEAWAY')
+                  AND (o.status = 'OPEN' OR (o.status = 'PAID' AND o.self_order AND o.closed_at > now() - interval '6 hours'
+                       AND EXISTS (SELECT 1 FROM order_lines x WHERE x.order_id = o.id AND x.kitchen_status <> 'SERVED')))
                   AND (:all OR coalesce(o.assigned_to, o.user_id) = :u)
                 GROUP BY o.id, t.label, u.name ORDER BY count(l.id) FILTER (WHERE l.kitchen_status = 'READY') DESC, o.created_at""",
                 "all", all);
@@ -210,6 +212,28 @@ public class RestaurantController {
                             WHERE o.assigned_to = u.id AND o.status = 'OPEN' AND l.kitchen_status <> 'SERVED') AS plates
                     FROM users u WHERE u.tenant_id = :t AND u.role = 'WAITER' AND u.active ORDER BY u.name"""));
         }
+        return out;
+    }
+
+    /** Tips by server, and how they were shared, for a date range (default: the last 7 days). */
+    @GetMapping("/reports/tips")
+    public Map<String, Object> tips(@RequestParam(required = false) java.time.LocalDate from, @RequestParam(required = false) java.time.LocalDate to) {
+        TenantContext.requireRole("MANAGER", "ACCOUNTANT");
+        java.time.ZoneId nairobi = java.time.ZoneId.of("Africa/Nairobi");
+        java.time.LocalDate f = from == null ? java.time.LocalDate.now(nairobi).minusDays(6) : from;
+        java.time.LocalDate t = to == null ? java.time.LocalDate.now(nairobi) : to;
+        Object[] p = {"from", java.sql.Timestamp.from(f.atStartOfDay(nairobi).toInstant()), "to", java.sql.Timestamp.from(t.plusDays(1).atStartOfDay(nairobi).toInstant())};
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("from", f.toString());
+        out.put("to", t.toString());
+        out.put("byServer", db.list("""
+                SELECT coalesce(u.name, 'No waiter') AS name, count(*) AS tips, sum(x.amount) AS amount, sum(x.server_share) AS server_share
+                FROM tips x LEFT JOIN users u ON u.id = x.server_id
+                WHERE x.created_at >= :from AND x.created_at < :to GROUP BY u.name ORDER BY sum(x.amount) DESC""", p));
+        out.put("totals", db.one("Tips", """
+                SELECT count(*) AS tips, coalesce(sum(amount), 0) AS amount, coalesce(sum(kitchen_share), 0) AS kitchen,
+                       coalesce(sum(business_share), 0) AS business, coalesce(sum(server_share), 0) AS servers
+                FROM tips WHERE created_at >= :from AND created_at < :to""", p));
         return out;
     }
 

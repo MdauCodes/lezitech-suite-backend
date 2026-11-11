@@ -391,7 +391,9 @@ public class OrderService {
     private void close(UUID orderId, String status) {
         Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id", "id", orderId);
         db.exec("UPDATE orders SET status = :s, closed_at = now() WHERE id = :id", "id", orderId, "s", status);
-        db.exec("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE order_id = :id AND kitchen_status IN ('READY')", "id", orderId);
+        if (!Boolean.TRUE.equals(o.get("selfOrder"))) {
+            db.exec("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE order_id = :id AND kitchen_status IN ('READY')", "id", orderId);
+        }
         UUID loc = o.get("locationId") == null ? stock.defaultLocation() : UUID.fromString(o.get("locationId").toString());
         String ref = "Sale #" + o.get("number");
         for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {

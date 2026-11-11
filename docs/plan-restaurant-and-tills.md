@@ -227,6 +227,30 @@ Original plan:
   - assigned orders and their own load.
 
 ### D. Pay from the phone (16 Nov)
+**Status: built 2026-11-11.**
+- **When paying opens:** once the food is ready, or straight away for pay-first orders.
+- **One payer:** `POST /api/public/track/{slug}/{token}/pay {phone, tip}` → `MpesaService.startTablePayment`, a prompt to the restaurant's own till or paybill.
+- **Split:** `POST .../split {payers:[{phone, amount}], tip}`.
+  - Shares must add up exactly to what's due.
+  - Prompts go out one at a time (`pay_splits`); a failed or cancelled phone is tried once more after the others.
+  - The tip goes with the first phone.
+  - The screen offers equal, amounts or percent.
+- **Tips:**
+  - they ride on the prompt (`mpesa_requests.tip`, V20) and are taken out before the payment goes on the sale, so tips are not sales;
+  - recorded in `tips` with kitchen, business and server shares, plus `orders.tip`;
+  - report at `GET /api/reports/tips`.
+- **Other rules:**
+  - Pay-first: a fully paid held order goes to the kitchen.
+  - Paying a phone order no longer marks its ready dishes served. The waiter still brings them, and "My tables" keeps paid-but-unserved phone orders.
+  - A rating once paid, one per order (`POST .../rating`).
+  - Prompts per tracking link are limited to 3 per 10 minutes, and a second prompt while one is on its way is refused.
+- **Events:** `MpesaService.OrderPromptSettled` → `restaurant/TablePayService.onSettled` (tip, split sequencing, pay-first release).
+- **Screen:** `pages/public/PayPanel.tsx` on the tracking page: tip (custom box first, then presets), "I'll pay" / "Split it", progress ("2 of 3 paid"), "pay the rest", rating.
+- **Tests:** `TablePaymentsTest` (4).
+- **Checked in the browser:** a three-way split where one phone failed twice, then the rest was paid by phone, followed by the rating.
+- **Known gap:** a pay-first order that is already paid can't have a dish rejected by the kitchen (it would need a refund). The kitchen sees a refusal; handle it at the till.
+
+Original plan:
 - "Pay with M-Pesa" on the tracking page appears when the food is ready, or straight away if the restaurant pays first.
 - The prompt goes to the **restaurant's own** till or account, as today.
 - **Tip step:**

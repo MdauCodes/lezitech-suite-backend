@@ -45,7 +45,7 @@ public class PublicService {
     public Map<String, Object> track(UUID token) {
         Map<String, Object> o = new LinkedHashMap<>(db.one("Order", """
                 SELECT o.id, o.number, o.kind, o.channel, o.status, o.total, o.paid, o.created_at, o.ready_at, o.closed_at,
-                       o.pickup_code, o.held_for_payment, o.estimated_ready_at, o.customer_label, o.self_order, o.tip,
+                       o.pickup_code, o.held_for_payment, o.estimated_ready_at, o.customer_label, o.self_order, o.tip, o.rated_at IS NOT NULL AS rated,
                        t.label AS table_label
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id WHERE o.public_token = :token""", "token", token));
         List<Map<String, Object>> lines = db.list("""
@@ -74,6 +74,10 @@ public class PublicService {
     /** The table a QR code points at, so the menu can say "Table 5". */
     public Map<String, Object> table(UUID id) {
         return db.find("SELECT id, label FROM dining_tables WHERE id = :id", "id", id).orElseThrow(() -> com.lezitech.suite.common.ApiException.notFound("Table"));
+    }
+
+    public UUID orderOfToken(UUID token) {
+        return db.value("SELECT id FROM orders WHERE public_token = :token", UUID.class, "token", token);
     }
 
     /** The order behind a tracking link, if this dish is on it. */

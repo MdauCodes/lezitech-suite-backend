@@ -53,6 +53,12 @@ public class MpesaService {
     private final DarajaGateway daraja;
     private final PayHeroGateway payHero;
     private final SimulatedGateway simulator;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher events;
+
+    /** A prompt for a sale from the diner's phone has its final answer (paid, failed, or paid but not applied). */
+    public record OrderPromptSettled(UUID tenant, UUID orderId, UUID requestId, UUID splitId, BigDecimal tip, String outcome) {
+    }
 
     public MpesaService(MpesaConfig cfg, JdbcTemplate jdbc, OrderService orders, PlanActivation plans, PlatformTransactionManager txm,
                         IntegrationService integrations, DarajaGateway daraja, PayHeroGateway payHero) {
@@ -108,6 +114,34 @@ public class MpesaService {
         }
         UUID id = insertRequest("ORDER", orderId, null, phone, amount);
         return push(id, acct.orElse(null), phone, amount, "Sale " + o.get("number"), "Payment");
+    }
+
+    /**
+     * A diner pays from their phone (or one share of a split): {@code part} of what's due, plus an optional tip on top.
+     * The prompt goes to the business's own till or paybill, exactly like the till's prompts.
+     */
+    public Map<String, Object> startTablePayment(UUID orderId, String phoneRaw, BigDecimal part, BigDecimal tip, UUID splitId) {
+        requireEnabled();
+        String phone = normalizePhone(phoneRaw);
+        Map<String, Object> o = jdbc.queryForMap("SELECT number, status, total, paid FROM orders WHERE id = ? AND tenant_id = ?",
+                orderId, TenantContext.tenantId());
+        if (!"OPEN".equals(o.get("status"))) {
+            throw ApiException.conflict("This order is already paid");
+        }
+        BigDecimal due = ((BigDecimal) o.get("total")).subtract((BigDecimal) o.get("paid"));
+        BigDecimal t = tip == null ? BigDecimal.ZERO : tip;
+        if (part.signum() <= 0 || part.compareTo(due) > 0 || t.signum() < 0) {
+            throw ApiException.bad("Nothing left to pay on this order");
+        }
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "Paying from your phone isn't switched on here yet. Please ask your waiter to help you pay.");
+        }
+        BigDecimal amount = part.add(t);
+        UUID id = insertRequest("ORDER", orderId, null, phone, amount);
+        jdbc.update("UPDATE mpesa_requests SET tip = ?, split_id = ? WHERE id = ?", t, splitId, id);
+        return push(id, acct.orElse(null), phone, amount, "Order " + o.get("number"), "Payment");
     }
 
     /** Owner pays for a plan from Billing. The plan switches on as soon as the payment is confirmed. */
@@ -258,6 +292,7 @@ public class MpesaService {
         }
         if (code != 0) {
             jdbc.update("UPDATE mpesa_requests SET status = ? WHERE id = ?", code == 1032 ? "CANCELLED" : "FAILED", id);
+            announce(r, "FAILED");
             return;
         }
         BigDecimal expected = (BigDecimal) r.get("amount");
@@ -265,6 +300,7 @@ public class MpesaService {
         if (paidAmount == null || paidAmount.compareTo(expected.setScale(0, RoundingMode.FLOOR)) < 0) {
             jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
                     "Paid " + (paidAmount == null ? "?" : paidAmount.toPlainString()) + " but " + expected.toPlainString() + " was asked; check and record it by hand", id);
+            announce(r, "UNAPPLIED");
             return;
         }
         if ("SUBSCRIPTION".equals(r.get("purpose"))) {
@@ -276,17 +312,34 @@ public class MpesaService {
             return;
         }
         UUID orderId = (UUID) r.get("order_id");
+        // A tip from the diner's phone rides on the prompt but isn't part of the sale; it's recorded on its own.
+        BigDecimal tip = r.get("tip") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tip");
+        BigDecimal forSale = expected.subtract(tip);
         try {
             TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
-                orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", expected, "reference", receipt)))));
+                orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", forSale, "reference", receipt)))));
                 jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
                 return null;
             }));
+            announce(r, "PAID");
         } catch (RuntimeException e) {
             // e.g. the sale was paid in cash meanwhile. Keep the money visible so staff can refund or apply it.
             log.warn("M-Pesa {} confirmed but couldn't be put on order {}: {}", receipt, orderId, e.getMessage());
             jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
                     "Money received but the sale was already closed (" + e.getMessage() + "). Refund the customer or use it on another sale.", id);
+            announce(r, "UNAPPLIED");
+        }
+    }
+
+    private void announce(Map<String, Object> r, String outcome) {
+        if (!"ORDER".equals(r.get("purpose")) || events == null) {
+            return;
+        }
+        try {
+            events.publishEvent(new OrderPromptSettled((UUID) r.get("tenant_id"), (UUID) r.get("order_id"), (UUID) r.get("id"),
+                    (UUID) r.get("split_id"), r.get("tip") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tip"), outcome));
+        } catch (RuntimeException e) {
+            log.warn("After M-Pesa result for request {}: {}", r.get("id"), e.toString());
         }
     }
 
