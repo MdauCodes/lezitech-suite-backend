@@ -107,6 +107,21 @@ Each package has the same five parts, and none is done without them:
 Targets are calendar days.
 
 ### A. Foundations (12 Nov)
+**Status: built 2026-11-11.**
+- Migration `V18__table_ordering_and_tills.sql`.
+- File storage: `files/FileStore`, `R2FileStore`, `DiskFileStore`, `FileService`, `FileController`.
+- Item photo upload: `POST`/`DELETE /api/items/{id}/photo`. Public menu photos: `GET /api/public/files/{slug}/{id}`, item photos only.
+- Settings: `restaurant/OrderingSettings`, `GET /api/settings/ordering`, checked on save.
+- Tests: `FilesAndOrderingSettingsTest`; `support_grants` added to the RLS allowlist.
+
+Changed from the plan:
+- An ETR is a file linked from the sale (`orders.etr_file_id`), not a separate `order_etrs` table: one ETR per sale.
+- Loyalty is `loyalty_moves` plus `customers.loyalty_points`, not a separate accounts table.
+- Split payments got their own table, `pay_splits`.
+- Live servers refuse to start unless `FILES_STORE=r2`. The R2 keys are env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`.
+- Photos are shrunk in the browser before upload. The server checks the real file type from its first bytes: photos up to 2 MB, ETRs up to 6 MB.
+
+Original plan:
 - **V18 migration**, holding everything below so later packages don't fight over numbers:
   - orders: `assigned_to`, `pickup_code`, `estimated_ready_at`, `self_order`, `batch_id`, `tip`, `rating`, `rating_comment`;
   - order lines: `rejected`, `substitute_item_id`, `substitute_status`;

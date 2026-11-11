@@ -35,7 +35,8 @@ class RlsCoverageTest extends IntegrationTest {
             Map.entry("platform_audit", "LeziTech control panel's own log"),
             Map.entry("integrations", "encrypted payment and SMS keys; read by business id in code"),
             Map.entry("email_jobs", "background email sender works across businesses, then acts as each one"),
-            Map.entry("problems", "shown to the business by its id and to the LeziTech control panel"));
+            Map.entry("problems", "shown to the business by its id and to the LeziTech control panel"),
+            Map.entry("support_grants", "checked by the LeziTech control panel before signing in as the business"));
 
     @Autowired
     JdbcTemplate jdbc;

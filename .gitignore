@@ -2,3 +2,4 @@ target/
 .localdb/
 *.log
 .idea/
+.files/

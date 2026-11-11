@@ -17,6 +17,11 @@ spring:
     password: ${FLYWAY_PASSWORD:}
   jackson:
     default-property-inclusion: always
+  servlet:
+    multipart:
+      # Menu photos (shrunk in the browser) and ETR photos or PDFs.
+      max-file-size: 8MB
+      max-request-size: 9MB
 
 server:
   port: ${PORT:8090}
@@ -99,6 +104,15 @@ suite:
     password: ${PAYHERO_PASSWORD:}
     channel-id: ${PAYHERO_CHANNEL_ID:0}
   cors-origins: ${CORS_ORIGINS:http://localhost:5320,http://127.0.0.1:5320,http://localhost:5340,http://127.0.0.1:5340}
+  # Uploaded files (menu photos, ETRs): Cloudflare R2 live (FILES_STORE=r2), a local folder otherwise.
+  files:
+    store: ${FILES_STORE:disk}
+    dir: ${FILES_DIR:.files}
+    r2:
+      account-id: ${R2_ACCOUNT_ID:}
+      access-key: ${R2_ACCESS_KEY:}
+      secret-key: ${R2_SECRET_KEY:}
+      bucket: ${R2_BUCKET:}
   # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.
   embedded-db:
     enabled: ${EMBEDDED_DB:true}

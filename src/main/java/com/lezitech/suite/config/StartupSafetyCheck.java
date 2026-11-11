@@ -20,9 +20,13 @@ public class StartupSafetyCheck {
     public static final String DEV_OPERATOR_KEY = "local-operator-key";
 
     public StartupSafetyCheck(@Value("${suite.jwt.secret}") String jwtSecret, @Value("${suite.operator-key}") String operatorKey,
-                              @Value("${suite.secrets-key:}") String secretsKey) {
+                              @Value("${suite.secrets-key:}") String secretsKey, @Value("${suite.files.store:disk}") String filesStore) {
         boolean embedded = System.getenv("DATABASE_URL") == null && !"false".equalsIgnoreCase(System.getenv("EMBEDDED_DB"));
         verify(embedded, jwtSecret, operatorKey, secretsKey);
+        // Live businesses' photos and ETRs must survive a redeploy: they go to R2, never the container's disk.
+        if (!embedded && !"r2".equalsIgnoreCase(filesStore)) {
+            throw new IllegalStateException("Refusing to start with unsafe settings: FILES_STORE must be r2 (with R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET)");
+        }
     }
 
     public static void verify(boolean embedded, String jwtSecret, String operatorKey, String secretsKey) {

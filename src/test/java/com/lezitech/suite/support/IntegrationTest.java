@@ -54,6 +54,8 @@ public abstract class IntegrationTest {
         r.add("suite.etims.mode", () -> "stub");
         r.add("suite.email.provider", () -> "log");
         r.add("suite.email.retry-seconds", () -> "0");
+        r.add("suite.files.store", () -> "disk");
+        r.add("suite.files.dir", () -> "target/test-files");
         r.add("suite.email.jobs-every-ms", () -> "300");
         r.add("suite.mpesa.simulate-delay-ms", () -> "300");
         r.add("suite.mpesa.c2b-secret", () -> "test-c2b-secret");
@@ -85,6 +87,47 @@ public abstract class IntegrationTest {
             HttpResponse<String> res = http.send(b.method(method, pub).build(), HttpResponse.BodyHandlers.ofString());
             JsonNode node = res.body() == null || res.body().isBlank() ? json.nullNode() : json.readTree(res.body());
             return new Res(res.statusCode(), node);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Upload one file as multipart form field "file". */
+    protected Res upload(String path, String token, byte[] bytes, String filename) {
+        try {
+            String boundary = "----suite" + UUID.randomUUID();
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            String head = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + filename
+                    + "\"\r\nContent-Type: application/octet-stream\r\n\r\n";
+            out.write(head.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            out.write(bytes);
+            out.write(("\r\n--" + boundary + "--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api" + path))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(out.toByteArray()));
+            if (token != null) {
+                b.header("Authorization", "Bearer " + token);
+            }
+            HttpResponse<String> res = http.send(b.build(), HttpResponse.BodyHandlers.ofString());
+            JsonNode node = res.body() == null || res.body().isBlank() ? json.nullNode() : json.readTree(res.body());
+            return new Res(res.statusCode(), node);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    public record Raw(int status, String contentType, byte[] bytes) {
+    }
+
+    /** GET returning the raw bytes (files, photos). */
+    protected Raw raw(String path, String token) {
+        try {
+            HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api" + path)).GET();
+            if (token != null) {
+                b.header("Authorization", "Bearer " + token);
+            }
+            HttpResponse<byte[]> res = http.send(b.build(), HttpResponse.BodyHandlers.ofByteArray());
+            return new Raw(res.statusCode(), res.headers().firstValue("Content-Type").orElse(""), res.body());
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

@@ -6,6 +6,24 @@ This document designs the end-to-end restaurant table-ordering workflow where a 
 
 ---
 
+## Build progress (kept current while building)
+
+How it is built and in what order: `plan-restaurant-and-tills.md`. Where this document disagrees with
+`decisions.md` (ETR is free and uploaded by the business; QR codes open the app's address; the restaurant chooses
+when diners pay; support access only when the owner grants it), `decisions.md` wins.
+
+| Package | What | Status |
+|---|---|---|
+| A | Database (V18), R2 file storage, item photo upload, ordering, tip and loyalty settings | Built 2026-11-11 |
+| B | QR per table and printable cards, order from the phone, review, waiter assignment, pickup code | Next |
+| C | Estimated time, unavailable items, kitchen substitutes, live tracking, waiters' tables | Planned |
+| D | Pay from the phone (single and split), tips, rating | Planned |
+| E | Group orders | Planned |
+| F | Photos and allergens on the menu, board screens per area | Planned |
+| G | Loyalty points | Planned |
+
+---
+
 ## 1. What Already Exists
 
 The platform already has a strong restaurant foundation. Before designing what's new, here's what's **already built**:

@@ -68,6 +68,16 @@ public class SettingsController {
                         Map.of("before", before, "after", after));
             }
         }
+        if (settings.containsKey("ordering")) {
+            // Shallow merge in the database would drop choices not sent, so merge with what's saved first.
+            Map<String, Object> saved = new java.util.LinkedHashMap<>(json.readValue(jdbc.queryForObject(
+                    "SELECT coalesce(settings->'ordering', '{}'::jsonb)::text FROM tenants WHERE id = ?", String.class, TenantContext.tenantId()), Map.class));
+            saved.putAll(com.lezitech.suite.restaurant.OrderingSettings.clean(settings.get("ordering")));
+            settings.put("ordering", saved);
+        }
+        if (settings.containsKey("loyalty")) {
+            settings.put("loyalty", com.lezitech.suite.restaurant.OrderingSettings.cleanLoyalty(settings.get("loyalty")));
+        }
         if (raw.get("products") instanceof java.util.List<?> list) {
             java.util.List<String> products = list.stream().map(String::valueOf).map(String::toUpperCase)
                     .filter(java.util.Set.of("POS", "CRM", "ERP")::contains).distinct().toList();
@@ -89,6 +99,13 @@ public class SettingsController {
                 b.str("name", null), color, logo, b.str("phone", null), b.str("subSector", null),
                 json.writeValueAsString(settings), TenantContext.tenantId());
         return Map.of("ok", true);
+    }
+
+    /** Ordering from the table and tips, with defaults filled in (any staff member: the till and menu use them). */
+    @org.springframework.web.bind.annotation.GetMapping("/api/settings/ordering")
+    public Map<String, Object> ordering() throws Exception {
+        var t = jdbc.queryForMap("SELECT sector, coalesce(settings->'ordering', '{}'::jsonb)::text AS o FROM tenants WHERE id = ?", TenantContext.tenantId());
+        return com.lezitech.suite.restaurant.OrderingSettings.withDefaults(json.readValue((String) t.get("o"), Map.class), (String) t.get("sector"));
     }
 
     /** Re-apply the sector pack's screens and switches (after experimenting in Settings). */
