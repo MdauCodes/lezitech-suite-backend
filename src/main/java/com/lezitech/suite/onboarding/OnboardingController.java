@@ -112,14 +112,19 @@ public class OnboardingController {
         }
         @SuppressWarnings("unchecked")
         List<String> pays = raw.get("payments") instanceof List<?> l ? ((List<Object>) l).stream().map(String::valueOf).filter(PAYMENTS::contains).toList() : List.of();
+        String kind = "CUSTOM".equalsIgnoreCase(b.str("kind", "SETUP")) ? "CUSTOM" : "SETUP";
+        List<String> wants = wants(raw.get("wants"));
+        if ("CUSTOM".equals(kind) && wants.isEmpty() && b.str("notes", "").isBlank()) {
+            throw ApiException.bad("Tell us what you would like built");
+        }
         UUID id = jdbc.queryForObject("""
                 INSERT INTO setup_requests (business_name, sector, sub_sector, contact_name, phone, email, town, branches, staff, payments,
-                                            current_tool, opening_hours, notes, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as text[]), ?, ?, ?, ?) RETURNING id""", UUID.class,
+                                            current_tool, opening_hours, notes, source, kind, wants, budget, timeline)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as text[]), ?, ?, ?, ?, ?, cast(? as text[]), ?, ?) RETURNING id""", UUID.class,
                 business, sector, clip(b.str("subSector", null), 80), contact, phone, email.isEmpty() ? null : email,
                 clip(b.str("town", null), 80), b.integer("branches", null), b.integer("staff", null), "{" + String.join(",", pays) + "}",
                 clip(b.str("currentTool", null), 120), clip(b.str("openingHours", null), 120), clip(b.str("notes", null), 2000),
-                clip(b.str("source", null), 120));
+                clip(b.str("source", null), 120), kind, "{" + String.join(",", wants) + "}", clip(b.str("budget", null), 60), clip(b.str("timeline", null), 60));
         // Which ad brought them, and tell Meta a lead came in (same event id as the browser pixel).
         com.fasterxml.jackson.databind.node.ObjectNode acq = Acquisition.clean(json, raw.get("acquisition"));
         if (acq != null) {
@@ -132,7 +137,7 @@ public class OnboardingController {
         if (!team.isBlank()) {
             String line = business + " (" + (sector == null ? "kind not given" : sector) + ") · " + contact + " · " + phone
                     + (b.str("town", null) == null ? "" : " · " + b.str("town", null));
-            mailer.send(team, "LeziTech team", "New setup request: " + business, line + "\n\n" + mailer.appUrl() + "/admin/setup",
+            mailer.send(team, "LeziTech team", ("CUSTOM".equals(kind) ? "New custom work request: " : "New setup request: ") + business, line + "\n\n" + mailer.appUrl() + "/admin/setup",
                     "<p><b>New setup request</b></p><p>" + Mailer.esc(line) + "</p><p><a href=\"" + mailer.appUrl() + "/admin/setup\">Open setup requests</a></p>");
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -142,16 +147,57 @@ public class OnboardingController {
         return out;
     }
 
+    /** A signed-in business asks LeziTech to build something extra for it. */
+    @PostMapping("/api/custom-requests")
+    public Map<String, Object> customFromApp(@RequestBody Map<String, Object> raw) {
+        com.lezitech.suite.tenant.TenantContext.Caller c = com.lezitech.suite.tenant.TenantContext.caller();
+        Body b = new Body(raw);
+        List<String> wants = wants(raw.get("wants"));
+        if (wants.isEmpty() && b.str("notes", "").isBlank()) {
+            throw ApiException.bad("Tell us what you would like built");
+        }
+        Map<String, Object> t = jdbc.queryForMap("SELECT name, sector, phone FROM tenants WHERE id = ?", c.tenantId());
+        Map<String, Object> u = jdbc.queryForMap("SELECT name, email FROM users WHERE id = ?", c.userId());
+        String phone = b.str("phone", t.get("phone") == null ? "" : t.get("phone").toString()).replaceAll("[^0-9+]", "");
+        if (phone.replaceAll("\\D", "").length() < 9) {
+            throw ApiException.bad("Add a phone number we can call or WhatsApp you on");
+        }
+        UUID id = jdbc.queryForObject("""
+                INSERT INTO setup_requests (business_name, sector, contact_name, phone, email, notes, source, kind, wants, budget, timeline, from_tenant_id, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'app', 'CUSTOM', cast(? as text[]), ?, ?, ?, 'NEW') RETURNING id""", UUID.class,
+                t.get("name"), t.get("sector"), u.get("name"), phone, u.get("email"), clip(b.str("notes", null), 2000),
+                "{" + String.join(",", wants) + "}", clip(b.str("budget", null), 60), clip(b.str("timeline", null), 60), c.tenantId());
+        String team = mailer.teamEmail();
+        if (!team.isBlank()) {
+            String line = t.get("name") + " · " + u.get("name") + " · " + phone + " · wants " + String.join(", ", wants);
+            mailer.send(team, "LeziTech team", "Custom work request from " + t.get("name"), line + "\n\n" + mailer.appUrl() + "/admin/setup",
+                    "<p><b>Custom work request</b></p><p>" + Mailer.esc(line) + "</p>");
+        }
+        return Map.of("ok", true, "id", id);
+    }
+
+    private static final List<String> WANTS = List.of("WEBSITE", "SYSTEM", "MOBILE_APP", "INTEGRATION", "BRANDING", "OTHER");
+
+    private static List<String> wants(Object raw) {
+        if (!(raw instanceof List<?> l)) {
+            return List.of();
+        }
+        return l.stream().map(String::valueOf).map(String::toUpperCase).filter(WANTS::contains).distinct().toList();
+    }
+
     // ---------- 2. the team works the list ----------
 
     @GetMapping("/api/admin/setup-requests")
-    public List<Map<String, Object>> list(@RequestParam(defaultValue = "OPEN") String status) {
+    public List<Map<String, Object>> list(@RequestParam(defaultValue = "OPEN") String status, @RequestParam(defaultValue = "ALL") String kind) {
         AdminContext.require("setup");
         String s = status.toUpperCase();
+        String k = kind.toUpperCase();
         return jdbc.queryForList("""
-                SELECT r.*, t.slug AS tenant_slug, t.in_setup AS tenant_in_setup FROM setup_requests r LEFT JOIN tenants t ON t.id = r.tenant_id
+                SELECT r.*, t.slug AS tenant_slug, t.in_setup AS tenant_in_setup, ft.name AS from_tenant_name
+                FROM setup_requests r LEFT JOIN tenants t ON t.id = r.tenant_id LEFT JOIN tenants ft ON ft.id = r.from_tenant_id
                 WHERE (? = 'ALL' OR (? = 'OPEN' AND r.status IN ('NEW', 'CONTACTED', 'IN_SETUP')) OR r.status = ?)
-                ORDER BY (r.status = 'NEW') DESC, r.created_at DESC LIMIT 300""", s, s, s).stream().map(this::clean).toList();
+                  AND (? = 'ALL' OR r.kind = ?)
+                ORDER BY (r.status = 'NEW') DESC, r.created_at DESC LIMIT 300""", s, s, s, k, k).stream().map(this::clean).toList();
     }
 
     @PutMapping("/api/admin/setup-requests/{id}")
