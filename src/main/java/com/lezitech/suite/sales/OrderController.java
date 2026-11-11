@@ -26,6 +26,9 @@ import java.util.UUID;
 @Transactional
 public class OrderController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.KitchenService kitchenEstimates;
+
     private final Db db;
     private final OrderService orders;
     private final ApprovalService approvals;
@@ -160,6 +163,9 @@ public class OrderController {
                   AND EXISTS (SELECT 1 FROM items i WHERE i.id = order_lines.item_id AND (i.kind = 'MENU' OR i.station IS NOT NULL))""",
                 "id", id, "course", course);
         orders.markReadyIfDone(id);
+        if (n > 0) {
+            kitchenEstimates.autoEstimate(id);
+        }
         Map<String, Object> out = new java.util.LinkedHashMap<>(orders.detail(id));
         out.put("sent", n);
         return out;

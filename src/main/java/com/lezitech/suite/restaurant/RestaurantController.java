@@ -31,10 +31,12 @@ public class RestaurantController {
 
     private final Db db;
     private final com.lezitech.suite.sales.OrderService orders;
+    private final KitchenService kitchen;
 
-    public RestaurantController(Db db, com.lezitech.suite.sales.OrderService orders) {
+    public RestaurantController(Db db, com.lezitech.suite.sales.OrderService orders, KitchenService kitchen) {
         this.db = db;
         this.orders = orders;
+        this.kitchen = kitchen;
     }
 
     /** Floors with every table and the running bill on it, for the waiter's floor view. */
@@ -96,11 +98,14 @@ public class RestaurantController {
     @GetMapping("/kitchen")
     public List<Map<String, Object>> kitchen(@RequestParam(required = false) String station) {
         List<Map<String, Object>> lines = db.list("""
-                SELECT l.id, l.order_id, l.name, l.qty, l.options, l.note, l.course, l.station, l.kitchen_status, l.sent_at,
-                       o.number, o.channel, t.label AS table_label, u.name AS waiter_name
+                SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.options, l.note, l.course, l.station, l.kitchen_status, l.sent_at,
+                       l.rejected_reason, s.name AS substitute_name,
+                       o.number, o.channel, o.estimated_ready_at, o.customer_label, o.self_order, o.pickup_code,
+                       t.label AS table_label, u.name AS waiter_name
                 FROM order_lines l JOIN orders o ON o.id = l.order_id
-                LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN users u ON u.id = o.user_id
-                WHERE l.kitchen_status IN ('NEW','PREPARING','READY') AND o.status <> 'VOID'
+                LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
+                LEFT JOIN items s ON s.id = l.substitute_item_id
+                WHERE l.kitchen_status IN ('NEW','PREPARING','READY','ON_HOLD') AND o.status <> 'VOID'
                   AND (cast(:station as text) IS NULL OR l.station = cast(:station as text))
                 ORDER BY l.sent_at, l.course, l.created_at""", "station", station == null || station.isBlank() ? null : station);
         Map<Object, Map<String, Object>> tickets = new LinkedHashMap<>();
@@ -113,6 +118,10 @@ public class RestaurantController {
                 t.put("tableLabel", l.get("tableLabel"));
                 t.put("waiterName", l.get("waiterName"));
                 t.put("sentAt", l.get("sentAt"));
+                t.put("estimatedReadyAt", l.get("estimatedReadyAt"));
+                t.put("customerLabel", l.get("customerLabel"));
+                t.put("selfOrder", l.get("selfOrder"));
+                t.put("pickupCode", l.get("pickupCode"));
                 t.put("lines", new java.util.ArrayList<Map<String, Object>>());
                 return t;
             });
@@ -120,7 +129,112 @@ public class RestaurantController {
             List<Map<String, Object>> tl = (List<Map<String, Object>>) ticket.get("lines");
             tl.add(l);
         }
+        for (Map<String, Object> t : tickets.values()) {
+            t.put("suggestedMinutes", kitchen.suggestMinutes(UUID.fromString(t.get("orderId").toString())));
+        }
         return List.copyOf(tickets.values());
+    }
+
+    /** The kitchen sets how long an order will take; the diner sees it counting down. */
+    @PostMapping("/kitchen/orders/{orderId}/estimate")
+    public Map<String, Object> estimate(@PathVariable UUID orderId, @RequestBody Map<String, Object> raw) {
+        Integer minutes = new Body(raw).integer("minutes", null);
+        if (minutes == null) {
+            throw ApiException.bad("Choose how many minutes");
+        }
+        return Map.of("estimatedReadyAt", kitchen.setEstimate(orderId, minutes).toString());
+    }
+
+    /** Can't make a dish: offer another (the diner answers on their phone) or take it off the bill. */
+    @PostMapping("/kitchen/lines/{id}/reject")
+    public Map<String, Object> reject(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        Body b = new Body(raw);
+        kitchen.reject(id, b.str("reason", null), b.has("substituteItemId") ? UUID.fromString(b.str("substituteItemId")) : null,
+                b.bool("markFinished", false));
+        return Map.of("ok", true);
+    }
+
+    /** Mark a dish finished (until restocked, or until a time) or back on. */
+    @PostMapping("/kitchen/items/{id}/availability")
+    public Map<String, Object> availability(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        Body b = new Body(raw);
+        kitchen.setAvailability(id, b.str("until", null), b.has("at") ? b.instant("at") : null);
+        return Map.of("ok", true);
+    }
+
+    @GetMapping("/kitchen/finished")
+    public List<Map<String, Object>> finished() {
+        return kitchen.finishedItems();
+    }
+
+    // ---------- Waiters ----------
+
+    /**
+     * A waiter's own tables: orders assigned to them (or that they started), what the kitchen is doing with each,
+     * whether it's paid, and notices that need them. Managers see everyone's, with each waiter's load.
+     */
+    @GetMapping("/waiter/tables")
+    public Map<String, Object> waiterTables(@RequestParam(defaultValue = "false") boolean everyone) {
+        TenantContext.Caller me = TenantContext.caller();
+        boolean all = everyone && Set.of("OWNER", "MANAGER").contains(me.role());
+        List<Map<String, Object>> list = db.list("""
+                SELECT o.id, o.number, o.channel, o.total, o.paid, o.customer_label, o.self_order, o.held_for_payment,
+                       o.estimated_ready_at, o.created_at, o.pickup_code, t.label AS table_label,
+                       coalesce(o.assigned_to, o.user_id) AS waiter_id, u.name AS waiter_name,
+                       count(l.id) FILTER (WHERE l.kitchen_status IN ('NEW','PREPARING')) AS cooking,
+                       count(l.id) FILTER (WHERE l.kitchen_status = 'READY') AS ready,
+                       count(l.id) FILTER (WHERE l.kitchen_status = 'ON_HOLD') AS waiting_on_diner,
+                       count(l.id) FILTER (WHERE l.kitchen_status = 'PENDING') AS not_sent,
+                       coalesce(sum(l.qty) FILTER (WHERE l.kitchen_status <> 'SERVED'), 0) AS plates
+                FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id
+                LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
+                LEFT JOIN order_lines l ON l.order_id = o.id
+                WHERE o.status = 'OPEN' AND o.kind = 'SALE' AND o.channel IN ('DINE_IN', 'TAKEAWAY')
+                  AND (:all OR coalesce(o.assigned_to, o.user_id) = :u)
+                GROUP BY o.id, t.label, u.name ORDER BY count(l.id) FILTER (WHERE l.kitchen_status = 'READY') DESC, o.created_at""",
+                "all", all);
+        List<Map<String, Object>> notices = db.list("""
+                SELECT n.id, n.order_id, n.kind, n.message, n.created_at, o.number, t.label AS table_label
+                FROM order_notices n JOIN orders o ON o.id = n.order_id LEFT JOIN dining_tables t ON t.id = o.table_id
+                WHERE n.done_at IS NULL AND n.for_waiter AND n.created_at > now() - interval '12 hours'
+                  AND (:all OR coalesce(o.assigned_to, o.user_id) = :u)
+                ORDER BY n.created_at""", "all", all);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("orders", list);
+        out.put("notices", notices);
+        if (all) {
+            out.put("waiters", db.list("""
+                    SELECT u.id, u.name,
+                           (SELECT count(DISTINCT o.table_id) FROM orders o WHERE o.assigned_to = u.id AND o.status = 'OPEN') AS tables,
+                           (SELECT coalesce(sum(l.qty), 0) FROM orders o JOIN order_lines l ON l.order_id = o.id
+                            WHERE o.assigned_to = u.id AND o.status = 'OPEN' AND l.kitchen_status <> 'SERVED') AS plates
+                    FROM users u WHERE u.tenant_id = :t AND u.role = 'WAITER' AND u.active ORDER BY u.name"""));
+        }
+        return out;
+    }
+
+    @PostMapping("/waiter/notices/{id}/done")
+    public Map<String, Object> noticeDone(@PathVariable UUID id) {
+        kitchen.noticeDone(id);
+        return Map.of("ok", true);
+    }
+
+    /** Take an order yourself, or (managers) give it to another waiter. */
+    @PostMapping("/waiter/orders/{orderId}/assign")
+    public Map<String, Object> assign(@PathVariable UUID orderId, @RequestBody(required = false) Map<String, Object> raw) {
+        TenantContext.Caller me = TenantContext.caller();
+        Body b = new Body(raw);
+        UUID to = me.userId();
+        if (b.has("userId")) {
+            TenantContext.requireRole("MANAGER");
+            to = UUID.fromString(b.str("userId"));
+            if (db.value("SELECT count(*) FROM users WHERE id = :id AND tenant_id = :t AND active", Long.class, "id", to) == 0) {
+                throw ApiException.notFound("That waiter");
+            }
+        }
+        orders.requireOpen(orderId);
+        db.exec("UPDATE orders SET assigned_to = :to WHERE id = :id", "to", to, "id", orderId);
+        return Map.of("ok", true);
     }
 
     @GetMapping("/kitchen/stations")
@@ -134,7 +248,8 @@ public class RestaurantController {
         if (!KITCHEN_FLOW.contains(status)) {
             throw ApiException.bad("Unknown kitchen status");
         }
-        db.exec("UPDATE order_lines SET kitchen_status = :s WHERE id = :id", "id", id, "s", status);
+        db.exec("UPDATE order_lines SET kitchen_status = :s WHERE id = :id AND kitchen_status <> 'ON_HOLD'", "id", id, "s", status);
+        kitchen.moved(id, status);
         Map<String, Object> line = db.one("Line", "SELECT id, order_id, kitchen_status FROM order_lines WHERE id = :id", "id", id);
         orders.markReadyIfDone(UUID.fromString(line.get("orderId").toString()));
         return line;
@@ -154,7 +269,10 @@ public class RestaurantController {
             case "PREPARING" -> "READY";
             default -> "SERVED";
         };
-        db.exec("UPDATE order_lines SET kitchen_status = :next WHERE order_id = :orderId AND kitchen_status = :cur",
+        db.exec("""
+                UPDATE order_lines SET kitchen_status = :next,
+                       ready_at = CASE WHEN :next IN ('READY', 'SERVED') THEN coalesce(ready_at, now()) ELSE ready_at END
+                WHERE order_id = :orderId AND kitchen_status = :cur""",
                 "orderId", orderId, "next", next, "cur", lowest);
         orders.markReadyIfDone(orderId);
         return Map.of("status", next);

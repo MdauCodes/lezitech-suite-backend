@@ -49,8 +49,14 @@ public class PublicService {
                        t.label AS table_label
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id WHERE o.public_token = :token""", "token", token));
         List<Map<String, Object>> lines = db.list("""
-                SELECT name, qty, line_total, options, kitchen_status FROM order_lines WHERE order_id = :id ORDER BY course, created_at""",
+                SELECT l.id, l.name, l.qty, l.line_total, l.options, l.kitchen_status, l.substitute_status, l.rejected_reason,
+                       s.name AS substitute_name, s.price AS substitute_price
+                FROM order_lines l LEFT JOIN items s ON s.id = l.substitute_item_id
+                WHERE l.order_id = :id ORDER BY l.course, l.created_at""",
                 "id", o.get("id"));
+        o.put("notices", db.list("""
+                SELECT kind, message, created_at FROM order_notices
+                WHERE order_id = :id AND kind IN ('ITEM_REMOVED', 'SUBSTITUTE_ACCEPTED') ORDER BY created_at""", "id", o.get("id")));
         o.remove("id");
         o.put("lines", lines);
         boolean cooking = lines.stream().anyMatch(l -> List.of("NEW", "PREPARING").contains(l.get("kitchenStatus")));
@@ -68,6 +74,13 @@ public class PublicService {
     /** The table a QR code points at, so the menu can say "Table 5". */
     public Map<String, Object> table(UUID id) {
         return db.find("SELECT id, label FROM dining_tables WHERE id = :id", "id", id).orElseThrow(() -> com.lezitech.suite.common.ApiException.notFound("Table"));
+    }
+
+    /** The order behind a tracking link, if this dish is on it. */
+    public UUID orderOfLine(UUID token, UUID lineId) {
+        return db.value("""
+                SELECT o.id FROM orders o JOIN order_lines l ON l.order_id = o.id
+                WHERE o.public_token = :token AND l.id = :line""", UUID.class, "token", token, "line", lineId);
     }
 
     public Map<String, Object> menu() {

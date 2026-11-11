@@ -35,6 +35,8 @@ public class PublicController {
     private final ObjectMapper json;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.TableOrderService tableOrders;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.KitchenService kitchen;
 
     /** Orders from one table, and from one phone or network, per hour. */
     public static final RateLimit PER_TABLE = new RateLimit(5, 3_600_000);
@@ -69,6 +71,22 @@ public class PublicController {
         Map<String, Object> out = brand(t);
         out.put("order", as(t, () -> service.track(token)));
         return out;
+    }
+
+    /** The diner answers "would X do instead?" from their tracking page. */
+    @PostMapping("/track/{slug}/{token}/substitute/{lineId}")
+    public Map<String, Object> answerSubstitute(@PathVariable String slug, @PathVariable UUID token, @PathVariable UUID lineId,
+                                                @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        boolean accept = Boolean.TRUE.equals(raw.get("accept"));
+        as(t, () -> {
+            if (service.orderOfLine(token, lineId) == null) {
+                throw ApiException.notFound("That dish");
+            }
+            kitchen.answerSubstitute(lineId, accept);
+            return null;
+        });
+        return Map.of("ok", true);
     }
 
     @GetMapping("/menu/{slug}")

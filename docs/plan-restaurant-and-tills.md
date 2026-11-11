@@ -183,6 +183,31 @@ Original plan:
   - the waiter with the lowest load is picked.
 
 ### C. Kitchen and tracking (15 Nov)
+**Status: built 2026-11-11.**
+- **Estimates** (`restaurant/KitchenService`):
+  - suggested from each dish's average cooking time over 30 days (3+ samples; lines now record `ready_at`), else the item's `prep_minutes`;
+  - set automatically when an order reaches the kitchen;
+  - the kitchen sets or changes it (`POST /api/kitchen/orders/{id}/estimate`).
+- **Finished dishes:**
+  - `POST /api/kitchen/items/{id}/availability` (RESTOCK, TIME, NOW) and `GET /api/kitchen/finished`;
+  - the menu shows them as finished and table orders refuse them.
+- **Can't make a dish:** `POST /api/kitchen/lines/{id}/reject`.
+  - **With a substitute:** the line waits (`ON_HOLD`) and the diner answers on the tracking page (`POST /api/public/track/{slug}/{token}/substitute/{lineId}`). Yes swaps it and sends it to the kitchen. No takes it off the bill and leaves the waiter a notice.
+  - **Without one:** it comes off the bill and the diner sees why.
+  - Either way it is logged (`KITCHEN_CHANGE`). An option marks the dish finished too.
+- **Notices:** `V19__order_notices.sql`. Diner messages, and waiter notices with "Done".
+- **Waiters:**
+  - `GET /api/waiter/tables` (own; managers `?everyone=true`, with each waiter's tables and plates), `POST /api/waiter/notices/{id}/done`;
+  - `POST /api/waiter/orders/{id}/assign` (take it yourself; managers give it to someone);
+  - the kitchen ticket and floor show the assigned waiter.
+- **Screens:**
+  - Kitchen: clock button with suggested minutes, "Can't make it" per dish, "Finished" list with Back on, phone orders labelled;
+  - Tracking: countdown and "running a little late", the swap question, notices;
+  - Floor: `components/WaiterPanel` (notices, your tables, waiters now).
+- **Tests:** `KitchenAndWaitersTest` (6).
+- **Checked in the browser:** estimate set from the kitchen, biryani swapped for breakfast, the diner accepted on the phone, and the total updated.
+
+Original plan:
 - **Estimated time:**
   - the kitchen sets or changes minutes on the ticket;
   - the system suggests one from each item's average past cooking time (the last 30 days), else from `prep_minutes`.

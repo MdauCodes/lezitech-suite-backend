@@ -31,10 +31,12 @@ public class TableOrderService {
 
     private final Db db;
     private final OrderService orders;
+    private final KitchenService kitchen;
 
-    public TableOrderService(Db db, OrderService orders) {
+    public TableOrderService(Db db, OrderService orders, KitchenService kitchen) {
         this.db = db;
         this.orders = orders;
+        this.kitchen = kitchen;
     }
 
     public record Placed(UUID orderId, int number, UUID token, BigDecimal total, String pickupCode, boolean heldForPayment,
@@ -95,6 +97,9 @@ public class TableOrderService {
                   AND EXISTS (SELECT 1 FROM items i WHERE i.id = order_lines.item_id AND (i.kind = 'MENU' OR i.station IS NOT NULL))""",
                 "id", orderId);
         orders.markReadyIfDone(orderId);
+        if (n > 0) {
+            kitchen.autoEstimate(orderId);
+        }
         return n;
     }
 
