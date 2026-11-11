@@ -170,6 +170,12 @@ Web on `launch`, matching:
   "each business"/"workspace"; signup carries their business type so the app opens shaped for them.
 - Still to do: Privacy and Terms pages; real photos for hotels, salons, wholesale, services, safaris; typecheck is clean.
 
+## 6c. Platform organisation (2026-11-11)
+
+Decisions and how things fit together: `docs/how-the-platform-is-organised.md` (POS/CRM/ERP switches, three
+report tabs, owner's "who can do what", receipts and printing, custom work). Client hardware and capability
+guide for the team: `docs/client-guide.md` (public version: website `/what-you-need`).
+
 ## 7. Not done: blockers for go-live
 
 1. ~~GitHub repos and push.~~ Done 2026-11-11 (see section 2). The marketing website is in the web repo's `website/`.
