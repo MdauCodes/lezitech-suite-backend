@@ -204,11 +204,15 @@ guide for the team: `docs/client-guide.md` (public version: website `/what-you-n
    Callbacks need public HTTPS. **Suggested: set up a test server early**, so external accounts can be verified while building.
 5. **Ad source lost between domains (bug, fixed for the new website's links; see 6b):** the website on `lezitech.site` and the app on `suite.lezitech.site` don't share localStorage. The website's Start and Setup links must carry the UTM, fbclid, gclid and ref parameters to the app (`captureAcquisition()` already reads them from the URL). Fix this with the SEO pages.
 6. **Privacy policy and terms**, including data processing terms for the data businesses keep about their customers. The website only has placeholders.
-7. **Open questions for the user:**
-   - Hide "Beauty clinic" too? It may hold health-like notes.
-   - Turnover Tax: 1.5% or 3%?
+7. ~~Open questions for the user.~~ Answered 2026-11-11: Beauty clinic stays live; Turnover Tax 1.5%.
+   All owner answers live in `docs/decisions.md`.
 
 ## 8. Next work, in order
+
+**2026-11-11: the owner set a new pre-launch order. Read `docs/decisions.md` first; it overrides the list below.**
+SEO pages, then restaurant QR ordering (a client is waiting; keep `docs/restaurant-table-ordering.md` current as it
+is built), then drawers (blind count, float, reconciliation lock), carton/piece units, customer statements, and the
+test server and deploy last. Lite becomes KSh 2,650 with 3 staff.
 
 1. **Design elevation.** The user found the app and website "too whitish and generic" and wants them **clean, elegant, unique but simple to understand**.
    - **App: done 2026-11-10** (web commit `7fd83d0`):
