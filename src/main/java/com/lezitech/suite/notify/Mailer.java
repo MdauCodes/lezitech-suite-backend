@@ -85,6 +85,25 @@ public class Mailer {
         }
     }
 
+    /**
+     * Send a complete email as it is (no LeziTech wrapper): used for a business's own receipts and invoices.
+     * Returns null when sent, otherwise what went wrong.
+     */
+    public String trySend(String to, String toName, String subject, String text, String fullHtml) {
+        if (sender == null) {
+            return "Emails aren't switched on for this system";
+        }
+        if (to == null || to.isBlank()) {
+            return "No email address";
+        }
+        try {
+            sender.send(new EmailSender.Email(to, toName, subject, text, fullHtml));
+            return null;
+        } catch (RuntimeException e) {
+            return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        }
+    }
+
     /** A plain, readable email: LeziTech mark on top, the message, a short footer. */
     public String layout(String bodyHtml) {
         return "<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#101415;max-width:560px;margin:0 auto;padding:16px\">"

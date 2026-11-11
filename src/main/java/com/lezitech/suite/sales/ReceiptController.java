@@ -29,6 +29,9 @@ import java.util.regex.Pattern;
 @RestController
 public class ReceiptController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.notify.EmailJobs emailJobs;
+
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.ENGLISH).withZone(ZoneId.of("Africa/Nairobi"));
 
@@ -46,6 +49,10 @@ public class ReceiptController {
         this.whatsApp = whatsApp;
     }
 
+    /**
+     * Email a receipt, invoice or quotation. The email is queued and sent in the background (EmailJobs); the screen
+     * gets the job id to follow, and any failure shows up as a problem for the business and for LeziTech.
+     */
     @PostMapping("/api/orders/{id}/email-receipt")
     @Transactional
     public Map<String, Object> email(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
@@ -57,68 +64,9 @@ public class ReceiptController {
         if (!mailer.on()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "EMAIL_OFF", "Emails aren't switched on yet. Use WhatsApp or print the receipt.");
         }
-        Map<String, Object> o = orders.detail(id);
-        Map<String, Object> t = jdbc.queryForMap("SELECT name, phone, currency, settings->>'address' AS address, settings->>'kraPin' AS kra,"
-                + " settings->>'receiptFooter' AS footer FROM tenants WHERE id = ?", TenantContext.tenantId());
-        String business = (String) t.get("name");
-        String cur = (String) t.get("currency");
-        boolean quote = "QUOTE".equals(o.get("kind"));
-        String title = (quote ? "Quotation" : "Receipt") + " #" + o.get("number");
-        Object when = o.get("closedAt") != null ? o.get("closedAt") : o.get("createdAt");
-        String date;
-        try {
-            date = WHEN.format(java.time.Instant.parse(String.valueOf(when)));
-        } catch (RuntimeException e) {
-            date = String.valueOf(when);
-        }
-
-        StringBuilder text = new StringBuilder(business + "\n" + title + " · " + date + "\n\n");
-        StringBuilder rows = new StringBuilder();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> lines = (List<Map<String, Object>>) o.get("lines");
-        for (Map<String, Object> l : lines) {
-            String qty = ((BigDecimal) l.get("qty")).stripTrailingZeros().toPlainString();
-            String amount = money(cur, (BigDecimal) l.get("lineTotal"));
-            text.append(qty).append(" x ").append(l.get("name")).append("  ").append(amount).append('\n');
-            rows.append("<tr><td style=\"padding:4px 0\">").append(qty).append(" × ").append(Mailer.esc((String) l.get("name")))
-                    .append("</td><td style=\"padding:4px 0;text-align:right\">").append(amount).append("</td></tr>");
-        }
-        BigDecimal tax = (BigDecimal) o.get("tax");
-        text.append("\nTotal: ").append(money(cur, (BigDecimal) o.get("total")));
-        if (tax != null && tax.signum() > 0) {
-            text.append(" (includes VAT ").append(money(cur, tax)).append(")");
-        }
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> payments = (List<Map<String, Object>>) o.get("payments");
-        StringBuilder paid = new StringBuilder();
-        for (Map<String, Object> p : payments) {
-            String line = method((String) p.get("method")) + ": " + money(cur, (BigDecimal) p.get("amount"))
-                    + (p.get("reference") == null ? "" : " (" + p.get("reference") + ")");
-            text.append('\n').append(line);
-            paid.append("<div>").append(Mailer.esc(line)).append("</div>");
-        }
-        String footer = t.get("footer") == null ? "Thank you!" : (String) t.get("footer");
-        text.append("\n\n").append(footer);
-
-        String html = "<p style=\"margin:0;font-size:18px\"><b>" + Mailer.esc(business) + "</b></p>"
-                + (t.get("address") == null || ((String) t.get("address")).isBlank() ? "" : "<div style=\"color:#6b7280\">" + Mailer.esc((String) t.get("address")) + "</div>")
-                + (t.get("phone") == null ? "" : "<div style=\"color:#6b7280\">Tel " + Mailer.esc((String) t.get("phone")) + "</div>")
-                + (t.get("kra") == null || ((String) t.get("kra")).isBlank() ? "" : "<div style=\"color:#6b7280\">KRA PIN " + Mailer.esc((String) t.get("kra")) + "</div>")
-                + "<p style=\"margin:16px 0 4px\"><b>" + title + "</b> · " + Mailer.esc(date) + "</p>"
-                + "<table style=\"width:100%;border-collapse:collapse;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb\">" + rows + "</table>"
-                + "<p style=\"font-size:17px;margin:10px 0 4px\"><b>Total " + money(cur, (BigDecimal) o.get("total")) + "</b></p>"
-                + (tax != null && tax.signum() > 0 ? "<div style=\"color:#6b7280\">Includes VAT " + money(cur, tax) + "</div>" : "")
-                + paid + "<p>" + Mailer.esc(footer) + "</p>";
-        String status = mailer.send(to, null, title + " from " + business, text.toString(), html);
-        if (!"SENT".equals(status)) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "EMAIL_FAILED", "The email didn't go through. Check the address, or use WhatsApp.");
-        }
-        // Remember the address on the customer, if the sale has one and they had none.
-        if (o.get("customerId") != null) {
-            jdbc.update("UPDATE customers SET email = ? WHERE id = ? AND tenant_id = ? AND (email IS NULL OR email = '')",
-                    to, o.get("customerId"), TenantContext.tenantId());
-        }
-        return Map.of("ok", true, "to", to);
+        orders.detail(id); // the order exists and belongs to this business (row-level security)
+        UUID job = emailJobs.queue(TenantContext.tenantId(), id, to, TenantContext.userId());
+        return Map.of("ok", true, "queued", true, "jobId", job, "to", to);
     }
 
     /** Whether receipts go through the business's own WhatsApp Business number (true) or wa.me links on the cashier's phone. */

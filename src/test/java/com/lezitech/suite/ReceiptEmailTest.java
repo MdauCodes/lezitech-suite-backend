@@ -31,10 +31,18 @@ class ReceiptEmailTest extends IntegrationTest {
         Res sent = post("/orders/" + id + "/email-receipt", cashier, Map.of("email", "Wanjiru@Example.test"));
         assertThat(sent.status()).as(sent.body().toString()).isEqualTo(200);
 
-        EmailSender.Email e = outbox.sent.get(outbox.sent.size() - 1);
+        // The email goes out in the background a moment later.
+        EmailSender.Email e = null;
+        for (int i = 0; i < 60 && e == null; i++) {
+            e = outbox.sent.stream().filter(m -> m.to().equals("wanjiru@example.test")).findFirst().orElse(null);
+            if (e == null) {
+                try { Thread.sleep(150); } catch (InterruptedException x) { Thread.currentThread().interrupt(); }
+            }
+        }
+        assertThat(e).as("receipt email sent").isNotNull();
         assertThat(e.to()).isEqualTo("wanjiru@example.test");
         assertThat(e.subject()).startsWith("Receipt #").contains("from Test retail");
         assertThat(e.text()).contains("2 x Sugar").contains("Total: KES 380.00").contains("M-Pesa: KES 380.00 (TKL1ABC2DE)");
-        assertThat(e.html()).contains("Includes VAT");
+        assertThat(e.html()).contains("VAT included");
     }
 }
