@@ -41,10 +41,10 @@ public class ApprovalService {
     }
 
     /** Throws 403 APPROVAL_NEEDED unless the caller, or the PIN-approving manager, may do this. */
-    public void require(Body b, String what) {
+    public String require(Body b, String what) {
         if (isManager(TenantContext.caller().role())
                 || (access != null && access.mayDiscount(TenantContext.tenantId(), TenantContext.caller().role()))) {
-            return;
+            return null;
         }
         Map<String, Object> approval = b == null ? Map.of() : b.map("approval");
         Body a = new Body(approval);
@@ -52,12 +52,12 @@ public class ApprovalService {
             String account = "approve:" + a.str("userId");
             throttle.check(account, null);
             List<Map<String, Object>> rows = jdbc.queryForList(
-                    "SELECT role, pin_hash FROM users WHERE id = ? AND tenant_id = ? AND active",
+                    "SELECT role, pin_hash, name FROM users WHERE id = ? AND tenant_id = ? AND active",
                     UUID.fromString(a.str("userId")), TenantContext.tenantId());
             if (!rows.isEmpty() && isManager((String) rows.get(0).get("role")) && rows.get(0).get("pin_hash") != null
                     && encoder.matches(a.str("pin"), (String) rows.get(0).get("pin_hash"))) {
                 throttle.succeeded(account);
-                return;
+                return (String) rows.get(0).get("name");
             }
             throttle.failed(account, null);
             throw new ApiException(HttpStatus.FORBIDDEN, "APPROVAL_NEEDED", "That manager PIN is not right");

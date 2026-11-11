@@ -29,6 +29,8 @@ public class OrderService {
     private final ApprovalService approvals;
     private final com.lezitech.suite.etims.EtimsService etims;
     @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.config.AccessPolicy access;
 
     public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
@@ -93,6 +95,9 @@ public class OrderService {
         boolean wholesale = "WHOLESALE".equals(order.get("channel"))
                 || (order.get("customerId") != null && "WHOLESALE".equals(db.value(
                 "SELECT kind FROM customers WHERE id = :id", String.class, "id", order.get("customerId"))));
+        // Cashiers may bargain down to an item's lowest price (its wholesale price) without a PIN, unless the owner turned that off.
+        boolean bargain = !Boolean.FALSE.equals(db.value(
+                "SELECT (settings->>'bargainToLowest')::boolean FROM tenants WHERE id = :t", Boolean.class));
         for (Map<String, Object> raw : lines) {
             Body l = new Body(raw);
             BigDecimal qty = l.num("qty", BigDecimal.ONE);
@@ -121,15 +126,36 @@ public class OrderService {
                 price = l.num("unitPrice");
                 tax = l.num("taxRate", BigDecimal.ZERO);
                 if (!trusted) {
-                    approvals.require(approvalSource, "a custom-priced item");
+                    String by = approvals.require(approvalSource, "a custom-priced item");
+                    activity.record("CUSTOM_ITEM", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                            "Sold \"" + name + "\", not in the item list, at " + price.toPlainString(), orderId, null, price.multiply(qty), by,
+                            Map.of("qty", qty, "price", price));
                 }
             }
             if (l.has("unitPrice") && item != null && l.num("unitPrice").compareTo(price) != 0) {
-                // Manual price change at the till (e.g. a negotiated wholesale price).
-                if (!trusted) {
-                    approvals.require(approvalSource, "a price change on " + name);
+                // A price typed at the till. Down to the lowest price is the cashier's call (if the owner allows);
+                // anything below it needs a manager's PIN. Both are written to the activity log.
+                BigDecimal asked = l.num("unitPrice");
+                BigDecimal shelf = (BigDecimal) item.get("price");
+                BigDecimal lowest = (BigDecimal) item.get("wholesalePrice");
+                boolean belowLowest = lowest != null ? asked.compareTo(lowest) < 0 : asked.compareTo(price) < 0;
+                boolean needsPin = asked.compareTo(price) < 0 && (belowLowest || !bargain);
+                String by = null;
+                if (!trusted && needsPin) {
+                    by = approvals.require(approvalSource, belowLowest && lowest != null
+                            ? "selling " + name + " below its lowest price (" + lowest.toPlainString() + ")" : "a price change on " + name);
                 }
-                price = l.num("unitPrice");
+                if (!trusted && asked.compareTo(shelf) != 0) {
+                    boolean down = asked.compareTo(shelf) < 0;
+                    activity.record(belowLowest && lowest != null ? "BELOW_LOWEST_PRICE" : "PRICE_CHANGE",
+                            belowLowest && lowest != null ? com.lezitech.suite.activity.ActivityLog.CONCERN
+                                    : down ? com.lezitech.suite.activity.ActivityLog.NOTICE : com.lezitech.suite.activity.ActivityLog.INFO,
+                            name + " sold at " + asked.toPlainString() + " (shelf price " + shelf.toPlainString()
+                                    + (lowest != null ? ", lowest " + lowest.toPlainString() : "") + ") × " + qty.stripTrailingZeros().toPlainString(),
+                            orderId, UUID.fromString(item.get("id").toString()), down ? shelf.subtract(asked).multiply(qty) : BigDecimal.ZERO, by,
+                            Map.of("shelf", shelf, "sold", asked, "qty", qty, "lowest", lowest == null ? "" : lowest));
+                }
+                price = asked;
             }
             if (price.signum() < 0) {
                 throw ApiException.bad("A price can't be below zero");
@@ -145,8 +171,13 @@ public class OrderService {
                 throw ApiException.bad("A discount can't be below zero");
             }
             if (discount.signum() > 0 && !trusted) {
-                approvals.require(approvalSource, "a discount on " + name);
+                String by = approvals.require(approvalSource, "a discount on " + name);
                 approvals.checkDiscountLimit(discount, unit.multiply(qty));
+                BigDecimal lowest = item == null ? null : (BigDecimal) item.get("wholesalePrice");
+                boolean underLowest = lowest != null && unit.multiply(qty).subtract(discount).compareTo(lowest.multiply(qty)) < 0;
+                activity.record("DISCOUNT", underLowest ? com.lezitech.suite.activity.ActivityLog.CONCERN : com.lezitech.suite.activity.ActivityLog.NOTICE,
+                        "Discount of " + discount.toPlainString() + " on " + name + (underLowest ? ", taking it below its lowest price" : ""),
+                        orderId, item == null ? null : UUID.fromString(item.get("id").toString()), discount, by, Map.of("qty", qty));
             }
             BigDecimal lineTotal = unit.multiply(qty).subtract(discount).setScale(2, RoundingMode.HALF_UP);
             if (lineTotal.signum() < 0) {
@@ -189,7 +220,12 @@ public class OrderService {
         }
         BigDecimal subtotal = db.value("SELECT coalesce(sum(line_total), 0) FROM order_lines WHERE order_id = :id", BigDecimal.class, "id", orderId);
         if (discount.signum() > 0) {
-            approvals.require(approvalSource, "a discount");
+            String by = approvals.require(approvalSource, "a discount");
+            BigDecimal change = discount.subtract(current == null ? BigDecimal.ZERO : current);
+            if (change.signum() > 0) {
+                activity.record("DISCOUNT", com.lezitech.suite.activity.ActivityLog.NOTICE, "Discount of " + discount.toPlainString() + " on the whole bill",
+                        orderId, null, change, by, Map.of());
+            }
             if (discount.compareTo(subtotal) > 0) {
                 throw ApiException.bad("The discount is bigger than the bill");
             }
@@ -382,6 +418,13 @@ public class OrderService {
             // A deposit was taken on this open bill: give it back the way it came in.
             payBack(o, reason, null);
         }
+        boolean wentToKitchen = Boolean.TRUE.equals(db.value(
+                "SELECT exists(SELECT 1 FROM order_lines WHERE order_id = :id AND kitchen_status <> 'PENDING')", Boolean.class, "id", orderId));
+        activity.record("VOID", wentToKitchen || ((BigDecimal) o.get("paid")).signum() > 0 ? com.lezitech.suite.activity.ActivityLog.CONCERN
+                        : com.lezitech.suite.activity.ActivityLog.NOTICE,
+                "Cancelled #" + o.get("number") + " worth " + ((BigDecimal) o.get("total")).toPlainString()
+                        + (wentToKitchen ? " after it went to the kitchen" : "") + ": " + reason,
+                orderId, null, (BigDecimal) o.get("total"), null, Map.of("reason", reason));
         db.exec("UPDATE orders SET status = 'VOID', closed_at = now(), note = concat_ws(' · ', note, :reason) WHERE id = :id",
                 "id", orderId, "reason", "Cancelled: " + reason);
         db.exec("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE order_id = :id", "id", orderId);
@@ -415,6 +458,10 @@ public class OrderService {
         db.exec("""
                 UPDATE orders SET status = 'REFUNDED', refunded_at = now(), refunded_by = :u,
                        note = concat_ws(' · ', note, :reason) WHERE id = :id""", "id", orderId, "reason", "Refunded: " + reason);
+        boolean ownSale = TenantContext.userId().equals(o.get("userId") == null ? null : UUID.fromString(o.get("userId").toString()));
+        activity.record("REFUND", ownSale ? com.lezitech.suite.activity.ActivityLog.CONCERN : com.lezitech.suite.activity.ActivityLog.NOTICE,
+                "Refunded #" + o.get("number") + " worth " + ((BigDecimal) o.get("total")).toPlainString() + (ownSale ? " (their own sale)" : "") + ": " + reason,
+                orderId, null, (BigDecimal) o.get("total"), null, Map.of("reason", reason));
         etims.queue(orderId, "CREDIT_NOTE");
     }
 

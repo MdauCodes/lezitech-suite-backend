@@ -36,6 +36,8 @@ public class SettingsController {
     private PlanLimits limits;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.config.AccessPolicy accessPolicy;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
 
     public SettingsController(JdbcTemplate jdbc, ObjectMapper json, SectorCatalog sectors) {
         this.jdbc = jdbc;
@@ -44,6 +46,7 @@ public class SettingsController {
     }
 
     @PutMapping("/api/settings")
+    @org.springframework.transaction.annotation.Transactional // the activity log entry needs the business's row-level security set
     public Map<String, Object> update(@RequestBody Map<String, Object> raw) throws Exception {
         TenantContext.requireRole("OWNER");
         Body b = new Body(raw);
@@ -58,6 +61,12 @@ public class SettingsController {
         Map<String, Object> settings = new java.util.LinkedHashMap<>(b.map("settings"));
         if (settings.containsKey("access")) {
             settings.put("access", com.lezitech.suite.config.AccessPolicy.clean(settings.get("access"), com.lezitech.suite.team.TeamController.ROLES));
+            String before = jdbc.queryForObject("SELECT coalesce(settings->'access', '{}'::jsonb)::text FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
+            String after = json.writeValueAsString(settings.get("access"));
+            if (!json.readTree(before).equals(json.readTree(after))) {
+                activity.record("ACCESS_CHANGE", com.lezitech.suite.activity.ActivityLog.NOTICE, "Changed who can do what", null, null, null, null,
+                        Map.of("before", before, "after", after));
+            }
         }
         if (raw.get("products") instanceof java.util.List<?> list) {
             java.util.List<String> products = list.stream().map(String::valueOf).map(String::toUpperCase)

@@ -28,6 +28,9 @@ public class ShiftController {
 
     private final Db db;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
+
     public ShiftController(Db db) {
         this.db = db;
     }
@@ -67,7 +70,18 @@ public class ShiftController {
                        counted_card = :card, note = :note WHERE id = :id AND status = 'OPEN'""",
                 "id", id, "cash", b.num("countedCash", null), "mpesa", b.num("countedMpesa", null),
                 "card", b.num("countedCard", null), "note", b.str("note", null));
-        return summary(id);
+        Map<String, Object> s = summary(id);
+        if (b.has("countedCash")) {
+            BigDecimal diff = b.num("countedCash").subtract((BigDecimal) s.get("expectedCash"));
+            if (diff.signum() != 0) {
+                activity.record(diff.signum() < 0 ? "CASH_SHORT" : "CASH_OVER",
+                        diff.signum() < 0 ? com.lezitech.suite.activity.ActivityLog.CONCERN : com.lezitech.suite.activity.ActivityLog.NOTICE,
+                        "Till closed " + (diff.signum() < 0 ? "short by " : "over by ") + diff.abs().toPlainString()
+                                + " (expected " + ((BigDecimal) s.get("expectedCash")).toPlainString() + " in cash)",
+                        null, null, diff.abs(), null, Map.of("shift", id.toString(), "note", b.str("note", "")));
+            }
+        }
+        return s;
     }
 
     @GetMapping("/{id}")

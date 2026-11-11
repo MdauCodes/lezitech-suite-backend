@@ -36,6 +36,8 @@ public class CatalogController {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.settings.PlanLimits limits;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
     public CatalogController(Db db) {
         this.db = db;
     }
@@ -110,6 +112,22 @@ public class CatalogController {
         TenantContext.requireRole("MANAGER");
         Body b = new Body(raw);
         String kind = b.str("kind", "PRODUCT");
+        Map<String, Object> before = db.find("SELECT name, price, cost, wholesale_price FROM items WHERE id = :id", "id", id).orElse(null);
+        if (before != null) {
+            BigDecimal np = b.num("price", BigDecimal.ZERO);
+            BigDecimal nc = b.num("cost", BigDecimal.ZERO);
+            BigDecimal nw = b.num("wholesalePrice", null);
+            BigDecimal op = (BigDecimal) before.get("price");
+            BigDecimal oc = (BigDecimal) before.get("cost");
+            BigDecimal ow = (BigDecimal) before.get("wholesalePrice");
+            boolean changed = np.compareTo(op) != 0 || nc.compareTo(oc) != 0 || (nw == null ? ow != null : ow == null || nw.compareTo(ow) != 0);
+            if (changed) {
+                activity.record("ITEM_PRICE_EDIT", np.compareTo(op) < 0 || (nw != null && ow != null && nw.compareTo(ow) < 0)
+                                ? com.lezitech.suite.activity.ActivityLog.NOTICE : com.lezitech.suite.activity.ActivityLog.INFO,
+                        before.get("name") + ": " + priceEdits(op, np, ow, nw, oc, nc),
+                        null, id, null, null, Map.of());
+            }
+        }
         db.exec("""
                 UPDATE items SET name = :name, kind = :kind, category_id = :categoryId, sku = :sku, barcode = :barcode,
                        unit = :unit, price = :price, cost = :cost, wholesale_price = :wp, wholesale_min_qty = :wmin,
@@ -240,5 +258,24 @@ public class CatalogController {
             throw com.lezitech.suite.common.ApiException.bad("A commission is a percentage between 0 and 100");
         }
         return r;
+    }
+
+    /** Only what changed, in plain numbers: "shelf price 340 to 320, lowest price none to 289". */
+    static String priceEdits(BigDecimal op, BigDecimal np, BigDecimal ow, BigDecimal nw, BigDecimal oc, BigDecimal nc) {
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        if (np.compareTo(op) != 0) {
+            parts.add("shelf price " + plainNum(op) + " to " + plainNum(np));
+        }
+        if (nw == null ? ow != null : ow == null || nw.compareTo(ow) != 0) {
+            parts.add("lowest price " + plainNum(ow) + " to " + plainNum(nw));
+        }
+        if (nc.compareTo(oc) != 0) {
+            parts.add("buying price " + plainNum(oc) + " to " + plainNum(nc));
+        }
+        return String.join(", ", parts);
+    }
+
+    private static String plainNum(BigDecimal v) {
+        return v == null ? "none" : v.stripTrailingZeros().toPlainString();
     }
 }

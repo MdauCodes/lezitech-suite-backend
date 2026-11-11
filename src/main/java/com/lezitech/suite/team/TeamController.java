@@ -34,6 +34,8 @@ public class TeamController {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.settings.PlanLimits limits;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
 
     public TeamController(Db db, PasswordEncoder encoder, com.lezitech.suite.auth.TokenVersions versions) {
         this.db = db;
@@ -110,6 +112,13 @@ public class TeamController {
         }
         db.exec("UPDATE users SET name = :name, role = :role, active = :active WHERE id = :id AND tenant_id = :t",
                 "id", id, "name", b.str("name", (String) u.get("name")), "role", role, "active", b.bool("active", true));
+        boolean nowActive = b.bool("active", true);
+        if (!role.equals(u.get("role")) || nowActive != Boolean.TRUE.equals(u.get("active"))) {
+            activity.record("STAFF_CHANGE", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                    u.get("name") + ": job " + String.valueOf(u.get("role")).toLowerCase() + " to " + role.toLowerCase()
+                            + (nowActive == Boolean.TRUE.equals(u.get("active")) ? "" : nowActive ? ", can sign in again" : ", can no longer sign in"),
+                    null, null, null, null, java.util.Map.of("userId", id.toString()));
+        }
         if (b.has("pin")) {
             db.exec("UPDATE users SET pin_hash = :pin WHERE id = :id AND tenant_id = :t", "id", id, "pin", encoder.encode(pin(b)));
         }

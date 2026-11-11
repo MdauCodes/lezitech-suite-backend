@@ -25,6 +25,9 @@ public class StockController {
     private final Db db;
     private final StockService stock;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
+
     public StockController(Db db, StockService stock) {
         this.db = db;
         this.stock = stock;
@@ -72,6 +75,16 @@ public class StockController {
                 BigDecimal.class, "item", item, "loc", loc);
         BigDecimal delta = counted.subtract(current == null ? BigDecimal.ZERO : current);
         stock.move(item, loc, delta, "ADJUST", "Stock count", b.str("note", null));
+        if (delta.signum() != 0) {
+            Map<String, Object> it = db.one("Item", "SELECT name, cost FROM items WHERE id = :id", "id", item);
+            BigDecimal value = delta.multiply((BigDecimal) it.get("cost")).abs();
+            boolean loss = delta.signum() < 0;
+            activity.record("STOCK_COUNT", loss && value.compareTo(new BigDecimal("500")) >= 0 ? com.lezitech.suite.activity.ActivityLog.CONCERN
+                            : loss ? com.lezitech.suite.activity.ActivityLog.NOTICE : com.lezitech.suite.activity.ActivityLog.INFO,
+                    it.get("name") + ": counted " + counted.stripTrailingZeros().toPlainString() + ", " + (loss ? "missing " : "extra ")
+                            + delta.abs().stripTrailingZeros().toPlainString() + " (worth " + value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + " at cost)",
+                    null, item, loss ? value : BigDecimal.ZERO, null, Map.of("note", b.str("note", "")));
+        }
         return Map.of("delta", delta);
     }
 
