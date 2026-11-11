@@ -3,6 +3,19 @@
 The owner's answers to open questions, newest first. When a plan document disagrees with this file, this file wins.
 Add new answers at the top with the date; don't rewrite old ones (strike them through if they change).
 
+## 2026-11-11 (later): restaurant QR ordering
+
+- **SEO pages go to the second model** (prompt: `docs/prompt-seo-pages.md`). This session does the restaurant QR
+  ordering and the till changes. Build plan: `docs/plan-restaurant-and-tills.md`.
+- **Everything in the QR plan is needed before go-live**: the waiting client wants all of it, including group orders,
+  photos and allergens, kitchen substitutes, loyalty points, board screens per area and tips.
+- **When diners pay: the restaurant chooses** in its settings: "pay when the food is ready" (default, as planned) or
+  "pay before it goes to the kitchen".
+- **QR codes open the app's address** (e.g. `suite.lezitech.site/menu/{restaurant}?table=5`), where the menu and
+  tracking pages already live. Not `lezitech.site/s/...`.
+- **Files (menu photos, uploaded ETRs) on Cloudflare R2 from day one.** The owner creates the R2 bucket and keys;
+  local development uses a disk folder behind the same interface.
+
 ## 2026-11-11: before go-live
 
 Context: the other model's plans (`platform-enhancements.md`, `restaurant-table-ordering.md`) raised questions;
