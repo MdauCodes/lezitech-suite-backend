@@ -73,8 +73,8 @@ public class TrialNudgeService {
         String business = (String) t.get("name");
         boolean last = "DAY7".equals(kind);
         String when = ends.isBefore(Instant.now()) ? "has ended" : last ? "ends today" : "ends on " + DAY.format(ends);
-        String subject = last ? "Your Lezi Suite free trial " + (ends.isBefore(Instant.now()) ? "has ended" : "ends today")
-                : "Your Lezi Suite free trial ends in 2 days";
+        String subject = last ? "Your BizNez free trial " + (ends.isBefore(Instant.now()) ? "has ended" : "ends today")
+                : "Your BizNez free trial ends in 2 days";
         String link = appUrl + "/billing";
         String text = "Hi " + owner + ",\n\nThe free trial for " + business + " " + when + ". "
                 + "Everything you have entered stays safe.\n\n"

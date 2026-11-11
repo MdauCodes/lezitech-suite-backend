@@ -43,7 +43,7 @@ public class PasswordController {
         String email = new Body(raw).str("email").trim().toLowerCase();
         throttle.check("code:" + email, req);
         codes.sendResetCode(email);
-        return Map.of("ok", true, "message", "If " + email + " has a Lezi Suite account, a 6-digit code is on its way. Check spam too.");
+        return Map.of("ok", true, "message", "If " + email + " has a BizNez account, a 6-digit code is on its way. Check spam too.");
     }
 
     /** Code + new password: sets the password, signs out other devices, and signs this one in. */

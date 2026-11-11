@@ -93,7 +93,7 @@ suite:
     subscription-shortcode: ${MPESA_SUBSCRIPTION_SHORTCODE:}
     c2b-secret: ${MPESA_C2B_SECRET:}
     simulate-delay-ms: ${MPESA_SIMULATE_DELAY_MS:4000}
-  # LeziTech's own PayHero account, for businesses paying their Lezi Suite plan by M-Pesa prompt.
+  # LeziTech's own PayHero account, for businesses paying their BizNez plan by M-Pesa prompt.
   payhero:
     username: ${PAYHERO_USERNAME:}
     password: ${PAYHERO_PASSWORD:}

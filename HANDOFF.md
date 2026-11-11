@@ -1,4 +1,4 @@
-﻿# Lezi Suite: handoff for the next session
+# BizNez: handoff for the next session
 
 Read this first. It says where everything is, what is decided, what is built, what isn't, and what to do next.
 Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Coolify.
@@ -11,7 +11,7 @@ Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Cool
   - each business's own M-Pesa (Daraja or PayHero)
   - WhatsApp and email receipts
   - tax summary, commissions, offline till, Excel import
-- **For selling Lezi Suite:**
+- **For selling BizNez:**
   - assisted "set it up for me" onboarding
   - Meta ad tracking (Conversions API)
   - referrals
@@ -34,7 +34,7 @@ Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Cool
 - structured data, sitemap, `noindex` on app screens
 - the fix that carries the ad source from the website to signup
 
-## 1. What Lezi Suite is
+## 1. What BizNez is
 
 A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, made by LeziTech
 (owner: MdauCodes). It is the first of several LeziTech products under lezitech.site.
@@ -150,7 +150,7 @@ Web on `launch`, matching:
 - `488397a` receipt sending
 - `4f12f05` setup form, reset by code, Excel import
 - `2591a0c` payments setup
-- `8074c5e` rebrand to Lezi Suite
+- `8074c5e` rebrand to BizNez
 - `b428b61` plan limits
 
 ## 6b. Marketing website (Lovable design, wired 2026-11-11)

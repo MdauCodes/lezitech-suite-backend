@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * "How much tax do I owe?": an estimate per day, per month and for the year from the sales recorded in Lezi Suite.
+ * "How much tax do I owe?": an estimate per day, per month and for the year from the sales recorded in BizNez.
  * Not a tax return and not tax advice; there is no KRA eTIMS link for now.
  *
  * The business picks its tax in Settings (settings.tax):

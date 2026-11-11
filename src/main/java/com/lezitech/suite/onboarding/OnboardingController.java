@@ -143,7 +143,7 @@ public class OnboardingController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("id", id);
-        out.put("whatsapp", waLink(mailer.support(), "Hi LeziTech, I've just asked for Lezi Suite to be set up for " + business + ". My name is " + contact + "."));
+        out.put("whatsapp", waLink(mailer.support(), "Hi LeziTech, I've just asked for BizNez to be set up for " + business + ". My name is " + contact + "."));
         return out;
     }
 
@@ -328,19 +328,19 @@ public class OnboardingController {
         String name = first((String) o.get("name"));
         String setPassword = mailer.appUrl() + "/reset?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8);
         String signIn = mailer.appUrl() + "/w/" + t.get("slug");
-        String subject = first ? "Your Lezi Suite for " + business + " is ready" : "Your Lezi Suite sign-in code";
-        String text = "Hi " + name + ",\n\n" + (first ? "Lezi Suite for " + business + " is set up and ready. Your 7-day free trial starts today.\n\n" : "")
+        String subject = first ? "Your BizNez for " + business + " is ready" : "Your BizNez sign-in code";
+        String text = "Hi " + name + ",\n\n" + (first ? "BizNez for " + business + " is set up and ready. Your 7-day free trial starts today.\n\n" : "")
                 + "1. Open " + setPassword + "\n2. Enter the code " + code + " (it works for 3 days) and choose your password.\n"
                 + "3. After that, sign in any time at " + signIn + " with " + email + ".\n\n"
                 + (mailer.support().isBlank() ? "" : "Questions? WhatsApp or call us on " + mailer.support() + ".\n\n") + "Karibu,\nLeziTech";
         String html = "<p>Hi " + Mailer.esc(name) + ",</p>"
-                + (first ? "<p>Lezi Suite for <b>" + Mailer.esc(business) + "</b> is set up and ready. Your 7-day free trial starts today.</p>" : "")
+                + (first ? "<p>BizNez for <b>" + Mailer.esc(business) + "</b> is set up and ready. Your 7-day free trial starts today.</p>" : "")
                 + "<p>Your code to set your password:</p><p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                 + "<p><a href=\"" + setPassword + "\" style=\"display:inline-block;background:#101415;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none\">Set my password</a></p>"
                 + "<p>The code works for 3 days. After that, sign in any time at <a href=\"" + signIn + "\">" + Mailer.esc(signIn) + "</a> with " + Mailer.esc(email) + ".</p>"
                 + "<p>Karibu,<br>LeziTech</p>";
         String status = mailer.send(email, (String) o.get("name"), subject, text, html);
-        String wa = "Hi " + name + ", this is LeziTech. " + (first ? "Lezi Suite for " + business + " is ready and your 7-day free trial starts today. " : "")
+        String wa = "Hi " + name + ", this is LeziTech. " + (first ? "BizNez for " + business + " is ready and your 7-day free trial starts today. " : "")
                 + "To set your password, open " + setPassword + " and enter the code " + code + ". Then sign in at " + signIn + ". Any questions, reply here.";
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("emailStatus", status);

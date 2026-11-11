@@ -123,7 +123,7 @@ public class MpesaService {
         }
         BigDecimal amount = (BigDecimal) r.get("amount");
         UUID id = insertRequest("SUBSCRIPTION", null, subscriptionRequestId, phone, amount);
-        return push(id, acct, phone, amount, "LeziSuite " + r.get("plan"), "Lezi Suite plan");
+        return push(id, acct, phone, amount, "BizNez " + r.get("plan"), "BizNez plan");
     }
 
     private UUID insertRequest(String purpose, UUID orderId, UUID subId, String phone, BigDecimal amount) {

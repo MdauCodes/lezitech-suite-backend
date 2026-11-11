@@ -67,10 +67,10 @@ public class LoginCodes {
         }
         String code = issue(user, "RESET", RESET_TTL);
         String name = first((String) rows.get(0).get("name"));
-        mailer.send(email, (String) rows.get(0).get("name"), code + " is your Lezi Suite code",
-                "Hi " + name + ",\n\nYour code to set a new Lezi Suite password is " + code + ".\nIt works for 15 minutes.\n\n"
+        mailer.send(email, (String) rows.get(0).get("name"), code + " is your BizNez code",
+                "Hi " + name + ",\n\nYour code to set a new BizNez password is " + code + ".\nIt works for 15 minutes.\n\n"
                         + "If you didn't ask for this, ignore this email; your password stays the same.\n\nLeziTech",
-                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new Lezi Suite password is:</p>"
+                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new BizNez password is:</p>"
                         + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                         + "<p>It works for 15 minutes. If you didn't ask for this, ignore this email; your password stays the same.</p>");
     }

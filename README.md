@@ -1,4 +1,4 @@
-# Lezi Suite
+# BizNez
 
 LeziTech's multi-tenant POS + CRM + ERP, sold as **free 7-day trials**. It is the first LeziTech product under
 lezitech.site: the app runs at `suite.lezitech.site`, its marketing pages at `lezitech.site/suite`. One product; each business picks a
@@ -108,7 +108,7 @@ the balance. Sending comes with the WhatsApp/SMS work.
 | `MPESA_CALLBACK_BASE` | Public https address of this API, e.g. `https://api.lezitech.site`. Safaricom and PayHero post results there. |
 | `MPESA_C2B_SECRET` | Long random string. It is part of the C2B URLs, so nobody else can post fake payments. |
 | `SECRETS_KEY` | `openssl rand -base64 32`. Required on a real database. Never change it once businesses have saved keys. |
-| `PAYHERO_USERNAME`, `PAYHERO_PASSWORD`, `PAYHERO_CHANNEL_ID` | **LeziTech's own** PayHero account. Businesses pay their Lezi Suite plan into it by prompt. |
+| `PAYHERO_USERNAME`, `PAYHERO_PASSWORD`, `PAYHERO_CHANNEL_ID` | **LeziTech's own** PayHero account. Businesses pay their BizNez plan into it by prompt. |
 | `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY`, `MPESA_BASE_URL` | LeziTech's own Daraja paybill. Used for plan payments only when PayHero isn't set. |
 
 **Till.** Choose M-Pesa, type the customer's number and press "Send prompt". The sale is marked paid only once the
@@ -120,7 +120,7 @@ payment is confirmed:
 Repeated results are recorded once. If the sale was closed meanwhile, the money is kept as "unapplied" for staff to
 refund or use.
 
-**Direct till payments (C2B).** These reach Lezi Suite at `MPESA_CALLBACK_BASE/api/public/mpesa/c2b/<MPESA_C2B_SECRET>/confirmation`.
+**Direct till payments (C2B).** These reach BizNez at `MPESA_CALLBACK_BASE/api/public/mpesa/c2b/<MPESA_C2B_SECRET>/confirmation`.
 A payment is matched to a business by its Daraja till, paybill or store number. If the customer typed the sale number
 as the account, the sale is paid automatically. Otherwise it waits in `GET /api/mpesa/till-payments` for staff.
 

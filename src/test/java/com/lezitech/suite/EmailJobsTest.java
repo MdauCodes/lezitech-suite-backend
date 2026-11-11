@@ -44,7 +44,7 @@ class EmailJobsTest extends IntegrationTest {
             assertThat(waitFor(r.at("/jobId").asText(), owner, "SENT").get("status").asText()).isEqualTo("SENT");
             EmailSender.Email sent = log.sent.stream().filter(e -> e.to().equals("buyer@example.com")).findFirst().orElseThrow();
             assertThat(sent.subject()).startsWith("Receipt #").contains("Test retail");
-            assertThat(sent.html()).contains("Test retail").doesNotContain("Lezi Suite");
+            assertThat(sent.html()).contains("Test retail").doesNotContain("BizNez");
         } finally {
             mailer.useSender(new EmailSender.LogSender());
         }

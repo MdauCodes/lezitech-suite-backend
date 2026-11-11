@@ -1,8 +1,8 @@
-# Lezi Suite: SEO, AEO and GEO plan
+# BizNez: SEO, AEO and GEO plan
 
 Written 2026-11-10. Owner: MdauCodes. Status: **plan, waiting for decisions in section 9**.
 
-Goal: Kenyan business owners find Lezi Suite when they search Google or Bing, when Google answers with an AI overview, and
+Goal: Kenyan business owners find BizNez when they search Google or Bing, when Google answers with an AI overview, and
 when they ask ChatGPT, Gemini or Perplexity "what POS should I use for my hardware shop in Nakuru?", and then sign up or ask
 for setup. Success is measured in **trials and paying businesses by landing page**, not traffic.
 
@@ -11,7 +11,7 @@ for setup. Success is measured in **trials and paying businesses by landing page
 - **GEO** (generative engine optimisation): be named and linked when ChatGPT, Gemini, Perplexity or Copilot answer.
 
 All three rest on the same base: fast pages whose content is in the HTML (not built by JavaScript), clear facts, direct
-answers, structured data, and Lezi Suite mentioned on other trusted sites.
+answers, structured data, and BizNez mentioned on other trusted sites.
 
 ---
 
@@ -111,7 +111,7 @@ All under `https://lezitech.site/suite`:
 | Schema | Where |
 |---|---|
 | `Organization` (LeziTech: name, logo, URL, contact WhatsApp and phone, `sameAs` social profiles) | every page |
-| `SoftwareApplication` (Lezi Suite, BusinessApplication, operatingSystem Web/Android, `offers` for Lite, Growth and Pro in KES) | home, pricing, sector pages |
+| `SoftwareApplication` (BizNez, BusinessApplication, operatingSystem Web/Android, `offers` for Lite, Growth and Pro in KES) | home, pricing, sector pages |
 | `FAQPage` | every page with an FAQ block |
 | `BreadcrumbList` | everything below the home page |
 | `HowTo` | step-by-step guides |
@@ -144,7 +144,7 @@ No `AggregateRating` until there are real reviews: invented ratings get penalise
 AI assistants answer from what they can crawl and from what other sites say. To be named:
 1. **Let AI crawlers in.** Allow in `robots.txt`: `GPTBot`, `OAI-SearchBot`, `ChatGPT-User`, `PerplexityBot`, `ClaudeBot`, `Google-Extended`, `Bingbot`.
    - This is a decision for the owner (section 9). Allowing it is recommended, since being cited is the goal.
-2. **`/llms.txt`:** a short, plain summary of Lezi Suite with links to the key pages (sectors, pricing, guides, FAQ). Cheap and increasingly read.
+2. **`/llms.txt`:** a short, plain summary of BizNez with links to the key pages (sectors, pricing, guides, FAQ). Cheap and increasingly read.
 3. **Clear, consistent facts about the product:** what it is, who it's for, the prices in KES, M-Pesa, offline, and "made in Kenya by LeziTech". The same wording on our site, the Google Business Profile, social bios and directory listings, so assistants see one consistent description.
 4. **Mentions on other sites** (the biggest lever for GEO):
    - Google Business Profile for LeziTech
@@ -157,13 +157,13 @@ AI assistants answer from what they can crawl and from what other sites say. To 
 5. **Citable assets:** the free tax calculators, a "Kenya small business tax dates 2026/27" page, and later data like "average M-Pesa share of sales by sector", from anonymised totals with consent. Assistants and journalists link to useful tools and numbers.
 6. **Track AI referrals:**
    - The ad-source capture already stores the referrer host. Add `chatgpt.com`, `perplexity.ai`, `gemini.google.com` and `copilot.microsoft.com` as named sources on the Ad results page.
-   - Check monthly by asking each assistant our target questions and noting whether Lezi Suite appears.
+   - Check monthly by asking each assistant our target questions and noting whether BizNez appears.
 
 ## 6. Measurement
 
 - **Google Search Console and Bing Webmaster:** impressions, clicks, queries, indexed pages, Core Web Vitals.
 - **GA4:** page views and conversions (`setup_request`, `start_trial`). It loads only on the marketing site, and with a consent banner if we add one; the Data Protection Act favours consent for analytics cookies.
-- **Lezi Suite's own records:**
+- **BizNez's own records:**
   - every signup and setup request already stores its landing page and source
   - add "landing page" to the Ad results page to see trials and paying businesses per SEO page
 - **Monthly review:** top landing pages by paying businesses, pages with impressions but low clicks (rewrite titles), questions people ask (new FAQs or guides).
@@ -185,7 +185,7 @@ The website (`lezitech.site`) and the app (`suite.lezitech.site`) don't share br
 | Town pages | Nairobi, Mombasa, Kisumu, Nakuru, Eldoret, Thika, Machakos, Nyeri, Meru, Kakamega |
 | Town and sector pairs | Nairobi × restaurant, shop, salon, hardware, hotel; Mombasa × restaurant, hotel, shop; Kisumu × restaurant, shop; Nakuru × shop, hardware, agrovet; Eldoret × agrovet, shop |
 | Guides | How to connect your M-Pesa till to a POS; Turnover Tax explained (with the calculator); How to stop stock and cash going missing; How to set up a minimart POS in an afternoon; How to pay salon and car wash commissions fairly |
-| Comparisons | Notebook vs Excel vs POS; M-Pesa till payment vs STK prompt; Lezi Suite plans compared. Named competitor comparisons only after the owner confirms facts about them. |
+| Comparisons | Notebook vs Excel vs POS; M-Pesa till payment vs STK prompt; BizNez plans compared. Named competitor comparisons only after the owner confirms facts about them. |
 | Tools | Turnover Tax calculator; VAT calculator (both reuse our tax logic) |
 | Trust pages | About, Contact, Privacy, Terms |
 

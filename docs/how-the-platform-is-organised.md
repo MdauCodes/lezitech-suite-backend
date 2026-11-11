@@ -1,4 +1,4 @@
-# How Lezi Suite is organised (decisions, 2026-11-11)
+# How BizNez is organised (decisions, 2026-11-11)
 
 Rule of thumb: **the default is what suits most clients; every client can change it.**
 

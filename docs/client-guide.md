@@ -1,7 +1,7 @@
-# Lezi Suite: what a client needs, and what they get
+# BizNez: what a client needs, and what they get
 
 For the LeziTech team when talking to a business. The public version is the website page `/what-you-need`.
-Only list what Lezi Suite does today.
+Only list what BizNez does today.
 
 ## Works on
 

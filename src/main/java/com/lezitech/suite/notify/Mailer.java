@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * The one place emails leave Lezi Suite: trial reminders, sign-in codes, welcome emails, receipts and
+ * The one place emails leave BizNez: trial reminders, sign-in codes, welcome emails, receipts and
  * alerts to the LeziTech team. EMAIL_PROVIDER picks the service: off, log (local), brevo or resend.
  */
 @Component
@@ -108,9 +108,9 @@ public class Mailer {
     public String layout(String bodyHtml) {
         return "<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#101415;max-width:560px;margin:0 auto;padding:16px\">"
                 + "<div style=\"margin-bottom:18px\"><span style=\"display:inline-block;width:26px;height:26px;border-radius:6px;background:#b8f24a;"
-                + "color:#101415;font-weight:bold;text-align:center;line-height:26px\">L</span> <b>Lezi Suite</b></div>"
+                + "color:#101415;font-weight:bold;text-align:center;line-height:26px\">B</span> <b>BizNez</b></div>"
                 + bodyHtml
-                + "<p style=\"margin-top:28px;font-size:12px;color:#6b7280\">Lezi Suite by LeziTech"
+                + "<p style=\"margin-top:28px;font-size:12px;color:#6b7280\">BizNez by LeziTech"
                 + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)) + "</p></div>";
     }
 

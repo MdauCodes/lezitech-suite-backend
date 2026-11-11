@@ -1,4 +1,4 @@
-# Sector study: what each kind of business needs from Lezi Suite
+# Sector study: what each kind of business needs from BizNez
 
 Written 2026-11-11 for the LeziTech team. For every sector: the business types we cover, how they actually run a day,
 what **selling (POS)**, **customers (CRM)** and **back office (ERP)** must mean for them, what we have, and what's
