@@ -45,6 +45,7 @@ public class PublicService {
     public Map<String, Object> track(UUID token) {
         Map<String, Object> o = new LinkedHashMap<>(db.one("Order", """
                 SELECT o.id, o.number, o.kind, o.channel, o.status, o.total, o.paid, o.created_at, o.ready_at, o.closed_at,
+                       o.pickup_code, o.held_for_payment, o.estimated_ready_at, o.customer_label, o.self_order, o.tip,
                        t.label AS table_label
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id WHERE o.public_token = :token""", "token", token));
         List<Map<String, Object>> lines = db.list("""
@@ -64,13 +65,19 @@ public class PublicService {
         return o;
     }
 
+    /** The table a QR code points at, so the menu can say "Table 5". */
+    public Map<String, Object> table(UUID id) {
+        return db.find("SELECT id, label FROM dining_tables WHERE id = :id", "id", id).orElseThrow(() -> com.lezitech.suite.common.ApiException.notFound("Table"));
+    }
+
     public Map<String, Object> menu() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("categories", db.list("SELECT id, name, color FROM categories ORDER BY sort, name"));
         out.put("items", db.list("""
-                SELECT i.id, i.category_id, i.name, i.price, i.options, i.kind, i.duration_min,
-                       (i.track_stock AND coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) <= 0) AS sold_out
-                FROM items i WHERE i.active ORDER BY i.name"""));
+                SELECT i.id, i.category_id, i.name, i.price, i.options, i.kind, i.duration_min, i.photo_file_id, i.allergens, i.allergen_note,
+                       ((i.track_stock AND coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) <= 0)
+                        OR (i.unavailable_until IS NOT NULL AND i.unavailable_until > now())) AS sold_out
+                FROM items i WHERE i.active AND i.kind <> 'SERVICE' ORDER BY i.name"""));
         return out;
     }
 }

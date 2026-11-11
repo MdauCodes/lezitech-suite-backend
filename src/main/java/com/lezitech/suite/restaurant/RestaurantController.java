@@ -42,14 +42,14 @@ public class RestaurantController {
     public List<Map<String, Object>> floors() {
         List<Map<String, Object>> floors = db.list("SELECT * FROM floors ORDER BY sort, name");
         List<Map<String, Object>> tables = db.list("""
-                SELECT t.*, o.id AS order_id, o.number AS order_number, o.total, o.guests, o.created_at AS opened_at,
+                SELECT t.*, o.id AS order_id, o.number AS order_number, o.total, o.guests, o.created_at AS opened_at, o.self_order,
                        u.name AS waiter_name,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status = 'READY') AS ready_count,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status = 'PENDING') AS unsent_count
                 FROM dining_tables t
                 LEFT JOIN LATERAL (SELECT * FROM orders o WHERE o.table_id = t.id AND o.status = 'OPEN'
                                    ORDER BY o.created_at LIMIT 1) o ON true
-                LEFT JOIN users u ON u.id = o.user_id
+                LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
                 ORDER BY t.y, t.x, t.label""");
         for (Map<String, Object> f : floors) {
             f.put("tables", tables.stream().filter(t -> f.get("id").equals(t.get("floorId"))).toList());

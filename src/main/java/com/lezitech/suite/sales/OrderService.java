@@ -76,6 +76,11 @@ public class OrderService {
                 "number", number, "kind", kind, "channel", channel, "tableId", tableId, "guests", b.integer("guests", null),
                 "customerId", b.has("customerId") ? UUID.fromString(b.str("customerId")) : null,
                 "loc", loc, "shift", shift, "note", b.str("note", null));
+        // A waiter's own order stays theirs (table orders from the QR are shared out by load instead).
+        TenantContext.Caller who = TenantContext.callerOrNull();
+        if (who != null && "WAITER".equals(who.role()) && who.userId() != null) {
+            db.exec("UPDATE orders SET assigned_to = :u WHERE id = :id", "id", id);
+        }
         addLines(id, b.list("lines"), b, trusted);
         return id;
     }

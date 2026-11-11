@@ -7,6 +7,8 @@ import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,6 +33,12 @@ public class PublicController {
     private final PublicService service;
     private final SectorCatalog sectors;
     private final ObjectMapper json;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.TableOrderService tableOrders;
+
+    /** Orders from one table, and from one phone or network, per hour. */
+    public static final RateLimit PER_TABLE = new RateLimit(5, 3_600_000);
+    public static final RateLimit PER_CLIENT = new RateLimit(12, 3_600_000);
 
     public PublicController(JdbcTemplate jdbc, PublicService service, SectorCatalog sectors, ObjectMapper json) {
         this.jdbc = jdbc;
@@ -64,17 +72,69 @@ public class PublicController {
     }
 
     @GetMapping("/menu/{slug}")
-    public Map<String, Object> menu(@PathVariable String slug) {
+    public Map<String, Object> menu(@PathVariable String slug, @RequestParam(required = false) UUID table) {
         Map<String, Object> t = tenant(slug);
         Map<String, Object> out = brand(t);
         out.putAll(as(t, service::menu));
+        Map<String, Object> ordering = ordering(t);
+        boolean open = Boolean.TRUE.equals(ordering.get("selfOrder")) && !locked(t);
+        out.put("ordering", Map.of("open", open, "payWhen", ordering.get("payWhen")));
+        if (table != null) {
+            out.put("table", as(t, () -> service.table(table)));
+        }
         return out;
+    }
+
+    /**
+     * A diner's order from the table QR (tableId) or the menu link (takeaway, gets a pickup code). Prices come from
+     * the menu, never from the phone. Pay-first restaurants hold it until it's paid; others send it to the kitchen.
+     */
+    @PostMapping("/orders/{slug}")
+    public Map<String, Object> placeOrder(@PathVariable String slug, @RequestBody Map<String, Object> raw,
+                                          jakarta.servlet.http.HttpServletRequest req) {
+        Map<String, Object> t = tenant(slug);
+        Map<String, Object> ordering = ordering(t);
+        if (!Boolean.TRUE.equals(ordering.get("selfOrder")) || locked(t)) {
+            throw ApiException.forbidden("This restaurant isn't taking orders by phone right now. Please ask a waiter.");
+        }
+        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        Object table = raw.get("tableId");
+        if (!PER_CLIENT.allow(t.get("id") + ":" + client) || (table != null && !PER_TABLE.allow(t.get("id") + ":" + table))) {
+            throw new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY",
+                    "Lots of orders from here in the last hour. Please ask a waiter to help.");
+        }
+        var placed = as(t, () -> tableOrders.place(raw, (String) ordering.get("payWhen")));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("number", placed.number());
+        out.put("token", placed.token());
+        out.put("total", placed.total());
+        out.put("table", placed.tableLabel());
+        out.put("pickupCode", placed.pickupCode());
+        out.put("heldForPayment", placed.heldForPayment());
+        out.put("addedToOpenBill", placed.addedToOpenBill());
+        out.put("trackPath", "/track/" + slug + "/" + placed.token());
+        return out;
+    }
+
+    private Map<String, Object> ordering(Map<String, Object> t) {
+        try {
+            Object saved = json.readTree((String) t.get("settings")).path("ordering");
+            return com.lezitech.suite.restaurant.OrderingSettings.withDefaults(
+                    json.convertValue(saved, Map.class), (String) t.get("sector"));
+        } catch (Exception e) {
+            return com.lezitech.suite.restaurant.OrderingSettings.withDefaults(null, (String) t.get("sector"));
+        }
+    }
+
+    private static boolean locked(Map<String, Object> t) {
+        return com.lezitech.suite.config.TrialGuard.isLocked((String) t.get("status"),
+                (java.sql.Timestamp) t.get("trial_ends_at"), (java.sql.Timestamp) t.get("paid_until"));
     }
 
     private Map<String, Object> tenant(String slug) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT id, slug, name, sector, sub_sector, brand_color, logo_url, phone, currency, display_key, status,
-                       settings::text AS settings FROM tenants WHERE slug = ?""", slug);
+                       trial_ends_at, paid_until, settings::text AS settings FROM tenants WHERE slug = ?""", slug);
         if (rows.isEmpty() || "SUSPENDED".equals(rows.get(0).get("status"))) {
             throw ApiException.notFound("Business");
         }

@@ -140,6 +140,26 @@ Original plan:
   - self-ordering on or off.
 
 ### B. Order from the table (13–14 Nov)
+**Status: built 2026-11-11.**
+- **API:**
+  - `POST /api/public/orders/{slug}` through `restaurant/TableOrderService` (same `OrderService` path as the till; the phone can send only item, quantity, add-ons and a note);
+  - refuses items that are inactive, finished (`unavailable_until`) or short of stock;
+  - refused when self-ordering is off, or the business is locked or suspended;
+  - limits: 5 orders per table and 12 per phone/network per hour (`publicapi/RateLimit`);
+  - a second round at a table goes on that table's open bill;
+  - pay-first holds the order (`held_for_payment`), otherwise it goes straight to the kitchen;
+  - takeaway gets a random 4-digit pickup code;
+  - the least busy waiter (open tables + plates; signed in within 16 hours first) is assigned;
+  - a waiter's own till orders stay theirs.
+- **Menu and tracking APIs:** `GET /api/public/menu/{slug}?table=` returns the table, whether ordering is open and when diners pay, plus photos, allergens, and items marked finished. Tracking returns the pickup code, the held state, the name and the estimate. The floor shows the assigned waiter.
+- **Screens:**
+  - the phone menu (`pages/public/Menu.tsx`): add, choices sheet with required choices, note, review step, name and M-Pesa number, send;
+  - tracking (`Track.tsx`): "sent" banner, pickup code, pay-first note, "on its way to your table";
+  - floor: "Table QR codes", with copy link and **Print table cards** (`lib/tableCards.ts`): folding A4 tent cards in the restaurant's logo and colours.
+- **Tests:** `TableOrderingTest` (6).
+- **Checked in the browser:** demo restaurant, phone size. Order from Table 3 → kitchen screen shows it with the choice and note. Cards print preview looked at.
+
+Original plan:
 - **Floor screen:**
   - "QR codes" shows each table's code;
   - "Print table cards" opens a print page in the restaurant's logo, colours and tagline, with a small "BizNez by LeziTech" line at the foot.

@@ -15,8 +15,8 @@ when diners pay; support access only when the owner grants it), `decisions.md` w
 | Package | What | Status |
 |---|---|---|
 | A | Database (V18), R2 file storage, item photo upload, ordering, tip and loyalty settings | Built 2026-11-11 |
-| B | QR per table and printable cards, order from the phone, review, waiter assignment, pickup code | Next |
-| C | Estimated time, unavailable items, kitchen substitutes, live tracking, waiters' tables | Planned |
+| B | QR per table and printable cards, order from the phone, review, waiter assignment, pickup code | Built 2026-11-11 |
+| C | Estimated time, unavailable items, kitchen substitutes, live tracking, waiters' tables | Next |
 | D | Pay from the phone (single and split), tips, rating | Planned |
 | E | Group orders | Planned |
 | F | Photos and allergens on the menu, board screens per area | Planned |
