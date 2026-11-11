@@ -28,6 +28,8 @@ public class OrderService {
     private final StockService stock;
     private final ApprovalService approvals;
     private final com.lezitech.suite.etims.EtimsService etims;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.config.AccessPolicy access;
 
     public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
         this.db = db;
@@ -391,7 +393,9 @@ public class OrderService {
      * off what the customer owes; items go back into stock; loyalty points are taken back.
      */
     public void refund(UUID orderId, String reason, String method) {
-        TenantContext.requireRole("MANAGER");
+        if (!access.mayRefund(TenantContext.tenantId(), TenantContext.caller().role())) {
+            throw ApiException.forbidden("Your job can't give refunds. Ask the owner or a manager.");
+        }
         if (reason == null || reason.isBlank()) {
             throw ApiException.bad("Say why the money is being given back");
         }

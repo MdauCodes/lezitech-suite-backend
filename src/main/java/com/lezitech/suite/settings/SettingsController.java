@@ -34,6 +34,8 @@ public class SettingsController {
     private final SectorCatalog sectors;
     @org.springframework.beans.factory.annotation.Autowired
     private PlanLimits limits;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.config.AccessPolicy accessPolicy;
 
     public SettingsController(JdbcTemplate jdbc, ObjectMapper json, SectorCatalog sectors) {
         this.jdbc = jdbc;
@@ -53,13 +55,30 @@ public class SettingsController {
         if (logo != null && logo.length() > 400_000) {
             throw ApiException.bad("Logo is too large; use an image under 300 KB");
         }
+        Map<String, Object> settings = new java.util.LinkedHashMap<>(b.map("settings"));
+        if (settings.containsKey("access")) {
+            settings.put("access", com.lezitech.suite.config.AccessPolicy.clean(settings.get("access"), com.lezitech.suite.team.TeamController.ROLES));
+        }
+        if (raw.get("products") instanceof java.util.List<?> list) {
+            java.util.List<String> products = list.stream().map(String::valueOf).map(String::toUpperCase)
+                    .filter(java.util.Set.of("POS", "CRM", "ERP")::contains).distinct().toList();
+            if (products.isEmpty()) {
+                throw ApiException.bad("Keep at least one part switched on");
+            }
+            if (products.size() > 1 && "LITE".equals(limits.effectivePlan())) {
+                throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "PLAN_LIMIT",
+                        "Your Lite plan includes one part (selling, customers or back office). Growth includes any two, Pro all three. The owner can upgrade under Your plan.");
+            }
+            jdbc.update("UPDATE tenants SET products = cast(? as text[]) WHERE id = ?", "{" + String.join(",", products) + "}", TenantContext.tenantId());
+        }
+        accessPolicy.forget(TenantContext.tenantId());
         jdbc.update("""
                 UPDATE tenants SET name = coalesce(?, name), brand_color = coalesce(?, brand_color), logo_url = ?,
                        phone = ?, sub_sector = coalesce(?, sub_sector),
                        settings = settings || cast(? as jsonb)
                 WHERE id = ?""",
                 b.str("name", null), color, logo, b.str("phone", null), b.str("subSector", null),
-                json.writeValueAsString(b.map("settings")), TenantContext.tenantId());
+                json.writeValueAsString(settings), TenantContext.tenantId());
         return Map.of("ok", true);
     }
 

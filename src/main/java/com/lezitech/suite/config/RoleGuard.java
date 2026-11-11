@@ -40,11 +40,14 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(READS, "/api/team/(approvers|till-users|names)", "see who can approve", "MANAGER", "CASHIER", "WAITER", "KITCHEN", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),
             rule(ANY, "/api/team.*", "manage staff", "MANAGER"),
             rule(ANY, "/api/billing/.*", "see or change the plan", "MANAGER"),
+            rule(ANY, "/api/custom-requests", "ask LeziTech to build something", "MANAGER"),
             rule(ANY, "/api/settings/payments.*", "see or change payment and SMS keys"),
             rule(WRITES, "/api/settings.*", "change settings"),
             // Reports with profit and totals
             rule(READS, "/api/reports/sales.*", "see sales reports", "MANAGER", "ACCOUNTANT"),
             rule(READS, "/api/reports/tax.*", "see the tax summary", "MANAGER", "ACCOUNTANT"),
+            rule(READS, "/api/reports/back-office.*", "see stock value and money owed", "MANAGER", "ACCOUNTANT"),
+            rule(READS, "/api/reports/customers.*", "see customer and sales-lead reports", "MANAGER", "SALES", "ACCOUNTANT"),
             rule(READS, "/api/reports/commissions.*", "see commissions", "MANAGER", "ACCOUNTANT"),
             rule(WRITES, "/api/reports/commissions.*", "record commission payouts", "MANAGER"),
             rule(READS, "/api/reports/dashboard", "see the home numbers", "MANAGER", "SALES", "ACCOUNTANT"),
@@ -70,9 +73,11 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(ANY, "/api/property(/.*)?", "manage rent and tenants", "MANAGER", "ACCOUNTANT"));
 
     private final ObjectMapper json;
+    private final AccessPolicy access;
 
-    public RoleGuard(ObjectMapper json) {
+    public RoleGuard(ObjectMapper json, AccessPolicy access) {
         this.json = json;
+        this.access = access;
     }
 
     @Override
@@ -88,6 +93,17 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             return true;
         }
         String path = req.getRequestURI();
+        Boolean owner = access.screenDecision(caller.tenantId(), caller.role(), req.getMethod(), path);
+        if (Boolean.TRUE.equals(owner)) {
+            return true;
+        }
+        if (Boolean.FALSE.equals(owner)) {
+            res.setStatus(403);
+            res.setContentType("application/json");
+            res.getWriter().write(json.writeValueAsString(Map.of("code", "FORBIDDEN",
+                    "message", "The owner has not given your job (" + caller.role().toLowerCase() + ") this screen. Ask the owner.")));
+            return false;
+        }
         for (Rule r : RULES) {
             if (r.methods().contains(req.getMethod()) && r.path().matcher(path).matches()) {
                 if (r.roles().contains(caller.role())) {

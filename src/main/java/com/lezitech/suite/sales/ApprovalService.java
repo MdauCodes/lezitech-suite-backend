@@ -25,6 +25,8 @@ import java.util.UUID;
 public class ApprovalService {
 
     public static final BigDecimal DEFAULT_MAX_DISCOUNT_PERCENT = new BigDecimal("20");
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.lezitech.suite.config.AccessPolicy access;
 
     private final JdbcTemplate jdbc;
     private final PasswordEncoder encoder;
@@ -40,7 +42,8 @@ public class ApprovalService {
 
     /** Throws 403 APPROVAL_NEEDED unless the caller, or the PIN-approving manager, may do this. */
     public void require(Body b, String what) {
-        if (isManager(TenantContext.caller().role())) {
+        if (isManager(TenantContext.caller().role())
+                || (access != null && access.mayDiscount(TenantContext.tenantId(), TenantContext.caller().role()))) {
             return;
         }
         Map<String, Object> approval = b == null ? Map.of() : b.map("approval");
