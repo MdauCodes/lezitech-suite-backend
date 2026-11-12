@@ -35,7 +35,7 @@ Town pages (`/towns/{town}`, 10 towns) are walked once, as an extra way in, not 
 | # | Where | What happened | How bad | Fix | Status |
 |---|---|---|---|---|---|
 | 0.1 | Website "Start free" from a sub-type page (e.g. Café) | Only the business type is passed to signup (`?sector=restaurant`), not the sub-type, so the owner picks "Café" again | Confusing | Pass the sub-type too, and have signup pre-select it | Open |
-| 0.2 | `docs/google-ads-strategy.md` | Uses `biznez.com` and addresses that don't exist (`/sectors/retail`, `/sectors/salon` is right but `/sectors/retail`, `/sectors/services`, `/sectors/tours` and `/compare` aren't); promises unbuilt features ("Pack & Loose", "Customer Statements", "From KSh 1,000 first month") | Blocker (for ads) | Correct before any ad goes live: real addresses (`shop`, `agency`, `safari`), `businez.com`, only built features | Open |
+| 0.2 | `docs/google-ads-strategy.md` | Uses `biznez.com`; three of its addresses don't exist (`/sectors/retail`, `/sectors/services`, `/sectors/tours`: the real ones are `shop`, `agency`, `safari`) and nor does `/compare`; promises unbuilt features ("Pack & Loose", "Customer Statements", "From KSh 1,000 first month") | Blocker (for ads) | Correct before any ad goes live: `businez.com`, the real addresses, only built features | Open |
 
 ### Phase 1: website to signup
 
