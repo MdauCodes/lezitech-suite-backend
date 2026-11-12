@@ -17,6 +17,7 @@ class RoleChecksTest extends IntegrationTest {
         String waiter = staff(owner, "WAITER");
         String kitchen = staff(owner, "KITCHEN");
         String cashier = staff(owner, "CASHIER");
+        post("/shifts/open", cashier, Map.of("openingCash", 0)); // cashiers open their till before taking money
         String sugarLike = item(owner, "Soda").get("id").asText();
 
         // Kitchen staff can't take orders or see money.

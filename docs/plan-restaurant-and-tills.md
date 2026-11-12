@@ -1,6 +1,6 @@
 # Build plan: restaurant QR ordering and the till changes
 
-Written 2026-11-11. Status: **in progress, G done 2026-11-12, H next** (see "Where we stopped"). Go-live: 22 November 2026.
+Written 2026-11-11. Status: **in progress, H done 2026-11-12, I next** (see "Where we stopped"). Go-live: 22 November 2026.
 
 - The design comes from `restaurant-table-ordering.md` (the QR plan) and `platform-enhancements.md`.
 - **`decisions.md` wins wherever they disagree.**
@@ -24,7 +24,9 @@ Details are in each package's "Status" block below. The full API suite is **116 
 
 - **G.** Loyalty points, built 2026-11-12. See its "Status" block below. Full suite **121, all passing**.
 
-**Next: H (till changes).** The E design that was written here before building is kept below for reference; the "Status" block of E
+- **H.** Till changes (float, blind count, till days and lock, Lite KSh 2,650 / 3 staff), built 2026-11-12.
+
+**Next: I (ETR upload and email, tax due by any dates, support access only when granted).** The E design that was written here before building is kept below for reference; the "Status" block of E
 says what was actually built.
 
 E design (as planned before building):
@@ -483,6 +485,45 @@ Original plan:
 - Every move is recorded.
 
 ### H. Till changes (20 Nov)
+**Status: built 2026-11-12.**
+- **Float before taking money:** `TillRules.requireOpenTill()` on every payment from a cashier, waiter, sales, reception or
+  stylist (`OrderService.pay`, and the till's M-Pesa prompt `POST /api/mpesa/stk`): no open till → 409 `TILL_CLOSED`. Starting a
+  bill without payment is still allowed (a table's order). Owners and managers are exempt (they rarely work the counter); so are
+  phone orders and M-Pesa results arriving later (no cashier), and offline sales being sent in (they already happened).
+  Opening a till needs `openingCash` typed in (0 is allowed for an empty drawer). Waiters and stylists can now open a till
+  (RoleGuard), since they take payments too.
+- **Blind count:** `/api/shifts/current`, `/api/shifts/{id}`, open and close reply to cashiers with only: float, number and
+  total of sales, refunds, what they counted, and "checked" (yes/no) — no expected amounts, no split by method (it would give the
+  expected cash away), no differences. Owner, manager and accountant get everything, including cash, M-Pesa and card
+  differences. Closing needs the cash count. A cashier can only see or close their own till.
+- **Own history:** `GET /api/shifts` returns a cashier's own tills only; the app shows them as "My tills".
+- **Till days:** `GET /api/shifts/days?from&to` (default 14 days, at most 3 months; owner, manager, accountant), each till with
+  float, sales, expected, counted and differences, plus how many closed tills still need checking.
+  - `POST /api/shifts/{id}/reconcile {status: MATCHED | DIFFERENCE | INVESTIGATED, note}`: closed tills only; a note is
+    needed unless it matched; it **locks** the till. Activity log: `TILL_CHECKED`.
+  - Locked: refunds and cancellations of its sales are refused (409 `TILL_LOCKED`, `TillRules.requireUnlocked`), whether the sale
+    was made in that till or paid into it.
+  - `POST /api/shifts/{id}/unlock {reason}`: owner only, with a reason; clears the check so it can be checked again.
+    Activity log: `TILL_UNLOCKED`.
+- **Lite plan:** KSh 2,650 a month, 3 staff (`PlanLimits`, `SettingsController.PLANS`, which billing and the control panel's
+  monthly revenue both read; the control panel's plan picker label too).
+- **Screens:** the till bar asks for the float before the first sale and counts blind for cashiers (managers still see
+  expected and short/over); after closing, a cashier sees what they counted and "the owner checks it". New page **Till days**
+  (Money): each day's tills with expected / counted and Short / Over, Check (status and note), Unlock (owner). Cashiers get
+  **My tills** in the same place.
+- **Tests:** `TillsTest` (3); `PlanLimitsTest` updated to 3 people and KSh 2,650; five older tests now open the cashier's till
+  first, and `RefundTest` reads the cashier's expected cash through the manager.
+- **Till screen:** "Take payment" checks the cashier's till before the payment window opens, so a restaurant bill isn't saved
+  and sent to the kitchen only for the payment to be refused (found in the browser check).
+- **Checked in the browser:** demo cashier Mercy: payment refused with the till closed, nothing saved; till opened with
+  KES 1,000; Pancakes sold for 400 cash; closed blind with 1,350 counted (no "should be", no short shown to her); My tills shows
+  her day as "Waiting". Owner: Till days showed expected 1,400 / counted 1,350, Short KES 50; checked as "Difference noted" with
+  a note, locked; refunding that sale was refused with TILL_LOCKED.
+- **Not done:** an M-Pesa payment that arrives after a cashier closed their till still lands with no till. A till left open
+  overnight stays open (no automatic closing). The server still accepts a restaurant bill being saved and sent to the kitchen
+  by a cashier with no open till (only paying is refused); the till screen prevents it.
+
+Original plan:
 - **Blind count:** the close-shift API stops returning expected amounts to cashiers; only owner and manager get them. The screen asks for counts without hints.
 - **Float required:** anyone taking payment must open their till with a float before the first sale; the till blocks until then. Self-orders are exempt (no cashier).
 - **Reconciliation screen** (owner, manager, accountant):

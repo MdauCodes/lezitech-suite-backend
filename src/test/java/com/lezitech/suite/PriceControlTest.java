@@ -17,6 +17,7 @@ class PriceControlTest extends IntegrationTest {
         JsonNode s = signup("retail");
         String owner = token(s);
         String cashier = staff(owner, "CASHIER");
+        post("/shifts/open", cashier, Map.of("openingCash", 0)); // cashiers open their till before taking money
         staff(owner, "MANAGER");
         String managerId = userId(owner, "MANAGER");
         String sugar = item(owner, "Sugar").get("id").asText();

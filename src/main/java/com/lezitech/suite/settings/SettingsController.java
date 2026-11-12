@@ -22,8 +22,8 @@ public class SettingsController {
 
     /** Monthly KES prices; annual prepay gets two months free. */
     public static final List<Map<String, Object>> PLANS = List.of(
-            Map.of("code", "LITE", "name", "Lite", "monthly", 2000, "users", 2, "locations", 1, "items", 500,
-                    "blurb", "One product (POS, CRM or ERP), 1 location, 2 users"),
+            Map.of("code", "LITE", "name", "Lite", "monthly", 2650, "users", 3, "locations", 1, "items", 500,
+                    "blurb", "One product (POS, CRM or ERP), 1 location, 3 users, each with their own till"),
             Map.of("code", "GROWTH", "name", "Growth", "monthly", 4500, "users", 8, "locations", 3, "items", 5000,
                     "blurb", "Any two products, 3 locations, 8 users, spreadsheet import"),
             Map.of("code", "PRO", "name", "Pro", "monthly", 9000, "users", 30, "locations", 10, "items", 0,

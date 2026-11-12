@@ -32,13 +32,25 @@ class PlanLimitsTest extends IntegrationTest {
     }
 
     @Test
-    void litePlanStopsAtTwoPeople() {
+    void litePlanStopsAtThreePeople() {
         String owner = onPlan("LITE");
         assertThat(addStaff(owner).status()).isEqualTo(200);
-        Res third = addStaff(owner);
-        assertThat(third.status()).isEqualTo(403);
-        assertThat(third.at("/code").asText()).isEqualTo("PLAN_LIMIT");
-        assertThat(third.at("/message").asText()).contains("Lite plan includes 2").contains("Growth allows up to 8");
+        assertThat(addStaff(owner).status()).isEqualTo(200);
+        Res fourth = addStaff(owner);
+        assertThat(fourth.status()).isEqualTo(403);
+        assertThat(fourth.at("/code").asText()).isEqualTo("PLAN_LIMIT");
+        assertThat(fourth.at("/message").asText()).contains("Lite plan includes 3").contains("Growth allows up to 8");
+
+        // The price list says so too.
+        JsonNode lite = null;
+        for (JsonNode p : get("/billing/plans", owner).body().get("plans")) {
+            if ("LITE".equals(p.path("code").asText())) {
+                lite = p;
+            }
+        }
+        assertThat(lite).isNotNull();
+        assertThat(lite.get("monthly").asInt()).isEqualTo(2650);
+        assertThat(lite.get("users").asInt()).isEqualTo(3);
 
         // Switching someone off frees the place; switching them back on is checked again.
         String extra = null;

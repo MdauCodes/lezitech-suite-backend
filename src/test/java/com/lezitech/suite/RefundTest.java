@@ -47,7 +47,10 @@ class RefundTest extends IntegrationTest {
         JsonNode managerShift = get("/shifts/current", manager).body();
         assertThat(managerShift.get("refunds").decimalValue()).isEqualByComparingTo("380");
         assertThat(managerShift.get("expectedCash").decimalValue()).isEqualByComparingTo("-280");
-        JsonNode cashierShift = get("/shifts/current", cashier).body();
+        // Cashiers count blind: their own view has no expected amount; the manager sees it.
+        JsonNode cashierOwn = get("/shifts/current", cashier).body();
+        assertThat(cashierOwn.has("expectedCash")).isFalse();
+        JsonNode cashierShift = get("/shifts/" + cashierOwn.get("id").asText(), manager).body();
         assertThat(cashierShift.get("expectedCash").decimalValue()).isEqualByComparingTo("1280");
 
         // Reports: no sales left, the refund is shown, and money by method nets to zero.

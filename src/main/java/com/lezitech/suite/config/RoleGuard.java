@@ -60,7 +60,8 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             // Selling
             rule(WRITES, "/api/kitchen/.*", "update the kitchen screen", "MANAGER", "KITCHEN", "WAITER", "RECEPTION", "CASHIER"),
             rule(WRITES, "/api/orders(/.*)?", "take orders or payments", "MANAGER", "CASHIER", "WAITER", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),
-            rule(WRITES, "/api/shifts(/.*)?", "open or close the till", "MANAGER", "CASHIER", "SALES", "RECEPTION", "ACCOUNTANT"),
+            // Everyone who takes payments opens their own till (checking and unlocking till days is decided in ShiftController).
+            rule(WRITES, "/api/shifts(/.*)?", "open or close the till", "MANAGER", "CASHIER", "WAITER", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),
             rule(WRITES, "/api/mpesa(/.*)?", "take M-Pesa payments", "MANAGER", "CASHIER", "WAITER", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),
             rule(WRITES, "/api/customers/[^/]+/settle", "record money owed being paid", "MANAGER", "CASHIER", "SALES", "RECEPTION", "ACCOUNTANT"),
             rule(WRITES, "/api/customers(/.*)?", "change customers", "MANAGER", "CASHIER", "WAITER", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),

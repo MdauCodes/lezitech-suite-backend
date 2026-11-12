@@ -29,7 +29,7 @@ public class PlanLimits {
     }
 
     public static final Map<String, Limits> BY_PLAN = Map.of(
-            "LITE", new Limits(2, 1, 500),
+            "LITE", new Limits(3, 1, 500),
             "GROWTH", new Limits(8, 3, 5000),
             "PRO", new Limits(30, 10, 0));
 

@@ -34,6 +34,8 @@ public class OrderService {
     private com.lezitech.suite.config.AccessPolicy access;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.loyalty.LoyaltyService loyalty;
+    @org.springframework.beans.factory.annotation.Autowired
+    private TillRules tills;
 
     public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
         this.db = db;
@@ -316,6 +318,10 @@ public class OrderService {
     }
 
     public Map<String, Object> pay(UUID orderId, Body b) {
+        // A sale rung up offline already happened; everything else from a cashier needs their till open.
+        if (!b.has("offlineAt") && b.list("payments") != null && !b.list("payments").isEmpty()) {
+            tills.requireOpenTill();
+        }
         for (Map<String, Object> p : b.list("payments") == null ? List.<Map<String, Object>>of() : b.list("payments")) {
             if ("POINTS".equalsIgnoreCase(String.valueOf(p.get("method")))) {
                 throw ApiException.bad("Use the customer's points with \"Use points\", so they come off their balance");
@@ -433,6 +439,7 @@ public class OrderService {
         if ("VOID".equals(status) || "REFUNDED".equals(status)) {
             return;
         }
+        tills.requireUnlocked(orderId, "cancelled");
         if (!"OPEN".equals(status)) {
             refund(orderId, reason, null);
             return;
@@ -469,6 +476,7 @@ public class OrderService {
         if (!"PAID".equals(o.get("status")) && !"CREDIT".equals(o.get("status"))) {
             throw ApiException.conflict("Only completed sales can be refunded");
         }
+        tills.requireUnlocked(orderId, "refunded");
         payBack(o, reason, method);
         UUID loc = o.get("locationId") == null ? stock.defaultLocation() : UUID.fromString(o.get("locationId").toString());
         for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {

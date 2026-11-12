@@ -26,6 +26,8 @@ public class MpesaController {
 
     private final MpesaService mpesa;
     private final SettingsController settings;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.TillRules tills;
 
     public MpesaController(MpesaService mpesa, SettingsController settings) {
         this.mpesa = mpesa;
@@ -43,6 +45,7 @@ public class MpesaController {
     @Transactional
     public Map<String, Object> stk(@RequestBody Map<String, Object> raw) {
         Body b = new Body(raw);
+        tills.requireOpenTill();
         return mpesa.startOrderPayment(UUID.fromString(b.str("orderId")), b.str("phone"), b.num("amount", null));
     }
 

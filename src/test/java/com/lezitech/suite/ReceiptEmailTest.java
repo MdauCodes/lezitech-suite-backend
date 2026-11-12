@@ -23,6 +23,7 @@ class ReceiptEmailTest extends IntegrationTest {
         mailer.useSender(outbox);
         String owner = token(signup("retail"));
         String cashier = staff(owner, "CASHIER");
+        post("/shifts/open", cashier, Map.of("openingCash", 0)); // cashiers open their till before taking money
         String sugar = item(owner, "Sugar").get("id").asText();
         String id = post("/orders", cashier, Map.of("lines", line(sugar, 2),
                 "payments", List.of(Map.of("method", "MPESA", "amount", 380, "reference", "TKL1ABC2DE")))).at("/id").asText();
