@@ -1,6 +1,6 @@
 # Build plan: restaurant QR ordering and the till changes
 
-Written 2026-11-11. Status: **plan, waiting for the owner's go-ahead**. Go-live: 22 November 2026.
+Written 2026-11-11. Status: **in progress, paused after package D** (see "Where we stopped"). Go-live: 22 November 2026.
 
 - The design comes from `restaurant-table-ordering.md` (the QR plan) and `platform-enhancements.md`.
 - **`decisions.md` wins wherever they disagree.**
@@ -8,6 +8,68 @@ Written 2026-11-11. Status: **plan, waiting for the owner's go-ahead**. Go-live:
 - **Keep it current while building.** Each package's commit updates its "Status" line here and the "built so far" notes in `restaurant-table-ordering.md`.
 
 ---
+
+## Where we stopped (paused 2026-11-12, for the next session to pick up)
+
+**Done, tested and pushed (both repos on `launch`, `main` equal):**
+- **A.** Foundations: V18, R2 file storage, settings.
+- **B.** Order from the table.
+- **C.** Kitchen and tracking (V19).
+- **D.** Pay from the phone (V20).
+
+Details are in each package's "Status" block below. The full API suite was **110 tests, all passing**, at the end of D.
+
+**Next: E (group orders). Not started: no code, no migration on disk.** The intended design:
+1. **Migration `V21__group_payments.sql`:** `ALTER TABLE mpesa_requests ADD COLUMN batch_id uuid;` and `ALTER TABLE pay_splits ADD COLUMN batch_id uuid;`.
+2. **Placing:**
+   - `POST /api/public/orders/{slug}/group {tables:[{tableId, lines}], customerLabel, phone}`;
+   - each table becomes **its own new bill** on that table, not added to an open one. This needs an option in `TableOrderService.place` to pass `allowSecondBill`;
+   - all share one `orders.batch_id` (a random uuid, also the group's tracking secret);
+   - apply the per-table rate limit to every table;
+   - add `GET /api/public/tables/{slug}` (floors with table id and label) so the menu can offer table choices.
+3. **One combined bill:**
+   - `TablePayService` works on a "bill" = lead order (the group's first order) + optional `batchId`;
+   - due = the sum over the group's open orders;
+   - paying opens when no order in the group is still cooking (or they are pay-first);
+   - `MpesaService.startTablePayment` takes `batchId`, checks the group's due, and stores it on the request;
+   - in `settle`, a request with `batch_id` is **spread over the group's open orders** (by number, `orders.pay` each with min(remaining, due)), then announced;
+   - `OrderPromptSettled` carries `batchId`;
+   - splits hang off the lead order with `batch_id` set;
+   - after settling, release every held order in the group to the kitchen.
+4. **Group tracking:** `GET /api/public/group/{slug}/{batchId}` returns each table's stage, lines and totals, plus the combined due and payment progress. Pay and split endpoints mirror the order ones under `/group/...`. A single table can still pay its own order from its own link.
+5. **Screens:**
+   - **Menu:** a "Group order" toggle → choose tables → "Adding for: Table 3" selector; cart lines tagged with their table; the review groups by table; send to the group endpoint; open `/group/{slug}/{batchId}` (new route next to `/track/...`).
+   - **Group tracking page:** per-table progress plus one `PayPanel` (make its endpoints configurable).
+   - **Kitchen ticket:** a small "group" label.
+6. **Tests (`GroupOrdersTest`):**
+   - two tables give two orders with the same batch, each on the kitchen screen;
+   - paying is refused while cooking;
+   - one combined payment closes both orders with each `paid` equal to its total;
+   - a split across 2 phones spreads correctly;
+   - the tip is recorded once;
+   - another restaurant's tables are refused.
+
+**After E, in order:**
+- **F:** photos and allergens on the Items screen (the upload API exists: `POST /api/items/{id}/photo`), board screens per area.
+- **G:** loyalty points. The setting rules exist (`settings.loyalty`, `OrderingSettings.cleanLoyalty`), and so do `loyalty_moves` and `customers.loyalty_points`. Note: `customers.points` already exists and is bumped 1 per 100 on close in `OrderService.close`; decide whether to replace it with the new rules.
+- **H:** till changes: blind count, float required, reconciliation and lock, cashiers' own shifts, Lite KSh 2,650 / 3 staff (`PlanLimits`, `SettingsController` plans). Columns are already in V18.
+- **I:** ETR upload and email (free; `orders.etr_*` in V18, `FileService.Purpose.ETR`), tax due by week, month or any dates, support access only when the owner grants it (`support_grants` in V18; change `AdminController.impersonate`).
+
+**Working notes for whoever continues:**
+- Read `HANDOFF.md`, then `decisions.md`. Keep this file and the "Build progress" table in `restaurant-table-ordering.md` current in the same commit as the code.
+- **Another model is working on the SEO pages** in `website/`. It also has uncommitted edits in `HANDOFF.md` and `decisions.md`. Stage only your own files, by path.
+- **Git:**
+  - commit as MdauCodes with no Claude trailer;
+  - push with `git branch -f main launch && git push -q origin launch main`;
+  - never force-push.
+- Preview configs: `suite-api` (8090), `suite-web` (5320), `suite-website` (5340). Demo restaurant: `/demo`, then Grace Oliech (owner), slug `demo-restaurant`.
+- **Don't run the full API test suite while the `suite-api` preview is starting.** Both build into `target/` and cause false failures. After stopping the API preview, port 8090 can take a few seconds to free; if it moves to 8091, stop it and start again.
+- M-Pesa runs simulated locally and in tests. Phones ending in 9999 fail, which is useful for split retries.
+- **Owner still to provide:**
+  - Cloudflare R2 bucket and keys (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `FILES_STORE=r2`) by 14 Nov; live servers refuse to start without them;
+  - confirm the website domain spelling ("businez.com" was recorded, but the product is BizNez);
+  - the waiting client's menu, tables and staff by 15 Nov;
+  - deploy access by 20 Nov.
 
 ## 1. Scope
 
