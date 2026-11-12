@@ -62,11 +62,19 @@ public class PublicController {
     @GetMapping("/board/{slug}")
     public Map<String, Object> board(@PathVariable String slug, @RequestParam("k") String key) {
         Map<String, Object> t = tenant(slug);
-        if (!MessageDigest.isEqual(key.getBytes(StandardCharsets.UTF_8), ((String) t.get("display_key")).getBytes(StandardCharsets.UTF_8))) {
+        Map<String, Object> out = brand(t);
+        // The restaurant's own display key shows every order; an area screen's key shows only that screen's tables.
+        if (MessageDigest.isEqual(key.getBytes(StandardCharsets.UTF_8), ((String) t.get("display_key")).getBytes(StandardCharsets.UTF_8))) {
+            out.putAll(as(t, service::board));
+            return out;
+        }
+        Map<String, Object> screen = key.isBlank() || key.length() > 64 ? null : as(t, () -> service.screenOfKey(key));
+        if (screen == null) {
             throw ApiException.notFound("Screen");
         }
-        Map<String, Object> out = brand(t);
-        out.putAll(as(t, service::board));
+        UUID screenId = UUID.fromString(screen.get("id").toString());
+        out.put("screenName", screen.get("name"));
+        out.putAll(as(t, () -> service.board(screenId)));
         return out;
     }
 

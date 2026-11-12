@@ -30,6 +30,7 @@ public class CatalogController {
             i.id, i.category_id, c.name AS category_name, i.name, i.kind, i.sku, i.barcode, i.unit, i.price, i.cost,
             i.wholesale_price, i.wholesale_min_qty, i.tax_rate, i.track_stock, i.reorder_level, i.duration_min, i.station,
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
+            i.photo_file_id, i.allergens, i.allergen_note,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand""";
 
     private final Db db;
@@ -148,8 +149,40 @@ public class CatalogController {
         if (b.has("commissionRate")) {
             db.exec("UPDATE items SET commission_rate = :cr WHERE id = :id", "id", id, "cr", rate(b.num("commissionRate", null)));
         }
+        // Allergens shown on the menu: only names from the fixed list, plus a short note. Only changed when sent.
+        if (raw.containsKey("allergens")) {
+            db.exec("UPDATE items SET allergens = cast(:a as text[]) WHERE id = :id", "id", id, "a", allergens(raw.get("allergens")));
+        }
+        if (raw.containsKey("allergenNote")) {
+            String note = b.str("allergenNote", null);
+            note = note == null || note.isBlank() ? null : note.trim();
+            db.exec("UPDATE items SET allergen_note = :n WHERE id = :id", "id", id,
+                    "n", note == null ? null : note.length() > 200 ? note.substring(0, 200) : note);
+        }
         return db.one("Item", "SELECT " + ITEM_COLUMNS
                 + " FROM items i LEFT JOIN categories c ON c.id = i.category_id WHERE i.id = :id", "id", id);
+    }
+
+    /** The allergens a menu item can be marked with (the common ones diners ask about). */
+    public static final List<String> ALLERGENS = List.of("nuts", "peanuts", "gluten", "dairy", "eggs", "fish", "shellfish", "soy", "sesame");
+
+    /** A Postgres array literal of the known allergens in the input, in the list's order; anything else is refused. */
+    static String allergens(Object raw) {
+        if (raw == null) {
+            return "{}";
+        }
+        if (!(raw instanceof List<?> list)) {
+            throw ApiException.bad("Choose allergens from the list");
+        }
+        java.util.Set<String> chosen = new java.util.HashSet<>();
+        for (Object o : list) {
+            String a = String.valueOf(o).trim().toLowerCase(java.util.Locale.ROOT);
+            if (!ALLERGENS.contains(a)) {
+                throw ApiException.bad("\"" + o + "\" isn't on the allergen list. Write it in the note instead.");
+            }
+            chosen.add(a);
+        }
+        return "{" + String.join(",", ALLERGENS.stream().filter(chosen::contains).toList()) + "}";
     }
 
     @DeleteMapping("/items/{id}")

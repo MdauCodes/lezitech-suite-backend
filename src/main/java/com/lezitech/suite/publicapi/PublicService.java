@@ -22,24 +22,36 @@ public class PublicService {
 
     /** Orders still in the kitchen, and orders ready to collect, for the TV board. */
     public Map<String, Object> board() {
+        return board(null);
+    }
+
+    /** The same, for one area's screen: only the orders of the tables given to that screen. */
+    public Map<String, Object> board(UUID screen) {
         String base = """
                 SELECT o.id, o.number, o.channel, coalesce(o.customer_label, t.label, split_part(c.name, ' ', 1)) AS label,
                        t.label AS table_label, o.ready_at, min(l.sent_at) AS sent_at
                 FROM orders o JOIN order_lines l ON l.order_id = o.id
                 LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN customers c ON c.id = o.customer_id
-                WHERE o.status <> 'VOID' AND o.created_at > now() - interval '8 hours' AND l.sent_at IS NOT NULL""";
+                WHERE o.status <> 'VOID' AND o.created_at > now() - interval '8 hours' AND l.sent_at IS NOT NULL
+                  AND (cast(:screen as uuid) IS NULL
+                       OR o.table_id IN (SELECT table_id FROM board_screen_tables WHERE screen_id = cast(:screen as uuid)))""";
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("preparing", db.list(base + """
 
                 GROUP BY o.id, t.label, c.name
                 HAVING bool_or(l.kitchen_status IN ('NEW','PREPARING'))
-                ORDER BY min(l.sent_at)"""));
+                ORDER BY min(l.sent_at)""", "screen", screen));
         out.put("ready", db.list(base + """
 
                 GROUP BY o.id, t.label, c.name
                 HAVING NOT bool_or(l.kitchen_status IN ('NEW','PREPARING')) AND bool_or(l.kitchen_status = 'READY')
-                ORDER BY o.ready_at DESC NULLS LAST"""));
+                ORDER BY o.ready_at DESC NULLS LAST""", "screen", screen));
         return out;
+    }
+
+    /** The area screen whose secret this is (null if it isn't one). */
+    public Map<String, Object> screenOfKey(String key) {
+        return db.find("SELECT id, name FROM board_screens WHERE screen_key = :k", "k", key).orElse(null);
     }
 
     public Map<String, Object> track(UUID token) {

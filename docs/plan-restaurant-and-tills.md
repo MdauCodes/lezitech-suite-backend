@@ -1,6 +1,6 @@
 # Build plan: restaurant QR ordering and the till changes
 
-Written 2026-11-11. Status: **in progress, E done 2026-11-12, F next** (see "Where we stopped"). Go-live: 22 November 2026.
+Written 2026-11-11. Status: **in progress, F done 2026-11-12, G next** (see "Where we stopped"). Go-live: 22 November 2026.
 
 - The design comes from `restaurant-table-ordering.md` (the QR plan) and `platform-enhancements.md`.
 - **`decisions.md` wins wherever they disagree.**
@@ -20,8 +20,10 @@ Written 2026-11-11. Status: **in progress, E done 2026-11-12, F next** (see "Whe
 
 Details are in each package's "Status" block below. The full API suite is **116 tests, all passing**, at the end of E.
 
-**Next: F.** The E design that was written here before building is kept below for reference; the "Status" block of E says what was
-actually built.
+- **F.** Photos, allergens, area screens, built 2026-11-12. See its "Status" block below. Full suite **118, all passing**.
+
+**Next: G (loyalty).** The E design that was written here before building is kept below for reference; the "Status" block of E
+says what was actually built.
 
 E design (as planned before building):
 1. **Migration `V21__group_payments.sql`:** `ALTER TABLE mpesa_requests ADD COLUMN batch_id uuid;` and `ALTER TABLE pay_splits ADD COLUMN batch_id uuid;`.
@@ -389,6 +391,31 @@ Original plan:
 - Orders share a `batch_id`. Each table is tracked separately, and the board shows each table.
 
 ### F. Photos, allergens, board screens (18 Nov)
+**Status: built 2026-11-12.**
+- **Items:** `GET/PUT /api/items` now carry `photoFileId`, `allergens` and `allergenNote`.
+  - Allergens come only from the fixed list (`CatalogController.ALLERGENS`: nuts, peanuts, gluten, dairy, eggs, fish, shellfish,
+    soy, sesame), are stored in list order, and anything else is refused (write it in the note). The note is up to 200 characters.
+  - Both are changed only when sent, so an older screen saving an item doesn't wipe them.
+- **Items screen:** an "On your menu" box (menu items, or any business with a public menu): a photo (shrunk in the browser to
+  1200 px JPEG, uploaded on Save to the existing `POST /api/items/{id}/photo`, or removed), allergen buttons and the note.
+  The list shows the photo as a thumbnail and an "allergens" badge.
+- **Menu:** a dish's photo, and an "Allergens" link under it that opens "Contains: …" plus the note; the choice sheet shows it open.
+- **Area screens:** `GET/POST /api/board-screens`, `PUT/DELETE /api/board-screens/{id}`, `POST /api/board-screens/{id}/new-link`
+  (managers only; `BoardScreenController`).
+  - A screen has a name and tables; another business's table is refused.
+  - Its link is `/board/{slug}?k={screenKey}`: the public board accepts the restaurant's display key (every order, as before) or a
+    screen's key (only that screen's tables, with the screen's name in the header). A new link retires the old one.
+- **Tables screen:** "Order screens (TV)": the whole-restaurant link, then each screen with its link (shown in full, Copy, Open),
+  table buttons per area, new link and delete. "Suggest tables" gives one area per screen when the counts match, otherwise even runs.
+- **Board:** numbers get bigger when there are few orders and smaller (more columns) when it's busy; a column that overflows scrolls
+  slowly down, pauses and starts again.
+- **Tests:** `MenuAndScreensTest` (2).
+- **Checked in the browser:** a test photo and three allergens added to Pancakes, uploaded as a 17 KB JPEG, shown on the phone menu
+  with the Allergens link. Two screens added and "Suggest" split them Main hall / Terrace. The Main hall board at 1280×720 showed
+  only Main hall orders.
+- **Not done:** area screens show only table orders. Takeaway and delivery stay on the whole-restaurant screen.
+
+Original plan:
 - **Items screen:**
   - photo upload (R2), shown on the menu;
   - allergens chosen from a list (nuts, gluten, dairy, eggs, fish, shellfish, soy, sesame) plus free text;
