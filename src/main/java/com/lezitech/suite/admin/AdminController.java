@@ -57,6 +57,8 @@ public class AdminController {
     private final ObjectMapper json;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.settings.PlanActivation activation;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.auth.SupportAccess supportAccess;
 
     public AdminController(JdbcTemplate jdbc, JwtService jwt, PasswordEncoder encoder, AdminService admin,
                            AdminService.UsageReader usage, AuthController auth, DemoService demos, SectorCatalog sectors, ObjectMapper json,
@@ -220,6 +222,8 @@ public class AdminController {
         t.put("users", jdbc.queryForList("""
                 SELECT id, name, email, role, active, last_login_at, created_at FROM users WHERE tenant_id = ? ORDER BY role = 'OWNER' DESC, name""", id)
                 .stream().map(this::clean).toList());
+        // Whether we may sign in as them now (the owner's grant, or a demo / still being set up).
+        t.put("supportAccess", supportAccess.forAdmin(id));
         t.put("requests", jdbc.queryForList("""
                 SELECT id, plan, billing_cycle, amount, mpesa_phone, status, created_at FROM subscription_requests WHERE tenant_id = ?
                 ORDER BY created_at DESC""", id).stream().map(this::clean).toList());
@@ -305,7 +309,11 @@ public class AdminController {
         return Map.of("ok", true);
     }
 
-    /** Sign in as the workspace owner to see exactly what the customer sees. Always audited. */
+    /**
+     * Sign in as the business to see exactly what the customer sees. Only while the owner has let LeziTech in
+     * (Settings → Let LeziTech help), except demo businesses and businesses LeziTech is still setting up. The sign-in
+     * ends with the grant, and everything changed during it goes in the business's activity log. Always audited.
+     */
     @PostMapping("/tenants/{id}/impersonate")
     public Map<String, Object> impersonate(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("impersonate");
@@ -316,8 +324,17 @@ public class AdminController {
             throw ApiException.notFound("Active " + role.toLowerCase() + " in that workspace");
         }
         Map<String, Object> u = users.get(0);
-        admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role));
-        return auth.session((UUID) u.get("id"), id, role, (String) u.get("name"));
+        Map<String, Object> access = supportAccess.forAdmin(id);
+        if (Boolean.TRUE.equals(access.get("exempt"))) {
+            admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "grant", "not needed (demo or still in setup)"));
+            return auth.session((UUID) u.get("id"), id, role, (String) u.get("name"));
+        }
+        Map<String, Object> grant = supportAccess.active(id).orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
+                "NO_SUPPORT_GRANT", "The owner hasn't let LeziTech in. Ask them to open Settings → Let LeziTech help and tap \"Give access for 5 hours\"."));
+        admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "grant", grant.get("id").toString(),
+                "until", String.valueOf(grant.get("expires_at"))));
+        return auth.supportSession((UUID) u.get("id"), id, role, AdminContext.admin().name(), (UUID) grant.get("id"),
+                com.lezitech.suite.auth.SupportAccess.expiry(grant).toInstant());
     }
 
     // ---------- billing queue ----------

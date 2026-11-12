@@ -47,15 +47,29 @@ public class TaxController {
         this.db = db;
     }
 
-    /** One month (with a line per day) when month is given, otherwise the year with a line per month. */
+    /**
+     * One month (with a line per day) when month is given, otherwise the year with a line per month. With from and to
+     * (any dates, e.g. this week), those days: a line per day up to two months, otherwise per month.
+     */
     @GetMapping("/api/reports/tax")
-    public Map<String, Object> tax(@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month) {
+    public Map<String, Object> tax(@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
+                                   @RequestParam(name = "from", required = false) LocalDate fromDay,
+                                   @RequestParam(name = "to", required = false) LocalDate toDay) {
         LocalDate today = LocalDate.now(NAIROBI);
+        boolean custom = fromDay != null || toDay != null;
+        if (custom && (fromDay == null || toDay == null || toDay.isBefore(fromDay) || fromDay.isBefore(toDay.minusYears(2)))) {
+            throw com.lezitech.suite.common.ApiException.bad("Choose a start and an end date, the start first, up to two years apart");
+        }
         int y = year == null ? today.getYear() : year;
-        boolean monthly = month != null || year == null;
+        boolean monthly = custom || month != null || year == null;
         int m = month == null ? today.getMonthValue() : month;
-        LocalDate from = monthly ? LocalDate.of(y, m, 1) : LocalDate.of(y, 1, 1);
-        LocalDate to = monthly ? from.plusMonths(1) : from.plusYears(1);
+        LocalDate from = custom ? fromDay : monthly ? LocalDate.of(y, m, 1) : LocalDate.of(y, 1, 1);
+        LocalDate to = custom ? toDay.plusDays(1) : monthly ? from.plusMonths(1) : from.plusYears(1);
+        // Long custom ranges are shown per month (the lines start on the 1st), short ones per day.
+        boolean byDay = custom ? java.time.temporal.ChronoUnit.DAYS.between(from, to) <= 62 : monthly;
+        if (custom && !byDay) {
+            monthly = false;
+        }
 
         // tenants has no row-level security: always filter by this workspace.
         JsonNode settings = db.one("Workspace", "SELECT settings FROM tenants WHERE id = :id", "id", TenantContext.tenantId()).get("settings") instanceof JsonNode j ? j : null;
@@ -82,7 +96,8 @@ public class TaxController {
                 GROUP BY 1 ORDER BY 1""".replace("{unit}", unit), range);
 
         Map<String, Map<String, Object>> rows = new LinkedHashMap<>();
-        for (LocalDate d = from; d.isBefore(to); d = monthly ? d.plusDays(1) : d.plusMonths(1)) {
+        LocalDate first = monthly ? from : from.withDayOfMonth(1);
+        for (LocalDate d = first; d.isBefore(to); d = monthly ? d.plusDays(1) : d.plusMonths(1)) {
             if (d.isAfter(today)) {
                 break;
             }
@@ -157,8 +172,29 @@ public class TaxController {
         out.put("settings", Map.of("regime", regime, "totRate", totRate, "tourismLevy", levyOn, "tourismLevyRate", levyRate));
         out.put("totals", totals);
         out.put("lines", lines);
-        out.put("due", due(regime, levyOn, monthly ? YearMonth.of(y, m) : null, owed, vatPayable.max(BigDecimal.ZERO), tot, levy, today));
+        out.put("due", due(regime, levyOn, monthly && !custom ? YearMonth.of(y, m) : null, owed, vatPayable.max(BigDecimal.ZERO), tot, levy, today));
+        out.put("etr", etrCoverage(range));
         return out;
+    }
+
+    /**
+     * Which paid sales in the period have the business's KRA receipt (ETR) attached, so the owner sees what still needs
+     * one. Works without eTIMS.
+     */
+    private Map<String, Object> etrCoverage(Object[] range) {
+        Map<String, Object> c = new LinkedHashMap<>(db.one("Sales", """
+                SELECT count(*) FILTER (WHERE etr_file_id IS NOT NULL) AS with_etr,
+                       coalesce(sum(total) FILTER (WHERE etr_file_id IS NOT NULL), 0) AS with_etr_amount,
+                       count(*) FILTER (WHERE etr_file_id IS NULL) AS without_etr,
+                       coalesce(sum(total) FILTER (WHERE etr_file_id IS NULL), 0) AS without_etr_amount
+                FROM orders WHERE status IN ('PAID','CREDIT') AND kind <> 'QUOTE' AND closed_at >= :from AND closed_at < :to""", range));
+        c.put("missing", db.list("""
+                SELECT o.id, o.number, o.total, o.closed_at, c.name AS customer_name
+                FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+                WHERE o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.etr_file_id IS NULL
+                  AND o.closed_at >= :from AND o.closed_at < :to
+                ORDER BY o.closed_at DESC LIMIT 50""", range));
+        return c;
     }
 
     /** What is owed under the chosen regime (nothing chosen: VAT if the prices carry VAT, otherwise Turnover Tax). */

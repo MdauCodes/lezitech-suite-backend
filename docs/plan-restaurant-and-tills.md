@@ -1,6 +1,6 @@
 # Build plan: restaurant QR ordering and the till changes
 
-Written 2026-11-11. Status: **in progress, H done 2026-11-12, I next** (see "Where we stopped"). Go-live: 22 November 2026.
+Written 2026-11-11. Status: **all packages A–I built 2026-11-12; go-live work next** (see "Where we stopped"). Go-live: 22 November 2026.
 
 - The design comes from `restaurant-table-ordering.md` (the QR plan) and `platform-enhancements.md`.
 - **`decisions.md` wins wherever they disagree.**
@@ -26,7 +26,12 @@ Details are in each package's "Status" block below. The full API suite is **116 
 
 - **H.** Till changes (float, blind count, till days and lock, Lite KSh 2,650 / 3 staff), built 2026-11-12.
 
-**Next: I (ETR upload and email, tax due by any dates, support access only when granted).** The E design that was written here before building is kept below for reference; the "Status" block of E
+- **I.** ETR on sales (attach, view, email), tax for any dates with ETR coverage, support access only while the owner allows it,
+  built 2026-11-12. Full suite **126, all passing**.
+
+**Next: go-live (22 Nov):** test server, then live on Contabo + Coolify. Needs from the owner: server access, Brevo key and DNS,
+a PayHero sandbox payment, the R2 keys, and the domain spelling. Open to-do: stopping someone paying a bill that isn't theirs (owner
+to brainstorm). The E design that was written here before building is kept below for reference; the "Status" block of E
 says what was actually built.
 
 E design (as planned before building):
@@ -535,6 +540,40 @@ Original plan:
 - **Lite plan:** KSh 2,650, 3 staff. Change `PlanLimits` and the plan list, and check the billing amounts and the control panel's revenue figures.
 
 ### I. Tax receipts, tax due, support access (21 Nov)
+**Status: built 2026-11-12.**
+- **ETR on a sale** (`sales/EtrController`, free on every plan, no eTIMS needed):
+  - `POST /api/orders/{id}/etr` (multipart `file`: JPG, PNG or PDF, up to 6 MB; paid or on-account sales only; replaces any earlier
+    one), `GET /api/orders/{id}/etr` (staff view it), `DELETE /api/orders/{id}/etr`.
+  - `POST /api/orders/{id}/etr/email {email}` queues an `email_jobs` row with `kind = 'ETR'` (V22). `EmailJobs` builds it with
+    `ReceiptEmail.buildEtr` (the business's name and colour, the file attached) and on success sets `orders.etr_emailed_to/at`.
+    Three tries, then a problem under Needs attention, as for receipts.
+  - Email attachments are new: `EmailSender.Attachment`, sent as Brevo `attachment` / Resend `attachments`.
+- **Tax for any dates:** `GET /api/reports/tax?from&to` (up to two years; per day up to two months, otherwise per month; filing
+  dates only for a calendar month). Every tax report now has `etr`: sales with and without an attached ETR (count and amount) and the
+  latest 50 without one.
+- **Support access only when granted** (`auth/SupportAccess`, `SupportController`, `support_grants` from V18):
+  - Owner only, signed in themselves: `POST /api/support-access {note}` gives 5 hours (again: 5 hours from now),
+    `POST /api/support-access/stop`, `GET /api/support-access`. Activity log: `SUPPORT_GRANTED`, `SUPPORT_STOPPED`.
+  - `POST /api/admin/tenants/{id}/impersonate` is refused (403 `NO_SUPPORT_GRANT`) without an active grant, except demo businesses
+    and businesses still being set up (not yet handed over). With a grant it issues a support token (`JwtService.issueSupport`):
+    it carries the grant, expires with it, and is named "LeziTech support (staff name)".
+  - `JwtFilter` checks the grant on every request from a support token (stopped or expired → 401 at once) and writes every
+    change made through it (POST/PUT/PATCH/DELETE) to the business's activity log as `SUPPORT_ACTION`. A support session can't give
+    or extend access.
+  - The control panel's workspace page shows whether sign-in is allowed and until when, and disables "Open their portal as…"
+    when it isn't.
+- **Screens:** the receipt window (after a sale, or reopened from Sales) has a "KRA receipt (ETR)" box: attach a photo (shrunk) or
+  PDF, view, email it to the address typed above, remove. Tax: This week / A month / A whole year / Any dates, and a "KRA receipts
+  (ETR)" card listing paid sales still without one. Settings: "Let LeziTech help" (give access for 5 hours with a countdown, give
+  5 more hours, stop now). A yellow banner across the app while LeziTech support is signed in.
+- **Tests:** `PackageITest` (2). Full suite **126, all passing**.
+- **Checked in the browser:** an ETR photo attached to bill #10 from Sales (attached, view returns the file); Tax for this week showed
+  1 sale with an ETR and 2 without, listed; Settings gave access (5 h countdown) and stopped it.
+- **Not checked in the browser:** the yellow support banner (demo businesses don't need a grant, so they never get a support
+  session; covered by the API test). Emailing the ETR (email is off on this server; covered by the API test with the log sender).
+  "View" opens a new tab, which the app's browser pane doesn't show; the file itself was fetched fine.
+
+Original plan:
 - **ETR upload:**
   - on any paid sale, "Attach ETR" (photo or PDF, to R2) and "Email ETR" to the customer through the background email jobs;
   - failures go to Needs attention, as receipts do;

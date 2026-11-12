@@ -40,8 +40,13 @@ public class EmailJobs {
     }
 
     public UUID queue(UUID tenant, UUID orderId, String to, UUID by) {
-        return jdbc.queryForObject("INSERT INTO email_jobs (tenant_id, order_id, to_email, created_by) VALUES (?, ?, ?, ?) RETURNING id",
-                UUID.class, tenant, orderId, to, by);
+        return queue(tenant, orderId, to, by, "RECEIPT");
+    }
+
+    /** kind: RECEIPT (receipt, invoice or quotation) or ETR (the business's own KRA receipt, attached). */
+    public UUID queue(UUID tenant, UUID orderId, String to, UUID by, String kind) {
+        return jdbc.queryForObject("INSERT INTO email_jobs (tenant_id, order_id, to_email, created_by, kind) VALUES (?, ?, ?, ?, ?) RETURNING id",
+                UUID.class, tenant, orderId, to, by, kind);
     }
 
     @Scheduled(fixedDelayString = "${suite.email.jobs-every-ms:2000}", initialDelay = 2000)
@@ -50,7 +55,7 @@ public class EmailJobs {
                 UPDATE email_jobs SET status = 'SENDING', attempts = attempts + 1
                 WHERE id IN (SELECT id FROM email_jobs WHERE status = 'QUEUED' AND next_try_at <= now()
                              ORDER BY created_at LIMIT 20 FOR UPDATE SKIP LOCKED)
-                RETURNING id, tenant_id, order_id, to_email, attempts, created_by""");
+                RETURNING id, tenant_id, order_id, to_email, attempts, created_by, kind""");
         for (Map<String, Object> j : due) {
             send(j);
         }
@@ -62,16 +67,29 @@ public class EmailJobs {
         UUID by = (UUID) j.get("created_by");
         String to = (String) j.get("to_email");
         int attempts = (Integer) j.get("attempts");
+        UUID orderId = (UUID) j.get("order_id");
+        boolean etr = "ETR".equals(j.get("kind"));
         String error;
         ReceiptEmail.Built built = null;
         try {
-            built = TenantContext.runAs(tenant, by, () -> tx.execute(s -> receipts.build((UUID) j.get("order_id"))));
-            error = mailer.trySend(to, null, built.subject(), built.text(), built.html());
+            if (etr) {
+                ReceiptEmail.Etr e = TenantContext.runAs(tenant, by, () -> tx.execute(s -> receipts.buildEtr(orderId)));
+                built = e.email();
+                error = mailer.trySend(to, null, built.subject(), built.text(), built.html(), java.util.List.of(e.file()));
+            } else {
+                built = TenantContext.runAs(tenant, by, () -> tx.execute(s -> receipts.build(orderId)));
+                error = mailer.trySend(to, null, built.subject(), built.text(), built.html());
+            }
         } catch (RuntimeException e) {
             error = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
         }
         if (error == null) {
             jdbc.update("UPDATE email_jobs SET status = 'SENT', sent_at = now(), last_error = NULL WHERE id = ?", id);
+            if (etr) {
+                // orders is fenced by row-level security: record it inside the business's own transaction.
+                TenantContext.runAs(tenant, by, () -> tx.execute(s -> jdbc.update(
+                        "UPDATE orders SET etr_emailed_to = ?, etr_emailed_at = now() WHERE id = ? AND tenant_id = ?", to, orderId, tenant)));
+            }
             if (built.customerId() != null) {
                 jdbc.update("UPDATE customers SET email = ? WHERE id = ? AND tenant_id = ? AND (email IS NULL OR email = '')", to, built.customerId(), tenant);
             }
@@ -84,7 +102,7 @@ public class EmailJobs {
             return;
         }
         jdbc.update("UPDATE email_jobs SET status = 'FAILED', last_error = ? WHERE id = ?", error, id);
-        String what = built == null ? "A receipt" : built.subject().replace(" from " + built.businessName(), "");
+        String what = built == null ? (etr ? "A KRA receipt (ETR)" : "A receipt") : built.subject().replace(" from " + built.businessName(), "");
         jdbc.update("INSERT INTO problems (tenant_id, kind, title, detail, ref_id) VALUES (?, 'EMAIL_FAILED', ?, ?, ?)",
                 tenant, what + " didn't reach " + to, plain(error), id);
     }

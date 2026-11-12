@@ -241,6 +241,18 @@ public class AuthController {
         return out;
     }
 
+    /**
+     * LeziTech support signed in as the business under the owner's grant. The name shown everywhere (activity log
+     * included) is "LeziTech support (name)", and the session ends with the grant. Doesn't touch the user's last sign-in.
+     */
+    public Map<String, Object> supportSession(UUID userId, UUID tenantId, String role, String supportName, UUID grant, Instant ends) {
+        Map<String, Object> out = profile(userId, tenantId);
+        out.put("token", jwt.issueSupport(userId, tenantId, role, "LeziTech support (" + supportName + ")",
+                versions.current(userId, false), grant, ends));
+        out.put("support", Map.of("until", ends.toString(), "by", supportName));
+        return out;
+    }
+
     private Map<String, Object> profile(UUID userId, UUID tenantId) {
         Map<String, Object> t = jdbc.queryForMap("""
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until,

@@ -41,6 +41,36 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * LeziTech support signed in as a business, under the owner's grant: carries the grant (checked on every request)
+     * and never outlives it.
+     */
+    public String issueSupport(UUID userId, UUID tenantId, String role, String name, int tokenVersion, UUID grant, Instant grantEnds) {
+        Instant now = Instant.now();
+        Instant end = grantEnds.isBefore(now.plus(ttlHours, ChronoUnit.HOURS)) ? grantEnds : now.plus(ttlHours, ChronoUnit.HOURS);
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("tv", tokenVersion)
+                .claim("tid", tenantId.toString())
+                .claim("role", role)
+                .claim("name", name)
+                .claim("sg", grant.toString())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(end))
+                .signWith(key)
+                .compact();
+    }
+
+    /** The support grant a token was issued under, if it is a LeziTech support sign-in. */
+    public Optional<UUID> supportGrantOf(String token) {
+        try {
+            String g = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload().get("sg", String.class);
+            return g == null ? Optional.empty() : Optional.of(UUID.fromString(g));
+        } catch (JwtException | IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
     /** Control-panel token for LeziTech staff; carries no tenant. */
     public String issueAdmin(UUID adminId, String role, String name, int tokenVersion) {
         Instant now = Instant.now();

@@ -90,6 +90,11 @@ public class Mailer {
      * Returns null when sent, otherwise what went wrong.
      */
     public String trySend(String to, String toName, String subject, String text, String fullHtml) {
+        return trySend(to, toName, subject, text, fullHtml, java.util.List.of());
+    }
+
+    /** As above, with files attached (e.g. the business's ETR). */
+    public String trySend(String to, String toName, String subject, String text, String fullHtml, java.util.List<EmailSender.Attachment> files) {
         if (sender == null) {
             return "Emails aren't switched on for this system";
         }
@@ -97,7 +102,7 @@ public class Mailer {
             return "No email address";
         }
         try {
-            sender.send(new EmailSender.Email(to, toName, subject, text, fullHtml));
+            sender.send(new EmailSender.Email(to, toName, subject, text, fullHtml, files));
             return null;
         } catch (RuntimeException e) {
             return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();

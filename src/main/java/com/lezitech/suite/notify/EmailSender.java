@@ -16,7 +16,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /** Sends one plain email. Chosen by EMAIL_PROVIDER: off, log (local), brevo or resend. */
 public interface EmailSender {
 
-    record Email(String to, String toName, String subject, String text, String html) {
+    record Email(String to, String toName, String subject, String text, String html, List<Attachment> attachments) {
+        public Email(String to, String toName, String subject, String text, String html) {
+            this(to, toName, subject, text, html, List.of());
+        }
+    }
+
+    /** A file sent with the email (e.g. the business's ETR as a PDF or photo). */
+    record Attachment(String name, String contentType, byte[] bytes) {
+        String base64() {
+            return java.util.Base64.getEncoder().encodeToString(bytes);
+        }
     }
 
     void send(Email email);
@@ -48,10 +58,14 @@ public interface EmailSender {
 
         @Override
         public void send(Email e) {
-            post("https://api.brevo.com/v3/smtp/email", Map.of("api-key", apiKey), Map.of(
+            Map<String, Object> body = new java.util.LinkedHashMap<>(Map.of(
                     "sender", Map.of("email", from, "name", fromName),
                     "to", List.of(Map.of("email", e.to(), "name", e.toName() == null ? e.to() : e.toName())),
                     "subject", e.subject(), "textContent", e.text(), "htmlContent", e.html()));
+            if (e.attachments() != null && !e.attachments().isEmpty()) {
+                body.put("attachment", e.attachments().stream().map(a -> Map.of("name", a.name(), "content", a.base64())).toList());
+            }
+            post("https://api.brevo.com/v3/smtp/email", Map.of("api-key", apiKey), body);
         }
 
         @Override
@@ -68,9 +82,13 @@ public interface EmailSender {
 
         @Override
         public void send(Email e) {
-            post("https://api.resend.com/emails", Map.of("Authorization", "Bearer " + apiKey), Map.of(
+            Map<String, Object> body = new java.util.LinkedHashMap<>(Map.of(
                     "from", fromName + " <" + from + ">", "to", List.of(e.to()),
                     "subject", e.subject(), "text", e.text(), "html", e.html()));
+            if (e.attachments() != null && !e.attachments().isEmpty()) {
+                body.put("attachments", e.attachments().stream().map(a -> Map.of("filename", a.name(), "content", a.base64())).toList());
+            }
+            post("https://api.resend.com/emails", Map.of("Authorization", "Bearer " + apiKey), body);
         }
 
         @Override

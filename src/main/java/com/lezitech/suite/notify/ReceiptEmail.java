@@ -133,6 +133,47 @@ public class ReceiptEmail {
         return new Built(title + " from " + business, text.toString(), html, business, customerId);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.files.FileService files;
+
+    /** The business's own KRA receipt (ETR) for a sale, as an email with the file attached. */
+    public record Etr(Built email, EmailSender.Attachment file) {
+    }
+
+    public Etr buildEtr(UUID orderId) {
+        Map<String, Object> o = orders.detail(orderId);
+        if (o.get("etrFileId") == null) {
+            throw new IllegalStateException("This sale has no ETR attached any more");
+        }
+        com.lezitech.suite.files.FileService.Stored f = files.load(UUID.fromString(o.get("etrFileId").toString()))
+                .orElseThrow(() -> new IllegalStateException("The ETR file couldn't be found"));
+        Map<String, Object> t = jdbc.queryForMap("SELECT name, currency, brand_color, settings->>'kraPin' AS kra FROM tenants WHERE id = ?",
+                TenantContext.tenantId());
+        String business = (String) t.get("name");
+        String cur = t.get("currency") == null ? "KES" : (String) t.get("currency");
+        String brand = t.get("brand_color") == null ? "#101415" : (String) t.get("brand_color");
+        String ext = switch (f.contentType()) {
+            case "application/pdf" -> "pdf";
+            case "image/png" -> "png";
+            default -> "jpg";
+        };
+        String fileName = "ETR-" + o.get("number") + "-" + business.replaceAll("[^A-Za-z0-9]+", "-") + "." + ext;
+        String subject = "Your KRA receipt for sale #" + o.get("number") + " from " + business;
+        String text = business + "\n\nAttached is the KRA (ETR) receipt for sale #" + o.get("number") + ", "
+                + money(cur, (BigDecimal) o.get("total")) + ".\n\nThank you for your business.";
+        String html = "<div style=\"background:#f3f4ef;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#101415\">"
+                + "<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6df\">"
+                + "<div style=\"height:6px;background:" + Mailer.esc(brand) + "\"></div><div style=\"padding:22px 24px\">"
+                + "<div style=\"font-size:18px;font-weight:bold\">" + Mailer.esc(business) + "</div>"
+                + "<p style=\"margin:14px 0 0\">Attached is the KRA receipt (ETR) for sale <b>#" + o.get("number") + "</b>, "
+                + Mailer.esc(money(cur, (BigDecimal) o.get("total"))) + ".</p>"
+                + (t.get("kra") == null || ((String) t.get("kra")).isBlank() ? "" : "<p style=\"margin:8px 0 0;color:#6b7280\">KRA PIN " + Mailer.esc((String) t.get("kra")) + "</p>")
+                + "<p style=\"margin:22px 0 0;padding-top:14px;border-top:1px solid #eef0ea;color:#6b7280\">Thank you for your business.</p>"
+                + "</div></div></div>";
+        UUID customerId = o.get("customerId") == null ? null : UUID.fromString(o.get("customerId").toString());
+        return new Etr(new Built(subject, text, html, business, customerId), new EmailSender.Attachment(fileName, f.contentType(), f.bytes()));
+    }
+
     private static String sumRow(String k, String v, boolean bold) {
         String w = bold ? "font-weight:bold;font-size:17px;" : "color:#6b7280;";
         return "<tr><td style=\"padding:3px 0;" + w + "\">" + Mailer.esc(k) + "</td><td style=\"padding:3px 0;text-align:right;" + w + "\">" + Mailer.esc(v) + "</td></tr>";
