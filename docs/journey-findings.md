@@ -68,6 +68,33 @@ phone menu works.
 | 1.16 | Sub-type pages (once 1.1 is fixed) | The "A day at your…" text is the same for all 20 top sub-types | Polish (SEO) | Write the planned unique copy, 150–300 words each | Open |
 | 1.17 | Pricing | The yearly saving ("2 months free") isn't shown; the app has it | Polish | Add a Monthly / Yearly switch or a line | Open |
 
-### Phase 2: signup to "it works"
+### Phase 2: signup to "it works" (done 2026-11-12, phone size)
 
-_(to be filled)_
+**How:** the café owner was walked end to end in the app on a phone, from the website sheet (`/start?sector=restaurant&sub=cafe`):
+signup's 4 steps, first screen, Home, opening the till, a takeaway sale paid by M-Pesa (simulated), the receipt, Settings
+(M-Pesa, printing, loyalty) and adding staff. The other 7 types were signed up through the same signup request the form uses,
+then walked from their first screen to their main job: shop (till, items, Excel), salon (booking → take payment), hotel
+(arrivals → check in), property (units, rent bills), tours (trips), services (sales leads), wholesale (its menu and numbers).
+
+**What works:** signup is 4 short steps in plain words and knows the sub-type (Café pre-picked, café questions, café sample
+menu, café words). Every type lands on a screen made for it, with a "How this screen works" note and sample records that look
+like a real Kenyan business. Opening the till, a sale, an M-Pesa prompt and the receipt (WhatsApp, email, print, KRA receipt)
+all work on a phone. Without M-Pesa set up, the till says plainly where to set it up and to type the M-Pesa code for now.
+M-Pesa set-up (Daraja or PayHero) is under Settings, Payments, and explained without jargon. Each type has its own words
+(Tenants and Charges, Clients and Services, Packages and extras) and its own Home numbers.
+
+| # | Where | What happened | How bad | Fix | Status |
+|---|---|---|---|---|---|
+| 2.1 | After signup (every type) | The owner lands on their work screen (a café on Tables, a salon on Bookings…), so they never see Home's "Get started in 4 steps" card. Nothing says what to do first | Blocker | Land a new owner on Home; phase 4 makes the steps tick themselves | Fixed: signup now opens Home |
+| 2.2 | Receipts, email receipts, A4 invoices | Every receipt said "incl. VAT 71.72" and bills were titled "TAX INVOICE", for every business. Most small businesses aren't VAT-registered (Turnover Tax); showing VAT they don't charge is wrong on a customer's receipt | Blocker (legal) | Show VAT and "Tax invoice" only when the Tax page says VAT-registered | Fixed (app and email; test added) |
+| 2.3 | Add staff | A cashier or waiter needs an email and a password (the database requires an email). Many staff have no email, so the owner must invent addresses | Blocker (for real use) | PIN-only staff: name + job + PIN, no email; they sign in on the branded staff page. Needs a small schema change | Open (phase 3) |
+| 2.4 | Café first screen | A café ("a fast counter till for coffee, snacks and regulars") works from a dining-room table plan (12 tables, Main hall, Terrace). Counter cafés should start on the till | Confusing | Café, fast food, bakery and ice-cream: the till first, tables optional | Open |
+| 2.5 | Signup step 2, café | "Do you give regulars a free cup after a number of visits?" Yes changes nothing: loyalty stays off ("It's off until you set it up") | Confusing (promise) | If Yes, add "Set up your regulars' reward" to Get started (loyalty is points-based, not a stamp card) | Open (phase 4) |
+| 2.6 | Sample data (every type) | No way to remove the samples, and they aren't marked, so they mix with the owner's own items, guests and sales. Property samples already "owe" KES 234,000 | Confusing (owner decision 1) | A "Remove sample data" button once they've added their own; say on Home that it's sample data | Open (decision) |
+| 2.7 | Till, first payment | Before the first payment the owner must "Start the day" (count the cash drawer). Clear, but unexpected the first time | Polish | Mention it in Get started ("Open your till") | Open (phase 4) |
+| 2.8 | Hotel, after check-in | A 2-night guest shows "KES 0 due" right after check-in (nights are charged one at a time), so the room looks free | Confusing | Show the stay's total and what's charged so far ("KES 0 of 9,000 so far") | Open |
+| 2.9 | Trips | A trip with 0 of 7 seats booked said "Fully paid" | Polish | "No bookings yet" | Fixed |
+| 2.10 | Settings (phone) | One very long page; Payments (M-Pesa) is halfway down, after printing and screen links | Polish | Short sections with a jump list at the top, M-Pesa near the top | Open |
+| 2.11 | Signup step 2, "What do you want to use?" | "Customers & sales leads… people who may buy" reads oddly for a café or a shop | Polish | Word it per type (for a café: "Regulars and their orders") | Open |
+| 2.12 | Signup | No email check at signup (no 6-digit code), so a mistyped email isn't noticed until the password reset fails | Polish (owner decision) | Optional: confirm the email with a code during the trial, not at signup | Open |
+| 2.13 | Sales leads (phone) | "Drag a card to the next column": dragging is hard on a phone, though each card also has stage buttons | Polish | On a phone say "Tap a card to move it on" | Open |

@@ -44,6 +44,21 @@ class ReceiptEmailTest extends IntegrationTest {
         assertThat(e.to()).isEqualTo("wanjiru@example.test");
         assertThat(e.subject()).startsWith("Receipt #").contains("from Test retail");
         assertThat(e.text()).contains("2 x Sugar").contains("Total: KES 380.00").contains("M-Pesa: KES 380.00 (TKL1ABC2DE)");
-        assertThat(e.html()).contains("VAT included");
+        // Not VAT-registered (nothing chosen on the Tax page): no VAT on the customer's receipt.
+        assertThat(e.html()).doesNotContain("VAT");
+        assertThat(e.text()).doesNotContain("VAT");
+
+        // Once the owner says they're VAT-registered, the receipt shows the VAT inside the total.
+        assertThat(call("PUT", "/settings", owner, Map.of("settings", Map.of("tax", Map.of("regime", "VAT")))).status()).isEqualTo(200);
+        post("/orders/" + id + "/email-receipt", cashier, Map.of("email", "vat@example.test"));
+        EmailSender.Email vat = null;
+        for (int i = 0; i < 60 && vat == null; i++) {
+            vat = outbox.sent.stream().filter(m -> m.to().equals("vat@example.test")).findFirst().orElse(null);
+            if (vat == null) {
+                try { Thread.sleep(150); } catch (InterruptedException x) { Thread.currentThread().interrupt(); }
+            }
+        }
+        assertThat(vat).as("second receipt sent").isNotNull();
+        assertThat(vat.html()).contains("VAT included");
     }
 }

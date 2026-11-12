@@ -40,7 +40,8 @@ public class ReceiptEmail {
         Map<String, Object> o = orders.detail(orderId);
         Map<String, Object> t = jdbc.queryForMap("""
                 SELECT name, phone, currency, brand_color, logo_url, settings->>'address' AS address, settings->>'kraPin' AS kra,
-                       settings->>'receiptFooter' AS footer, settings->>'mpesaTill' AS till FROM tenants WHERE id = ?""", TenantContext.tenantId());
+                       settings->>'receiptFooter' AS footer, settings->>'mpesaTill' AS till,
+                       settings->'tax'->>'regime' AS regime FROM tenants WHERE id = ?""", TenantContext.tenantId());
         String business = (String) t.get("name");
         String cur = t.get("currency") == null ? "KES" : (String) t.get("currency");
         String brand = t.get("brand_color") == null ? "#101415" : (String) t.get("brand_color");
@@ -76,7 +77,8 @@ public class ReceiptEmail {
         if (discount.signum() > 0) {
             sums.append(sumRow("Discount", "-" + money(cur, discount), false));
         }
-        if (tax != null && tax.signum() > 0) {
+        // Only a VAT-registered business may show VAT (Tax page: settings.tax.regime); most small ones are on Turnover Tax.
+        if (tax != null && tax.signum() > 0 && "VAT".equals(t.get("regime"))) {
             sums.append(sumRow("VAT included", money(cur, tax), false));
             text.append(" (includes VAT ").append(money(cur, tax)).append(")");
         }
