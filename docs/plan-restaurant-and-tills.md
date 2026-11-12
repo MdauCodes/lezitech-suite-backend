@@ -1,6 +1,6 @@
 # Build plan: restaurant QR ordering and the till changes
 
-Written 2026-11-11. Status: **in progress, F done 2026-11-12, G next** (see "Where we stopped"). Go-live: 22 November 2026.
+Written 2026-11-11. Status: **in progress, G done 2026-11-12, H next** (see "Where we stopped"). Go-live: 22 November 2026.
 
 - The design comes from `restaurant-table-ordering.md` (the QR plan) and `platform-enhancements.md`.
 - **`decisions.md` wins wherever they disagree.**
@@ -22,7 +22,9 @@ Details are in each package's "Status" block below. The full API suite is **116 
 
 - **F.** Photos, allergens, area screens, built 2026-11-12. See its "Status" block below. Full suite **118, all passing**.
 
-**Next: G (loyalty).** The E design that was written here before building is kept below for reference; the "Status" block of E
+- **G.** Loyalty points, built 2026-11-12. See its "Status" block below. Full suite **121, all passing**.
+
+**Next: H (till changes).** The E design that was written here before building is kept below for reference; the "Status" block of E
 says what was actually built.
 
 E design (as planned before building):
@@ -441,6 +443,35 @@ Original plan:
   - the screen auto-scrolls and sizes text for the number of tables.
 
 ### G. Loyalty (19 Nov)
+**Status: built 2026-11-12.**
+- **One system:** `loyalty/LoyaltyService`, on the owner's rules in `settings.loyalty` (points per KES 100, a point's value,
+  least points used at once, expiry after N months **without a visit**). Every change is a `loyalty_moves` row (EARN, REDEEM,
+  EXPIRE, ADJUST, REFUND); the balance is `customers.loyalty_points`.
+  - **Decision:** the old flat counter (`customers.points`, 1 per 100 on every sale, no history) is no longer updated. The column
+    stays, nothing was migrated, since no real business uses it yet. The Settings tick-box "Give loyalty points" is gone; the
+    Loyalty card is the only switch.
+- **Earning:** when a bill is closed as PAID (not on account), on what was paid in money (not on the part paid with points),
+  rounded down to 0.01. A phone order with no customer gets one, found by the phone's last 9 digits or added with the name the
+  diner gave ("Guest ••• 444" otherwise), and the bill is linked to them.
+- **Using:** `POST /api/orders/{id}/loyalty/redeem {points}`: a whole number, at least the minimum, no more than the balance or the
+  bill's due. It's recorded as a **POINTS payment** (not a discount, so manager discount rules stay separate and reports show it).
+  The normal pay endpoint refuses POINTS.
+- **Refunds:** the points earned are taken back, and the points used are given back (two separate lines). The POINTS part of a
+  refund always goes back as POINTS, whatever method the money goes back in.
+- **Hand changes:** `POST /api/customers/{id}/loyalty/adjust {points, note}`, owner or manager, with a reason, never below zero.
+- **Expiry** is checked whenever a balance is read or changed (no nightly job), so the Customers list can show a balance that
+  will expire on the next look.
+- **Screens:** Settings → Loyalty points card (set up, with a worked example and a warning above 10% back; change; switch off).
+  Customers → points column and a points panel (worth, history, add or take away). Till → the customer chip shows points, and
+  the payment window offers "Use N points · KES N off" (a counter sale is saved first, like an M-Pesa prompt). The diner's
+  order page shows the points earned and the balance.
+- **Not done:** using points from the diner's own phone. It needs a code sent to that phone, and SMS isn't sending yet. Until then
+  the order page says to ask the waiter.
+- **Tests:** `LoyaltyTest` (2).
+- **Checked in the browser:** set up in Settings (1 per 100, worth 1, from 100, 12 months); a customer with 150 points bought
+  Pancakes (400) at the till, used 150 points, paid 250 cash; the bill closed PAID and 2.5 points were earned on the 250.
+
+Original plan:
 - Off by default.
 - Set-up wizard:
   - points per KSh spent;

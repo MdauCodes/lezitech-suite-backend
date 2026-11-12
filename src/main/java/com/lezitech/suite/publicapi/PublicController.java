@@ -39,6 +39,8 @@ public class PublicController {
     private com.lezitech.suite.restaurant.KitchenService kitchen;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.TablePayService pay;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.loyalty.LoyaltyService loyalty;
 
     /** Payment prompts from one tracking link: 3 per 10 minutes. */
     public static final RateLimit PER_ORDER_PAY = new RateLimit(3, 600_000);
@@ -85,6 +87,7 @@ public class PublicController {
         out.put("order", as(t, () -> service.track(token)));
         out.put("payment", as(t, () -> pay.progress(service.orderOfToken(token))));
         out.put("tipPresets", ordering(t).get("tipPresets"));
+        out.put("loyalty", as(t, () -> loyalty.forOrder(service.orderOfToken(token))));
         return out;
     }
 

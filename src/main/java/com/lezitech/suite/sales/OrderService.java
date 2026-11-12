@@ -32,6 +32,8 @@ public class OrderService {
     private com.lezitech.suite.activity.ActivityLog activity;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.config.AccessPolicy access;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.loyalty.LoyaltyService loyalty;
 
     public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
         this.db = db;
@@ -314,6 +316,20 @@ public class OrderService {
     }
 
     public Map<String, Object> pay(UUID orderId, Body b) {
+        for (Map<String, Object> p : b.list("payments") == null ? List.<Map<String, Object>>of() : b.list("payments")) {
+            if ("POINTS".equalsIgnoreCase(String.valueOf(p.get("method")))) {
+                throw ApiException.bad("Use the customer's points with \"Use points\", so they come off their balance");
+            }
+        }
+        return payInternal(orderId, b);
+    }
+
+    /** Points used on a bill (checked and recorded by LoyaltyService): a POINTS payment, closing the bill if that settles it. */
+    public Map<String, Object> payWithPoints(UUID orderId, BigDecimal value, String reference) {
+        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", "POINTS", "amount", value, "reference", reference)))));
+    }
+
+    private Map<String, Object> payInternal(UUID orderId, Body b) {
         Map<String, Object> o = requireOpen(orderId);
         if ("QUOTE".equals(o.get("kind"))) {
             throw ApiException.bad("Convert the quotation to a sale before taking payment");
@@ -399,9 +415,9 @@ public class OrderService {
         for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
             stock.move(UUID.fromString(l.get("itemId").toString()), loc, ((BigDecimal) l.get("qty")).negate(), "SALE", ref, null);
         }
-        if (o.get("customerId") != null) {
-            int points = ((BigDecimal) o.get("total")).divide(HUNDRED, 0, RoundingMode.DOWN).intValue();
-            db.exec("UPDATE customers SET points = points + :p WHERE id = :id", "id", o.get("customerId"), "p", points);
+        // Loyalty points on the owner's rules (the old flat 1-per-100 counter, customers.points, is no longer used).
+        if ("PAID".equals(status)) {
+            loyalty.earn(orderId);
         }
         db.exec("UPDATE appointments SET status = 'DONE' WHERE order_id = :id", "id", orderId);
         etims.queue(orderId, "SALE");
@@ -458,10 +474,7 @@ public class OrderService {
         for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
             stock.move(UUID.fromString(l.get("itemId").toString()), loc, (BigDecimal) l.get("qty"), "VOID", "Refund #" + o.get("number"), reason);
         }
-        if (o.get("customerId") != null) {
-            int points = ((BigDecimal) o.get("total")).divide(HUNDRED, 0, RoundingMode.DOWN).intValue();
-            db.exec("UPDATE customers SET points = greatest(points - :p, 0) WHERE id = :id", "id", o.get("customerId"), "p", points);
-        }
+        loyalty.refunded(orderId);
         db.exec("""
                 UPDATE orders SET status = 'REFUNDED', refunded_at = now(), refunded_by = :u,
                        note = concat_ws(' · ', note, :reason) WHERE id = :id""", "id", orderId, "reason", "Refunded: " + reason);
@@ -484,7 +497,8 @@ public class OrderService {
             if ("CREDIT".equals(paidWith)) {
                 toAccount = toAccount.add(amount);
             }
-            String back = "CREDIT".equals(paidWith) || method == null ? paidWith : method.toUpperCase();
+            // Account sales come off the account and points go back as points, whatever method the refund is in.
+            String back = "CREDIT".equals(paidWith) || "POINTS".equals(paidWith) || method == null ? paidWith : method.toUpperCase();
             db.exec("""
                     INSERT INTO payments (tenant_id, order_id, shift_id, method, amount, kind, refund_reason, user_id)
                     VALUES (:t, :order, :shift, :method, :amount, 'REFUND', :reason, :u)""",

@@ -20,7 +20,7 @@ when diners pay; support access only when the owner grants it), `decisions.md` w
 | D | Pay from the phone (single and split), tips, rating | Built 2026-11-11 |
 | E | Group orders: several tables, one bill (paid by one phone or split), group tracking page, group label on kitchen tickets | Built 2026-11-12 |
 | F | Photos and allergens on the menu, board screens per area | Built 2026-11-12 |
-| G | Loyalty points | Next |
+| G | Loyalty points | Built 2026-11-12 |
 
 ---
 
