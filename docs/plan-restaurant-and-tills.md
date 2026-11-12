@@ -1,6 +1,6 @@
 # Build plan: restaurant QR ordering and the till changes
 
-Written 2026-11-11. Status: **in progress, paused after package D** (see "Where we stopped"). Go-live: 22 November 2026.
+Written 2026-11-11. Status: **in progress, E done 2026-11-12, F next** (see "Where we stopped"). Go-live: 22 November 2026.
 
 - The design comes from `restaurant-table-ordering.md` (the QR plan) and `platform-enhancements.md`.
 - **`decisions.md` wins wherever they disagree.**
@@ -9,17 +9,21 @@ Written 2026-11-11. Status: **in progress, paused after package D** (see "Where 
 
 ---
 
-## Where we stopped (paused 2026-11-12, for the next session to pick up)
+## Where we stopped (updated 2026-11-12, for the next session to pick up)
 
-**Done, tested and pushed (both repos on `launch`, `main` equal):**
+**Done and tested:**
 - **A.** Foundations: V18, R2 file storage, settings.
 - **B.** Order from the table.
 - **C.** Kitchen and tracking (V19).
 - **D.** Pay from the phone (V20).
+- **E.** Group orders (V21), built 2026-11-12. See its "Status" block below.
 
-Details are in each package's "Status" block below. The full API suite was **110 tests, all passing**, at the end of D.
+Details are in each package's "Status" block below. The full API suite is **116 tests, all passing**, at the end of E.
 
-**Next: E (group orders). Not started: no code, no migration on disk.** The intended design:
+**Next: F.** The E design that was written here before building is kept below for reference; the "Status" block of E says what was
+actually built.
+
+E design (as planned before building):
 1. **Migration `V21__group_payments.sql`:** `ALTER TABLE mpesa_requests ADD COLUMN batch_id uuid;` and `ALTER TABLE pay_splits ADD COLUMN batch_id uuid;`.
 2. **Placing:**
    - `POST /api/public/orders/{slug}/group {tables:[{tableId, lines}], customerLabel, phone}`;
@@ -335,6 +339,39 @@ Original plan:
   - pay-first holds the kitchen.
 
 ### E. Group orders (17 Nov)
+**Status: built 2026-11-12.**
+- **Placing:** `POST /api/public/orders/{slug}/group {tables:[{tableId, lines}], customerLabel, phone}` →
+  `TableOrderService.placeGroup`.
+  - 2 to 10 tables, each once. Each table gets **its own new bill** (`allowSecondBill`), never added to one already open there.
+  - All share `orders.batch_id`, a random uuid that is also the group's tracking secret.
+  - All or nothing: one refused table (unknown, another restaurant's, a finished dish) places nothing.
+  - The per-client limit counts once, the per-table limit once per table.
+  - `GET /api/public/tables/{slug}` lists floors and table labels for the picker (only while phone ordering is on).
+- **One combined bill** (`TablePayService.Bill` = lead order, the group's lowest number, plus `batchId`):
+  - due = the sum over the group's open orders. Paying opens when no open order is still cooking (or all are held for payment).
+  - `MpesaService.startTablePayment(..., batchId)` files the prompt on the lead order with `mpesa_requests.batch_id` (V21).
+  - When it lands, `spreadOverGroup` puts it on the open orders by number, each taking what it still owes. More money than the
+    group owes (e.g. a table paid cash meanwhile) records nothing and leaves the prompt UNAPPLIED for staff, as in D.
+  - Splits sit on the lead order with `pay_splits.batch_id`. The tip is recorded once, on the lead order.
+  - After a group payment, every held order it closed goes to the kitchen.
+  - A prompt on its way anywhere in the group blocks another, so a table paying its own part and the group paying the whole
+    can't both be prompted at once. A table can still pay its own order from its own link.
+- **Tracking:** `GET /api/public/group/{slug}/{batchId}`: each table's stage, lines and totals (plus its own `trackPath`), the
+  combined payment progress and the tip presets. `POST .../pay`, `.../split` and `.../rating` mirror the order ones; the
+  group rating goes on every paid order in the group.
+- **Kitchen ticket:** `groupWith` ("group with T2, T3").
+- **Screens:**
+  - Menu: "Ordering for several tables?" opens a table picker (the scanned table stays in), then an "Adding for" bar.
+    Cart lines carry their table; the review groups by table and needs dishes for at least two tables.
+    "Just this table" ends the group and puts everything back on the scanned table.
+  - `/group/:slug/:batch` (`pages/public/GroupTrack.tsx`): a card per table, the total, and one `PayPanel`, now given its endpoint as `base`.
+  - Kitchen: the group label on the ticket.
+- **Tests:** `GroupOrdersTest` (6). Full suite **116, all passing**.
+- **Checked in the browser:** the demo restaurant on a phone-sized screen. Group of Table 1 and Table 2, a dish for each, the review by
+  table, sent, and the group page showing both tables and KES 1,550. Paying from the browser was not tried; the tests cover it.
+- **Not done:** the TV board still shows each table's order on its own line with no group mark.
+
+Original plan:
 - "Group order" on the menu:
   - pick the tables, build each table's order, one combined bill;
   - pay by one person or split as in D.

@@ -57,7 +57,7 @@ public class MpesaService {
     private org.springframework.context.ApplicationEventPublisher events;
 
     /** A prompt for a sale from the diner's phone has its final answer (paid, failed, or paid but not applied). */
-    public record OrderPromptSettled(UUID tenant, UUID orderId, UUID requestId, UUID splitId, BigDecimal tip, String outcome) {
+    public record OrderPromptSettled(UUID tenant, UUID orderId, UUID requestId, UUID splitId, BigDecimal tip, String outcome, UUID batchId) {
     }
 
     public MpesaService(MpesaConfig cfg, JdbcTemplate jdbc, OrderService orders, PlanActivation plans, PlatformTransactionManager txm,
@@ -121,14 +121,30 @@ public class MpesaService {
      * The prompt goes to the business's own till or paybill, exactly like the till's prompts.
      */
     public Map<String, Object> startTablePayment(UUID orderId, String phoneRaw, BigDecimal part, BigDecimal tip, UUID splitId) {
+        return startTablePayment(orderId, phoneRaw, part, tip, splitId, null);
+    }
+
+    /**
+     * As above; with {@code batchId} the prompt is for a group order's combined bill: {@code orderId} is the group's
+     * lead order (where the request is filed), and what's due is the sum over the group's open orders.
+     */
+    public Map<String, Object> startTablePayment(UUID orderId, String phoneRaw, BigDecimal part, BigDecimal tip, UUID splitId, UUID batchId) {
         requireEnabled();
         String phone = normalizePhone(phoneRaw);
         Map<String, Object> o = jdbc.queryForMap("SELECT number, status, total, paid FROM orders WHERE id = ? AND tenant_id = ?",
                 orderId, TenantContext.tenantId());
-        if (!"OPEN".equals(o.get("status"))) {
-            throw ApiException.conflict("This order is already paid");
+        BigDecimal due;
+        if (batchId == null) {
+            if (!"OPEN".equals(o.get("status"))) {
+                throw ApiException.conflict("This order is already paid");
+            }
+            due = ((BigDecimal) o.get("total")).subtract((BigDecimal) o.get("paid"));
+        } else {
+            due = groupDue(batchId);
+            if (due.signum() <= 0) {
+                throw ApiException.conflict("This group's bill is already paid");
+            }
         }
-        BigDecimal due = ((BigDecimal) o.get("total")).subtract((BigDecimal) o.get("paid"));
         BigDecimal t = tip == null ? BigDecimal.ZERO : tip;
         if (part.signum() <= 0 || part.compareTo(due) > 0 || t.signum() < 0) {
             throw ApiException.bad("Nothing left to pay on this order");
@@ -140,8 +156,42 @@ public class MpesaService {
         }
         BigDecimal amount = part.add(t);
         UUID id = insertRequest("ORDER", orderId, null, phone, amount);
-        jdbc.update("UPDATE mpesa_requests SET tip = ?, split_id = ? WHERE id = ?", t, splitId, id);
-        return push(id, acct.orElse(null), phone, amount, "Order " + o.get("number"), "Payment");
+        jdbc.update("UPDATE mpesa_requests SET tip = ?, split_id = ?, batch_id = ? WHERE id = ?", t, splitId, batchId, id);
+        return push(id, acct.orElse(null), phone, amount, (batchId == null ? "Order " : "Group ") + o.get("number"), "Payment");
+    }
+
+    /** What's still due over a group order's open bills. */
+    public BigDecimal groupDue(UUID batchId) {
+        BigDecimal due = jdbc.queryForObject("""
+                SELECT coalesce(sum(greatest(total - paid, 0)), 0) FROM orders
+                WHERE tenant_id = ? AND batch_id = ? AND status = 'OPEN'""", BigDecimal.class, TenantContext.tenantId(), batchId);
+        return due == null ? BigDecimal.ZERO : due;
+    }
+
+    /**
+     * Put a group payment on the group's open orders, oldest number first, each taking what it still owes. Refused
+     * (so nothing is recorded) if the money is more than the group owes, e.g. a table paid in cash meanwhile.
+     */
+    private void spreadOverGroup(UUID batchId, BigDecimal amount, String receipt) {
+        List<Map<String, Object>> open = jdbc.queryForList("""
+                SELECT id, total, paid FROM orders WHERE tenant_id = ? AND batch_id = ? AND status = 'OPEN'
+                ORDER BY number FOR UPDATE""", TenantContext.tenantId(), batchId);
+        BigDecimal left = amount;
+        for (Map<String, Object> o : open) {
+            if (left.signum() <= 0) {
+                break;
+            }
+            BigDecimal due = ((BigDecimal) o.get("total")).subtract((BigDecimal) o.get("paid"));
+            BigDecimal part = left.min(due);
+            if (part.signum() <= 0) {
+                continue;
+            }
+            orders.pay((UUID) o.get("id"), new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", part, "reference", receipt)))));
+            left = left.subtract(part);
+        }
+        if (left.signum() > 0) {
+            throw ApiException.conflict("KES " + left.toPlainString() + " more than the group still owed");
+        }
     }
 
     /** Owner pays for a plan from Billing. The plan switches on as soon as the payment is confirmed. */
@@ -315,9 +365,14 @@ public class MpesaService {
         // A tip from the diner's phone rides on the prompt but isn't part of the sale; it's recorded on its own.
         BigDecimal tip = r.get("tip") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tip");
         BigDecimal forSale = expected.subtract(tip);
+        UUID batch = (UUID) r.get("batch_id");
         try {
             TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
-                orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", forSale, "reference", receipt)))));
+                if (batch != null) {
+                    spreadOverGroup(batch, forSale, receipt);
+                } else {
+                    orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "MPESA", "amount", forSale, "reference", receipt)))));
+                }
                 jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
                 return null;
             }));
@@ -337,7 +392,8 @@ public class MpesaService {
         }
         try {
             events.publishEvent(new OrderPromptSettled((UUID) r.get("tenant_id"), (UUID) r.get("order_id"), (UUID) r.get("id"),
-                    (UUID) r.get("split_id"), r.get("tip") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tip"), outcome));
+                    (UUID) r.get("split_id"), r.get("tip") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tip"), outcome,
+                    (UUID) r.get("batch_id")));
         } catch (RuntimeException e) {
             log.warn("After M-Pesa result for request {}: {}", r.get("id"), e.toString());
         }

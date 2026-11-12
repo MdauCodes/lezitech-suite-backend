@@ -76,6 +76,24 @@ public class PublicService {
         return db.find("SELECT id, label FROM dining_tables WHERE id = :id", "id", id).orElseThrow(() -> com.lezitech.suite.common.ApiException.notFound("Table"));
     }
 
+    /** Floors and their tables, so a group order can choose which tables it's for. Labels only. */
+    public List<Map<String, Object>> tables() {
+        List<Map<String, Object>> floors = db.list("SELECT id, name FROM floors ORDER BY sort, name");
+        List<Map<String, Object>> tables = db.list("SELECT id, floor_id, label FROM dining_tables ORDER BY label");
+        for (Map<String, Object> f : floors) {
+            f.put("tables", tables.stream().filter(t -> f.get("id").equals(t.get("floorId")))
+                    .map(t -> Map.of("id", t.get("id"), "label", t.get("label"))).toList());
+            f.remove("id");
+        }
+        return floors;
+    }
+
+    /** The tracking tokens of a group order's tables, in order; empty if there's no such group. */
+    public List<UUID> groupTokens(UUID batch) {
+        return db.list("SELECT public_token FROM orders WHERE batch_id = :b ORDER BY number", "b", batch).stream()
+                .map(r -> UUID.fromString(r.get("publicToken").toString())).toList();
+    }
+
     public UUID orderOfToken(UUID token) {
         return db.value("SELECT id FROM orders WHERE public_token = :token", UUID.class, "token", token);
     }

@@ -18,8 +18,8 @@ when diners pay; support access only when the owner grants it), `decisions.md` w
 | B | QR per table and printable cards, order from the phone, review, waiter assignment, pickup code | Built 2026-11-11 |
 | C | Estimated time, unavailable items, kitchen substitutes, live tracking, waiters' tables | Built 2026-11-11 |
 | D | Pay from the phone (single and split), tips, rating | Built 2026-11-11 |
-| E | Group orders | Next (paused 2026-11-12; design in plan-restaurant-and-tills.md) |
-| F | Photos and allergens on the menu, board screens per area | Planned |
+| E | Group orders: several tables, one bill (paid by one phone or split), group tracking page, group label on kitchen tickets | Built 2026-11-12 |
+| F | Photos and allergens on the menu, board screens per area | Next |
 | G | Loyalty points | Planned |
 
 ---

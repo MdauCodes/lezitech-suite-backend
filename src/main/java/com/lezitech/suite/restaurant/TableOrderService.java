@@ -44,6 +44,58 @@ public class TableOrderService {
     }
 
     public Placed place(Map<String, Object> raw, String payWhen) {
+        return place(raw, payWhen, null);
+    }
+
+    /** A group order: what the diners send for several tables at once. */
+    public record Group(UUID batchId, List<Placed> orders, BigDecimal total) {
+    }
+
+    static final int MAX_GROUP_TABLES = 10;
+
+    /**
+     * One order for several tables. Each table gets its own new bill (never added to a bill already open there), and
+     * all of them share one batch id, which is also the group's tracking secret. All or nothing: if any table's lines
+     * are refused, no table's order is placed.
+     */
+    public Group placeGroup(List<Map<String, Object>> tables, String customerLabel, String phone, String payWhen) {
+        if (tables == null || tables.size() < 2) {
+            throw ApiException.bad("Choose at least two tables for a group order");
+        }
+        if (tables.size() > MAX_GROUP_TABLES) {
+            throw ApiException.bad("A group order can cover up to " + MAX_GROUP_TABLES + " tables. Please ask a waiter to help.");
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Map<String, Object> t : tables) {
+            Object id = t.get("tableId");
+            if (id == null) {
+                throw ApiException.bad("Choose a table for every part of the order");
+            }
+            if (!seen.add(id.toString())) {
+                throw ApiException.bad("Each table can only appear once in a group order");
+            }
+        }
+        UUID batch = UUID.randomUUID();
+        List<Placed> placed = new ArrayList<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (Map<String, Object> t : tables) {
+            Map<String, Object> one = new LinkedHashMap<>();
+            one.put("tableId", t.get("tableId"));
+            one.put("lines", t.get("lines"));
+            if (customerLabel != null) {
+                one.put("customerLabel", customerLabel);
+            }
+            if (phone != null) {
+                one.put("phone", phone);
+            }
+            Placed p = place(one, payWhen, batch);
+            placed.add(p);
+            total = total.add(p.total());
+        }
+        return new Group(batch, placed, total);
+    }
+
+    private Placed place(Map<String, Object> raw, String payWhen, UUID batch) {
         Body b = new Body(raw);
         UUID tableId = b.has("tableId") ? parse(b.str("tableId"), "That table") : null;
         String tableLabel = null;
@@ -64,6 +116,10 @@ public class TableOrderService {
             body.put("customerLabel", label);
         }
         body.put("lines", lines);
+        if (batch != null) {
+            // A group's table gets a bill of its own, even if someone at that table already has one open.
+            body.put("allowSecondBill", true);
+        }
         UUID before = tableId == null ? null
                 : db.value("SELECT id FROM orders WHERE table_id = :id AND status = 'OPEN' LIMIT 1", UUID.class, "id", tableId);
         UUID orderId = orders.create(new Body(body));
@@ -78,9 +134,10 @@ public class TableOrderService {
         db.exec("""
                 UPDATE orders SET self_order = true, customer_phone = coalesce(:phone, customer_phone),
                        customer_label = coalesce(customer_label, :label), assigned_to = :waiter,
-                       pickup_code = coalesce(pickup_code, :code), held_for_payment = :held
+                       pickup_code = coalesce(pickup_code, :code), held_for_payment = :held,
+                       batch_id = coalesce(:batch, batch_id)
                 WHERE id = :id""",
-                "phone", phone, "label", label, "waiter", waiter, "code", code, "held", first, "id", orderId);
+                "phone", phone, "label", label, "waiter", waiter, "code", code, "held", first, "batch", batch, "id", orderId);
         if (!first) {
             sendToKitchen(orderId);
         }

@@ -101,7 +101,9 @@ public class RestaurantController {
                 SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.options, l.note, l.course, l.station, l.kitchen_status, l.sent_at,
                        l.rejected_reason, s.name AS substitute_name,
                        o.number, o.channel, o.estimated_ready_at, o.customer_label, o.self_order, o.pickup_code,
-                       t.label AS table_label, u.name AS waiter_name
+                       t.label AS table_label, u.name AS waiter_name,
+                       (SELECT string_agg(gt.label, ', ' ORDER BY g.number) FROM orders g JOIN dining_tables gt ON gt.id = g.table_id
+                        WHERE g.batch_id = o.batch_id AND g.id <> o.id) AS group_with
                 FROM order_lines l JOIN orders o ON o.id = l.order_id
                 LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
                 LEFT JOIN items s ON s.id = l.substitute_item_id
@@ -122,6 +124,7 @@ public class RestaurantController {
                 t.put("customerLabel", l.get("customerLabel"));
                 t.put("selfOrder", l.get("selfOrder"));
                 t.put("pickupCode", l.get("pickupCode"));
+                t.put("groupWith", l.get("groupWith"));
                 t.put("lines", new java.util.ArrayList<Map<String, Object>>());
                 return t;
             });

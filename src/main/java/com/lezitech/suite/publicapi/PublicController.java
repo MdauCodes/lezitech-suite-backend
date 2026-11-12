@@ -189,6 +189,112 @@ public class PublicController {
         return out;
     }
 
+    /** The restaurant's tables, for choosing the tables of a group order. Only while it takes orders by phone. */
+    @GetMapping("/tables/{slug}")
+    public Map<String, Object> tables(@PathVariable String slug) {
+        Map<String, Object> t = tenant(slug);
+        requireOrdering(t);
+        return Map.of("floors", as(t, service::tables));
+    }
+
+    /**
+     * One order for several tables (a group): each table gets its own bill and kitchen ticket, and the group shares
+     * one tracking link and one combined bill. Every table counts against its own hourly limit.
+     */
+    @PostMapping("/orders/{slug}/group")
+    public Map<String, Object> placeGroup(@PathVariable String slug, @RequestBody Map<String, Object> raw,
+                                          jakarta.servlet.http.HttpServletRequest req) {
+        Map<String, Object> t = tenant(slug);
+        Map<String, Object> ordering = requireOrdering(t);
+        var b = new com.lezitech.suite.common.Body(raw);
+        List<Map<String, Object>> tables = b.list("tables");
+        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        boolean allowed = PER_CLIENT.allow(t.get("id") + ":" + client);
+        if (allowed && tables != null) {
+            for (Map<String, Object> one : tables) {
+                Object table = one.get("tableId");
+                allowed &= table == null || PER_TABLE.allow(t.get("id") + ":" + table);
+            }
+        }
+        if (!allowed) {
+            throw new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY",
+                    "Lots of orders from here in the last hour. Please ask a waiter to help.");
+        }
+        var group = as(t, () -> tableOrders.placeGroup(tables, b.str("customerLabel", null), b.str("phone", null),
+                (String) ordering.get("payWhen")));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("batchId", group.batchId());
+        out.put("total", group.total());
+        out.put("heldForPayment", group.orders().stream().anyMatch(p -> p.heldForPayment()));
+        out.put("orders", group.orders().stream().map(p -> Map.of("number", p.number(), "table", p.tableLabel(),
+                "total", p.total(), "token", p.token())).toList());
+        out.put("trackPath", "/group/" + slug + "/" + group.batchId());
+        return out;
+    }
+
+    /** The group's tracking page: each table's progress, and the combined bill. */
+    @GetMapping("/group/{slug}/{batch}")
+    public Map<String, Object> trackGroup(@PathVariable String slug, @PathVariable UUID batch) {
+        Map<String, Object> t = tenant(slug);
+        Map<String, Object> out = brand(t);
+        as(t, () -> {
+            List<UUID> tokens = service.groupTokens(batch);
+            if (tokens.isEmpty()) {
+                throw ApiException.notFound("Group order");
+            }
+            List<Map<String, Object>> tables = new java.util.ArrayList<>();
+            for (UUID token : tokens) {
+                Map<String, Object> one = new LinkedHashMap<>(service.track(token));
+                one.put("trackPath", "/track/" + slug + "/" + token);
+                tables.add(one);
+            }
+            out.put("tables", tables);
+            out.put("payment", pay.progress(pay.groupBill(batch)));
+            return null;
+        });
+        out.put("tipPresets", ordering(t).get("tipPresets"));
+        return out;
+    }
+
+    @PostMapping("/group/{slug}/{batch}/pay")
+    public Map<String, Object> payGroup(@PathVariable String slug, @PathVariable UUID batch, @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        limitPay(batch);
+        var b = new com.lezitech.suite.common.Body(raw);
+        return as(t, () -> {
+            Map<String, Object> req = pay.payAll(pay.groupBill(batch), b.str("phone", ""), b.num("tip", java.math.BigDecimal.ZERO));
+            return Map.of("ok", true, "status", req.get("status"));
+        });
+    }
+
+    @PostMapping("/group/{slug}/{batch}/split")
+    public Map<String, Object> splitGroup(@PathVariable String slug, @PathVariable UUID batch, @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        limitPay(batch);
+        var b = new com.lezitech.suite.common.Body(raw);
+        return as(t, () -> pay.split(pay.groupBill(batch), b.list("payers"), b.num("tip", java.math.BigDecimal.ZERO)));
+    }
+
+    @PostMapping("/group/{slug}/{batch}/rating")
+    public Map<String, Object> rateGroup(@PathVariable String slug, @PathVariable UUID batch, @RequestBody Map<String, Object> raw) {
+        Map<String, Object> t = tenant(slug);
+        var b = new com.lezitech.suite.common.Body(raw);
+        as(t, () -> {
+            pay.groupBill(batch);
+            pay.rateGroup(batch, b.integer("stars", 0), b.str("comment", null));
+            return null;
+        });
+        return Map.of("ok", true);
+    }
+
+    private Map<String, Object> requireOrdering(Map<String, Object> t) {
+        Map<String, Object> ordering = ordering(t);
+        if (!Boolean.TRUE.equals(ordering.get("selfOrder")) || locked(t)) {
+            throw ApiException.forbidden("This restaurant isn't taking orders by phone right now. Please ask a waiter.");
+        }
+        return ordering;
+    }
+
     private Map<String, Object> ordering(Map<String, Object> t) {
         try {
             Object saved = json.readTree((String) t.get("settings")).path("ordering");
