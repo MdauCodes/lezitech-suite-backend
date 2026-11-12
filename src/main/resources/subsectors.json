@@ -168,8 +168,18 @@
       },
       "questions": [
         {
+          "key": "service",
+          "label": "How do customers order?",
+          "type": "choice",
+          "options": [
+            "Waiters take orders",
+            "Order at the counter",
+            "Both"
+          ]
+        },
+        {
           "key": "loyalty",
-          "label": "Do you give regulars a free cup after a number of visits?",
+          "label": "A free cup for regulars after a number of visits is coming soon. Would you use it?",
           "type": "yesno"
         }
       ],
@@ -433,6 +443,16 @@
       },
       "questions": [
         {
+          "key": "service",
+          "label": "How do customers order?",
+          "type": "choice",
+          "options": [
+            "Waiters take orders",
+            "Order at the counter",
+            "Both"
+          ]
+        },
+        {
           "key": "delivery",
           "label": "Do you deliver (your own riders, Glovo, Uber Eats)?",
           "type": "yesno"
@@ -562,6 +582,16 @@
         ]
       },
       "questions": [
+        {
+          "key": "service",
+          "label": "How do customers order?",
+          "type": "choice",
+          "options": [
+            "Waiters take orders",
+            "Order at the counter",
+            "Both"
+          ]
+        },
         {
           "key": "customOrders",
           "label": "Do you take custom cake orders with a deposit?",
@@ -760,7 +790,19 @@
           50,
           0
         ]
-      }
+      },
+      "questions": [
+        {
+          "key": "service",
+          "label": "How do customers order?",
+          "type": "choice",
+          "options": [
+            "Waiters take orders",
+            "Order at the counter",
+            "Both"
+          ]
+        }
+      ]
     }
   ],
   "hotel": [

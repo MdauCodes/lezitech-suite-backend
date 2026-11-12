@@ -42,6 +42,7 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/public/**", "/api/auth/signup", "/api/auth/login", "/api/auth/code", "/api/auth/reset",
+                                "/api/auth/staff-pin", "/api/auth/reset-pin",
                                 "/api/platform/**", "/actuator/health", "/api/admin/auth/login", "/api/admin/auth/demo",
                                 "/api/admin/auth/options").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("PLATFORM")

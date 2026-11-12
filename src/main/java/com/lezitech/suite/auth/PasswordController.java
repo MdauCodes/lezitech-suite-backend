@@ -42,8 +42,73 @@ public class PasswordController {
     public Map<String, Object> sendCode(@RequestBody Map<String, Object> raw, HttpServletRequest req) {
         String email = new Body(raw).str("email").trim().toLowerCase();
         throttle.check("code:" + email, req);
-        codes.sendResetCode(email);
+        codes.sendResetCode(email, "pin".equals(new Body(raw).str("for", "")));
         return Map.of("ok", true, "message", "If " + email + " has a BizNez account, a 6-digit code is on its way. Check spam too.");
+    }
+
+    /**
+     * A staff member's own new till PIN: their email's 6-digit code + the new PIN (4 to 6 numbers). Doesn't sign them in;
+     * they then sign in on the staff page with the new PIN. The owner or a manager can also set a PIN under Staff.
+     */
+    @PostMapping("/api/auth/reset-pin")
+    @Transactional(noRollbackFor = ApiException.class)
+    public Map<String, Object> resetPin(@RequestBody Map<String, Object> raw, HttpServletRequest req) {
+        Body b = new Body(raw);
+        String email = b.str("email").trim().toLowerCase();
+        String pin = b.str("pin", "").trim();
+        if (!pin.matches("\\d{4,6}")) {
+            throw ApiException.bad("A PIN is 4 to 6 numbers");
+        }
+        String account = "reset:" + email;
+        throttle.check(account, req);
+        UUID user;
+        try {
+            user = codes.consume(email, b.str("code"));
+        } catch (ApiException e) {
+            throttle.failed(account, req);
+            throw e;
+        }
+        throttle.succeeded(account);
+        jdbc.update("UPDATE users SET pin_hash = ?, email_confirmed_at = coalesce(email_confirmed_at, now()) WHERE id = ?", encoder.encode(pin), user);
+        return Map.of("ok", true, "message", "Your new PIN is set. Sign in with it on your staff page.");
+    }
+
+    /** Signed in: email a 6-digit code to confirm the address (Home asks owners during the trial). */
+    @PostMapping("/api/auth/confirm-email/send")
+    public Map<String, Object> sendConfirm(HttpServletRequest req) {
+        UUID user = com.lezitech.suite.tenant.TenantContext.userId();
+        Map<String, Object> u = jdbc.queryForMap("SELECT email, name, email_confirmed_at FROM users WHERE id = ?", user);
+        if (u.get("email") == null) {
+            throw ApiException.bad("There's no email on this account");
+        }
+        if (u.get("email_confirmed_at") != null) {
+            return Map.of("ok", true, "confirmed", true);
+        }
+        throttle.check("confirm:" + user, req);
+        codes.sendConfirmCode(user, (String) u.get("email"), (String) u.get("name"));
+        return Map.of("ok", true, "message", "We sent a 6-digit code to " + u.get("email") + ". Check spam too.");
+    }
+
+    @PostMapping("/api/auth/confirm-email")
+    @Transactional(noRollbackFor = ApiException.class)
+    public Map<String, Object> confirm(@RequestBody Map<String, Object> raw, HttpServletRequest req) {
+        UUID user = com.lezitech.suite.tenant.TenantContext.userId();
+        String email = jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, user);
+        String account = "confirm:" + user;
+        throttle.check(account, req);
+        UUID owner;
+        try {
+            owner = codes.consume(email, new Body(raw).str("code"));
+        } catch (ApiException e) {
+            throttle.failed(account, req);
+            throw e;
+        }
+        if (!user.equals(owner)) {
+            throw ApiException.bad("That code is wrong or has expired. Ask for a new one.");
+        }
+        throttle.succeeded(account);
+        jdbc.update("UPDATE users SET email_confirmed_at = now() WHERE id = ?", user);
+        return Map.of("ok", true, "confirmed", true);
     }
 
     /** Code + new password: sets the password, signs out other devices, and signs this one in. */
@@ -66,7 +131,7 @@ public class PasswordController {
             throw e;
         }
         throttle.succeeded(account);
-        jdbc.update("UPDATE users SET password_hash = ? WHERE id = ?", encoder.encode(password), user);
+        jdbc.update("UPDATE users SET password_hash = ?, email_confirmed_at = coalesce(email_confirmed_at, now()) WHERE id = ?", encoder.encode(password), user);
         versions.bump(user, false);
         Map<String, Object> u = jdbc.queryForMap("SELECT tenant_id, role, name FROM users WHERE id = ?", user);
         return auth.session(user, (UUID) u.get("tenant_id"), (String) u.get("role"), (String) u.get("name"));

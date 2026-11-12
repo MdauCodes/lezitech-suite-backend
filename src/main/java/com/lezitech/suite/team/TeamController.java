@@ -76,20 +76,40 @@ public class TeamController {
         TenantContext.requireRole("MANAGER");
         Body b = new Body(raw);
         String role = role(b);
-        String email = b.str("email").toLowerCase();
-        if (Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM users WHERE email = :e)", Boolean.class, "e", email))) {
+        // Name, job and a till PIN are enough: many staff have no email. An email (optional) lets them reset their own
+        // PIN with a 6-digit code; a password (optional) lets them also sign in with email. The owner or a manager can
+        // always set a new PIN here.
+        String email = b.str("email", "").trim().toLowerCase();
+        String password = b.str("password", "");
+        boolean hasPin = !b.str("pin", "").isBlank();
+        if (b.str("name", "").isBlank()) {
+            throw ApiException.bad("Type their name");
+        }
+        if (!email.isEmpty() && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            throw ApiException.bad("That email doesn't look right");
+        }
+        if (!password.isEmpty() && email.isEmpty()) {
+            throw ApiException.bad("A password needs an email to sign in with. Leave both empty to use the PIN only");
+        }
+        if (!password.isEmpty() && password.length() < 8) {
+            throw ApiException.bad("Use a password of at least 8 characters");
+        }
+        if ("OWNER".equals(role) && (email.isEmpty() || password.isEmpty())) {
+            throw ApiException.bad("An owner signs in with an email and a password; add both");
+        }
+        if (!hasPin && password.isEmpty()) {
+            throw ApiException.bad("Give them a till PIN (4 to 6 numbers) so they can sign in");
+        }
+        if (!email.isEmpty() && Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM users WHERE email = :e)", Boolean.class, "e", email))) {
             throw ApiException.conflict("That email is already in use");
         }
         limits.checkUsers(1);
-        String password = b.str("password");
-        if (password.length() < 8) {
-            throw ApiException.bad("Use a password of at least 8 characters");
-        }
         UUID id = db.insert("""
                 INSERT INTO users (tenant_id, email, name, password_hash, role, pin_hash)
                 VALUES (:t, :email, :name, :hash, :role, :pin) RETURNING id""",
-                "email", email, "name", b.str("name"), "hash", encoder.encode(password), "role", role,
-                "pin", b.has("pin") ? encoder.encode(pin(b)) : null);
+                "email", email.isEmpty() ? null : email, "name", b.str("name").trim(),
+                "hash", password.isEmpty() ? null : encoder.encode(password), "role", role,
+                "pin", hasPin ? encoder.encode(pin(b)) : null);
         return db.one("User", "SELECT id, email, name, role, active, commission_rate FROM users WHERE id = :id AND tenant_id = :t", "id", id);
     }
 

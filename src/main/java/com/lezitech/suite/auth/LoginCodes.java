@@ -54,6 +54,11 @@ public class LoginCodes {
 
     /** "Forgot password": email a code if the address belongs to an active account. Says nothing either way. */
     public void sendResetCode(String emailRaw) {
+        sendResetCode(emailRaw, false);
+    }
+
+    /** forPin: a staff member resetting their own till PIN (same code, worded for a PIN). */
+    public void sendResetCode(String emailRaw, boolean forPin) {
         String email = emailRaw == null ? "" : emailRaw.trim().toLowerCase();
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT id, name FROM users WHERE email = ? AND active", email);
         if (rows.isEmpty()) {
@@ -67,12 +72,30 @@ public class LoginCodes {
         }
         String code = issue(user, "RESET", RESET_TTL);
         String name = first((String) rows.get(0).get("name"));
+        String what = forPin ? "till PIN" : "password";
         mailer.send(email, (String) rows.get(0).get("name"), code + " is your BizNez code",
-                "Hi " + name + ",\n\nYour code to set a new BizNez password is " + code + ".\nIt works for 15 minutes.\n\n"
-                        + "If you didn't ask for this, ignore this email; your password stays the same.\n\nLeziTech",
-                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new BizNez password is:</p>"
+                "Hi " + name + ",\n\nYour code to set a new BizNez " + what + " is " + code + ".\nIt works for 15 minutes.\n\n"
+                        + "If you didn't ask for this, ignore this email; your " + what + " stays the same.\n\nLeziTech",
+                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new BizNez " + what + " is:</p>"
                         + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
-                        + "<p>It works for 15 minutes. If you didn't ask for this, ignore this email; your password stays the same.</p>");
+                        + "<p>It works for 15 minutes. If you didn't ask for this, ignore this email; your " + what + " stays the same.</p>");
+    }
+
+    /** "Confirm your email" from Home: a code to the address on the account. At most 4 an hour. */
+    public void sendConfirmCode(UUID user, String email, String fullName) {
+        Integer recent = jdbc.queryForObject(
+                "SELECT count(*) FROM login_codes WHERE user_id = ? AND purpose = 'CONFIRM' AND created_at > now() - interval '1 hour'", Integer.class, user);
+        if (recent != null && recent >= MAX_PER_HOUR) {
+            throw ApiException.bad("We've sent a few codes already. Check spam, or try again in an hour.");
+        }
+        String code = issue(user, "CONFIRM", RESET_TTL);
+        String name = first(fullName);
+        mailer.send(email, fullName, code + " confirms your BizNez email",
+                "Hi " + name + ",\n\nYour code to confirm this email for BizNez is " + code + ".\nIt works for 15 minutes.\n\n"
+                        + "Confirming means you can always get back into your account.\n\nLeziTech",
+                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to confirm this email for BizNez is:</p>"
+                        + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
+                        + "<p>It works for 15 minutes. Confirming means you can always get back into your account.</p>");
     }
 
     /** Check the code for this email and use it up. Returns the user id; a wrong code counts as a try. */

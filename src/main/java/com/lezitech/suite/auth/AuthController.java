@@ -148,6 +148,16 @@ public class AuthController {
         // Answers to the sub-sector's setup questions (e.g. "Do you sell by weight?"), to tailor the workspace later.
         if (raw.get("setupAnswers") instanceof Map<?, ?> answers && !answers.isEmpty()) {
             settings.set("setupAnswers", json.valueToTree(answers));
+            // "How do customers order?" At the counter: the till is their screen, so the table plan stays out of the
+            // menu (Settings can put it back) and the till opens first.
+            if ("Order at the counter".equals(answers.get("service"))) {
+                for (int i = modules.size() - 1; i >= 0; i--) {
+                    if ("floor".equals(modules.get(i).asText())) {
+                        modules.remove(i);
+                    }
+                }
+                features.put("tables", false);
+            }
         }
         settings.put("kraPin", b.str("kraPin", "").toUpperCase());
         settings.put("tagline", b.str("tagline", ""));
@@ -178,6 +188,10 @@ public class AuthController {
             }
             return null;
         });
+        if (samples) {
+            // Everything created so far is sample data; "Remove the samples" removes rows created up to this moment.
+            jdbc.update("UPDATE tenants SET settings = settings || jsonb_build_object('samplesUntil', clock_timestamp()) WHERE id = ?", tenantId);
+        }
         return session(userId, tenantId, "OWNER", name);
     }
 
@@ -189,7 +203,8 @@ public class AuthController {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, tenant_id, name, role, password_hash, active FROM users WHERE email = ?",
                 b.str("email").toLowerCase());
-        if (rows.isEmpty() || !encoder.matches(b.str("password"), (String) rows.get(0).get("password_hash"))) {
+        if (rows.isEmpty() || rows.get(0).get("password_hash") == null
+                || !encoder.matches(b.str("password"), (String) rows.get(0).get("password_hash"))) {
             throttle.failed(account, req);
             throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
         }
@@ -218,6 +233,40 @@ public class AuthController {
         }
         throttle.succeeded(account);
         Map<String, Object> u = rows.get(0);
+        return session((UUID) u.get("id"), tenantId, (String) u.get("role"), (String) u.get("name"));
+    }
+
+    /**
+     * Staff sign in on their business's staff page (/w/<slug>) with their name and till PIN, no email needed. The name
+     * is matched without case, in full or by first name; when two staff share a first name, the PIN decides (and if it
+     * still matches both, they use their full name). Wrong tries are slowed down per name and per address.
+     */
+    @PostMapping("/staff-pin")
+    public Map<String, Object> staffPin(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
+        Body b = new Body(raw);
+        String slug = b.str("workspace", "").trim().toLowerCase();
+        String name = b.str("name", "").trim().replaceAll("\\s+", " ").toLowerCase();
+        String pin = b.str("pin", "").trim();
+        if (name.isEmpty() || !pin.matches("\\d{4,6}")) {
+            throw ApiException.bad("Type your name and your PIN (4 to 6 numbers)");
+        }
+        String account = "staffpin:" + slug + ":" + name;
+        throttle.check(account, req);
+        List<Map<String, Object>> tenants = jdbc.queryForList("SELECT id, status FROM tenants WHERE slug = ?", slug);
+        UUID tenantId = tenants.isEmpty() || "SUSPENDED".equals(tenants.get(0).get("status")) ? null : (UUID) tenants.get(0).get("id");
+        List<Map<String, Object>> matched = tenantId == null ? List.of() : jdbc.queryForList("""
+                SELECT id, name, role, pin_hash FROM users
+                WHERE tenant_id = ? AND active AND pin_hash IS NOT NULL
+                  AND (lower(regexp_replace(trim(name), '\\s+', ' ', 'g')) = ? OR lower(split_part(trim(name), ' ', 1)) = ?)""",
+                tenantId, name, name).stream().filter(u -> encoder.matches(pin, (String) u.get("pin_hash"))).toList();
+        if (matched.size() != 1) {
+            throttle.failed(account, req);
+            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "BAD_PIN",
+                    matched.isEmpty() ? "That name and PIN don't match. Check both, or ask the owner to set a new PIN."
+                            : "Two staff share that name. Type your full name.");
+        }
+        throttle.succeeded(account);
+        Map<String, Object> u = matched.get(0);
         return session((UUID) u.get("id"), tenantId, (String) u.get("role"), (String) u.get("name"));
     }
 
@@ -258,7 +307,7 @@ public class AuthController {
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until,
                        brand_color, logo_url, currency, phone, display_key, is_demo, settings::text AS settings
                 FROM tenants WHERE id = ?""", tenantId);
-        Map<String, Object> u = jdbc.queryForMap("SELECT id, email, name, role FROM users WHERE id = ?", userId);
+        Map<String, Object> u = jdbc.queryForMap("SELECT id, email, name, role, email_confirmed_at IS NOT NULL AS confirmed FROM users WHERE id = ?", userId);
 
         Timestamp trialEnds = (Timestamp) t.get("trial_ends_at");
         Timestamp paidUntil = (Timestamp) t.get("paid_until");
@@ -294,6 +343,7 @@ public class AuthController {
         Map<String, Object> user = new LinkedHashMap<>();
         user.put("id", u.get("id").toString());
         user.put("email", u.get("email"));
+        user.put("emailConfirmed", Boolean.TRUE.equals(u.get("confirmed")));
         user.put("name", u.get("name"));
         user.put("role", u.get("role"));
 
