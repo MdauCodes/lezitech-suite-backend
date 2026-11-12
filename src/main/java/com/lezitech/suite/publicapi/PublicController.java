@@ -197,6 +197,23 @@ public class PublicController {
         return out;
     }
 
+    /**
+     * "Scan to pay" on the table card: the table's open bills, so the diner can pick theirs and pay it from its own page.
+     * Works whether or not the restaurant takes orders by phone (waiters' orders can be paid this way too).
+     */
+    @GetMapping("/tables/{slug}/{tableId}/bills")
+    public Map<String, Object> tableBills(@PathVariable String slug, @PathVariable UUID tableId) {
+        Map<String, Object> t = tenant(slug);
+        Map<String, Object> out = brand(t);
+        out.put("table", as(t, () -> service.table(tableId)));
+        out.put("bills", as(t, () -> service.openOnTable(tableId)).stream().map(b -> {
+            Map<String, Object> m = new LinkedHashMap<>(b);
+            m.put("trackPath", "/track/" + slug + "/" + m.remove("token"));
+            return m;
+        }).toList());
+        return out;
+    }
+
     /** The restaurant's tables, for choosing the tables of a group order. Only while it takes orders by phone. */
     @GetMapping("/tables/{slug}")
     public Map<String, Object> tables(@PathVariable String slug) {

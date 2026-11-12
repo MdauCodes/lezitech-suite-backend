@@ -100,6 +100,23 @@ public class PublicService {
         return floors;
     }
 
+    /**
+     * The bills still open on a table, for the "Scan to pay" code on the table card: the diner picks theirs. Only what
+     * they need to recognise it (number, name, a few dishes, amounts) and the link to pay it.
+     * TODO (owner, 2026-11-12, to brainstorm): stop someone paying a cheaper order that isn't theirs; a waiter confirms.
+     */
+    public List<Map<String, Object>> openOnTable(UUID tableId) {
+        return db.list("""
+                SELECT o.number, o.public_token AS token, o.customer_label, o.total, greatest(o.total - o.paid, 0) AS due,
+                       o.created_at,
+                       (SELECT string_agg(l.name, ', ' ORDER BY l.created_at) FROM (
+                            SELECT name, created_at FROM order_lines WHERE order_id = o.id ORDER BY created_at LIMIT 3) l) AS dishes,
+                       (SELECT count(*) FROM order_lines WHERE order_id = o.id) AS lines
+                FROM orders o
+                WHERE o.table_id = :t2 AND o.status = 'OPEN' AND o.kind = 'SALE' AND o.created_at > now() - interval '16 hours'
+                ORDER BY o.created_at""", "t2", tableId);
+    }
+
     /** The tracking tokens of a group order's tables, in order; empty if there's no such group. */
     public List<UUID> groupTokens(UUID batch) {
         return db.list("SELECT public_token FROM orders WHERE batch_id = :b ORDER BY number", "b", batch).stream()

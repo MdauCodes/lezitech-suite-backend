@@ -61,6 +61,20 @@ E design (as planned before building):
 - That needs a **library of images per sector, sub-sector and business type**, so a business without its own photos still
   gets fitting pictures. Plan and source it then; don't start it now.
 
+**Table cards and "Scan to pay" (built 2026-11-12, owner's request):**
+- The printed card is now a **standing three-sided tower**, one per A4 sheet (landscape), in the restaurant's colour and logo:
+  **01 Order** (the table's menu QR), **02 Pay** (the table's pay QR) and **03 Your table** (the number, big, and how it works).
+  All three faces stand upright, so every side of the table sees one. Cut, fold on the dashed lines, glue the flap behind Order.
+  `lib/tableCards.ts` (`tableCardsHtml`, print and preview); "Preview table cards" and "Print table cards" in Table links.
+- **Pay QR** → `/pay/{slug}/{tableId}` (`pages/public/TablePay.tsx`), from `GET /api/public/tables/{slug}/{tableId}/bills`: the bills
+  open on that table in the last 16 hours (number, name, first dishes, due, time), each opening its own page to pay. A waiter's
+  dine-in bill can now be paid from its page too (the pay box shows for any table order, not only phone orders).
+- Test: `TableBillsTest`.
+- **TODO, owner to brainstorm (2026-11-12):** stop someone choosing and paying a cheaper bill that isn't theirs, and have the waiter
+  confirm a table's payment. Ideas to discuss then: show only the bill the phone placed (remembered on the phone) and hide the
+  rest behind "Not here? Ask your waiter"; a short code printed on the receipt or said by the waiter; the waiter ticks "paid,
+  checked" on My tables before the table is cleared; flag a bill paid from a phone that didn't place it.
+
 **Table links (built 2026-11-12):** Tables screen → "Table links & QR codes" (a visible button for owner and manager). Each
 table's full link is shown, with one-tap Copy (says "Copied"; if the browser blocks copying, the link is highlighted to copy by
 hand), "Copy all links" by area, print cards, and **Screen**: `/qr/{slug}/{tableId}`, a public full-screen page with the
