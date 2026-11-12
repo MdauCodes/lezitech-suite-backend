@@ -53,6 +53,17 @@ E design (as planned before building):
    - the tip is recorded once;
    - another restaurant's tables are refused.
 
+**Owner's request, 2026-11-12: after the platform is fully done (not before).**
+- Bring a warmer, more human feel to the diner pages (menu header, group and order tracking, table screen): the business's real
+  logo where it has one, and photos instead of the plain coloured block with initials.
+- That needs a **library of images per sector, sub-sector and business type**, so a business without its own photos still
+  gets fitting pictures. Plan and source it then; don't start it now.
+
+**Table links (built 2026-11-12):** Tables screen → "Table links & QR codes" (a visible button for owner and manager). Each
+table's full link is shown, with one-tap Copy (says "Copied"; if the browser blocks copying, the link is highlighted to copy by
+hand), "Copy all links" by area, print cards, and **Screen**: `/qr/{slug}/{tableId}`, a public full-screen page with the
+table's QR and link for a TV or tablet (`pages/public/TableScreen.tsx`, `components/TableLinks.tsx`).
+
 **After E, in order:**
 - **F:** photos and allergens on the Items screen (the upload API exists: `POST /api/items/{id}/photo`), board screens per area.
 - **G:** loyalty points. The setting rules exist (`settings.loyalty`, `OrderingSettings.cleanLoyalty`), and so do `loyalty_moves` and `customers.loyalty_points`. Note: `customers.points` already exists and is bumped 1 per 100 on close in `OrderService.close`; decide whether to replace it with the new rules.
