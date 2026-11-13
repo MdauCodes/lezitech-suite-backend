@@ -55,6 +55,8 @@ public class MpesaService {
     private final SimulatedGateway simulator;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.property.LeaseLedger leases;
 
     /** A prompt for a sale from the diner's phone has its final answer (paid, failed, or paid but not applied). */
     public record OrderPromptSettled(UUID tenant, UUID orderId, UUID requestId, UUID splitId, BigDecimal tip, String outcome, UUID batchId) {
@@ -158,6 +160,43 @@ public class MpesaService {
         UUID id = insertRequest("ORDER", orderId, null, phone, amount);
         jdbc.update("UPDATE mpesa_requests SET tip = ?, split_id = ?, batch_id = ? WHERE id = ?", t, splitId, batchId, id);
         return push(id, acct.orElse(null), phone, amount, (batchId == null ? "Order " : "Group ") + o.get("number"), "Payment");
+    }
+
+    /**
+     * A landlord asks a tenant to pay their rent from their phone: {@code amount} defaults to everything they owe.
+     * The money is put on the lease's invoices, the one due first first; anything extra is kept as credit.
+     */
+    public Map<String, Object> startLeasePayment(UUID leaseId, String phoneRaw, BigDecimal amountOrNull) {
+        requireEnabled();
+        // leases sit behind row-level security: read them inside the workspace's transaction.
+        Map<String, Object> l = tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    SELECT l.status, c.phone, sp.name AS unit FROM leases l JOIN customers c ON c.id = l.customer_id JOIN spaces sp ON sp.id = l.space_id
+                    WHERE l.id = ? AND l.tenant_id = ?""", leaseId, TenantContext.tenantId());
+            if (rows.isEmpty()) {
+                throw ApiException.notFound("Lease");
+            }
+            Map<String, Object> row = new LinkedHashMap<>(rows.get(0));
+            row.put("owed", leases.balance(leaseId));
+            return row;
+        });
+        String phone = normalizePhone(phoneRaw == null || phoneRaw.isBlank() ? (String) l.get("phone") : phoneRaw);
+        BigDecimal owed = (BigDecimal) l.get("owed");
+        BigDecimal amount = amountOrNull == null ? owed : amountOrNull;
+        if (amount.signum() <= 0) {
+            throw ApiException.bad("Nothing is owed on this lease. Enter an amount to take a payment in advance.");
+        }
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "M-Pesa prompts aren't set up for this business yet. The owner can add the paybill under Settings, Payments, "
+                            + "or ask LeziTech to do it. For now, record payments by hand with the M-Pesa code.");
+        }
+        BigDecimal whole = amount.setScale(0, RoundingMode.CEILING);
+        UUID id = insertRequest("LEASE", null, null, phone, whole);
+        jdbc.update("UPDATE mpesa_requests SET lease_id = ? WHERE id = ?", leaseId, id);
+        String unit = String.valueOf(l.get("unit"));
+        return push(id, acct.orElse(null), phone, whole, unit.length() > 12 ? unit.substring(0, 12) : unit, "Rent");
     }
 
     /** What's still due over a group order's open bills. */
@@ -361,6 +400,21 @@ public class MpesaService {
             log.info("Plan activated by M-Pesa {} for tenant {}", receipt, tenant);
             return;
         }
+        if ("LEASE".equals(r.get("purpose"))) {
+            UUID leaseId = (UUID) r.get("lease_id");
+            try {
+                TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
+                    leases.receive(leaseId, paidAmount.max(expected), "MPESA", receipt, "PROMPT", null, null);
+                    jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+                    return null;
+                }));
+            } catch (RuntimeException e) {
+                log.warn("M-Pesa {} confirmed but couldn't be put on lease {}: {}", receipt, leaseId, e.getMessage());
+                jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
+                        "Money received but not recorded on the lease (" + e.getMessage() + "). Record it by hand with code " + receipt + ".", id);
+            }
+            return;
+        }
         UUID orderId = (UUID) r.get("order_id");
         // A tip from the diner's phone rides on the prompt but isn't part of the sale; it's recorded on its own.
         BigDecimal tip = r.get("tip") == null ? BigDecimal.ZERO : (BigDecimal) r.get("tip");
@@ -438,11 +492,31 @@ public class MpesaService {
         if (inserted.isEmpty() || tenant == null) {
             return;
         }
+        UUID owner = jdbc.queryForObject("SELECT id FROM users WHERE tenant_id = ? AND role = 'OWNER' ORDER BY created_at LIMIT 1", UUID.class, tenant);
+        // A landlord's tenant types their unit's account number (e.g. G12): the money goes on that lease.
+        try {
+            Boolean onLease = TenantContext.runAs(tenant, owner, () -> tx.execute(s -> {
+                Optional<UUID> lease = leases.leaseForAccount(billRef);
+                if (lease.isEmpty()) {
+                    // A landlord's tenant who mistyped their unit (e.g. "GO5") must not land on invoice #5 of someone else.
+                    Long landlord = jdbc.queryForObject("SELECT count(*) FROM leases WHERE tenant_id = ? AND status = 'ACTIVE'", Long.class, tenant);
+                    return landlord != null && landlord > 0 && billRef.matches(".*[A-Za-z].*") ? null : false;
+                }
+                leases.receive(lease.get(), amount, "MPESA", transId, "PAYBILL", payer.isBlank() ? null : payer, null);
+                jdbc.update("UPDATE mpesa_c2b SET status = 'APPLIED', lease_id = ? WHERE id = ?", lease.get(), inserted.get(0));
+                return true;
+            }));
+            if (!Boolean.FALSE.equals(onLease)) {
+                return;   // put on a lease, or left in the landlord's list to assign
+            }
+        } catch (RuntimeException e) {
+            log.info("C2B {} for account {} left for staff to match: {}", transId, billRef, e.getMessage());
+            return;
+        }
         String digits = billRef.replaceAll("[^0-9]", "");
         if (digits.isEmpty() || digits.length() > 9) {
             return;
         }
-        UUID owner = jdbc.queryForObject("SELECT id FROM users WHERE tenant_id = ? AND role = 'OWNER' ORDER BY created_at LIMIT 1", UUID.class, tenant);
         try {
             TenantContext.runAs(tenant, owner, () -> tx.execute(s -> {
                 // orders has row-level security, so look it up inside the workspace's transaction
@@ -486,6 +560,25 @@ public class MpesaService {
                     List.of(Map.of("method", "MPESA", "amount", amount, "reference", c.get("trans_id"))))));
             jdbc.update("UPDATE mpesa_c2b SET status = 'APPLIED', order_id = ? WHERE id = ?", orderId, c2bId);
             return result;
+        });
+    }
+
+    /** The landlord says whose an unmatched paybill payment is: it goes on that lease like any other. */
+    public Map<String, Object> applyToLease(UUID c2bId, UUID leaseId) {
+        return tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM mpesa_c2b WHERE id = ? AND tenant_id = ? FOR UPDATE",
+                    c2bId, TenantContext.tenantId());
+            if (rows.isEmpty()) {
+                throw ApiException.notFound("M-Pesa payment");
+            }
+            Map<String, Object> c = rows.get(0);
+            if (!"UNMATCHED".equals(c.get("status"))) {
+                throw ApiException.conflict("This M-Pesa payment was already used");
+            }
+            Map<String, Object> out = leases.receive(leaseId, (BigDecimal) c.get("amount"), "MPESA", (String) c.get("trans_id"), "PAYBILL",
+                    (String) c.get("payer_name"), null);
+            jdbc.update("UPDATE mpesa_c2b SET status = 'APPLIED', lease_id = ? WHERE id = ?", leaseId, c2bId);
+            return out;
         });
     }
 
