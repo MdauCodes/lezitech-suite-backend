@@ -39,11 +39,13 @@ public class PropertyController {
     private final Db db;
     private final OrderService orders;
     private final LeaseLedger ledger;
+    private final LeaseLife life;
 
-    public PropertyController(Db db, OrderService orders, LeaseLedger ledger) {
+    public PropertyController(Db db, OrderService orders, LeaseLedger ledger, LeaseLife life) {
         this.db = db;
         this.orders = orders;
         this.ledger = ledger;
+        this.life = life;
     }
 
     /** Every unit with its M-Pesa account number, current lease, occupier and what they owe. */
@@ -52,7 +54,10 @@ public class PropertyController {
         return db.list("""
                 SELECT sp.*, """ + LeaseLedger.CODE_SQL + """
                         AS pay_account, l.id AS lease_id, l.rent AS lease_rent, l.service_charge AS lease_service_charge, l.starts_on, l.ends_on,
-                       l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days,
+                       l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days, l.deposit,
+                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on,
+                       CASE WHEN l.id IS NULL OR l.deposit_settled_on IS NOT NULL THEN 0
+                            ELSE l.deposit_before + (SELECT coalesce(sum(o.paid), 0) FROM orders o WHERE o.lease_id = l.id AND o.channel = 'DEPOSIT' AND o.status <> 'VOID') END AS deposit_held,
                        c.id AS occupier_id, c.name AS occupier_name, c.phone AS occupier_phone, c.email AS occupier_email,
                        (SELECT coalesce(sum(o.total - o.paid), 0) FROM orders o WHERE o.lease_id = l.id AND o.status = 'OPEN') AS arrears,
                        (SELECT coalesce(sum(o.total - o.paid), 0) FROM orders o WHERE o.lease_id = l.id AND o.status = 'OPEN'
@@ -87,6 +92,24 @@ public class PropertyController {
                 "deposit", b.num("deposit", BigDecimal.ZERO), "due", dueDay(b.integer("dueDay", 5)),
                 "pk", penaltyKind, "pv", "NONE".equals(penaltyKind) ? BigDecimal.ZERO : penaltyValue,
                 "pg", graceDays(b.integer("penaltyGraceDays", 5)));
+        BigDecimal deposit = b.num("deposit", BigDecimal.ZERO);
+        if (deposit.signum() < 0) {
+            throw ApiException.bad("The deposit can't be negative");
+        }
+        if (deposit.signum() > 0) {
+            if (b.bool("depositAlreadyReceived", false)) {
+                db.exec("UPDATE leases SET deposit_before = deposit WHERE id = :id", "id", id);
+            } else {
+                life.billDeposit(id);
+            }
+        }
+        if (!"NONE".equalsIgnoreCase(b.str("increaseKind", "NONE"))) {
+            life.setIncrease(id, b.str("increaseKind"), b.num("increaseValue", BigDecimal.ZERO), b.integer("increaseEvery", 12));
+        }
+        life.event(id, "STARTED", "Rented out from " + (b.has("startsOn") ? b.date("startsOn") : today()) + " at rent "
+                + b.num("rent", (BigDecimal) space.get("rate")).stripTrailingZeros().toPlainString()
+                + (deposit.signum() > 0 ? ", deposit " + deposit.stripTrailingZeros().toPlainString()
+                   + (b.bool("depositAlreadyReceived", false) ? " (already received)" : " (billed)") : ""), Map.of());
         return db.one("Lease", "SELECT * FROM leases WHERE id = :id", "id", id);
     }
 
@@ -105,18 +128,22 @@ public class PropertyController {
         return Map.of("created", raiseInvoices(period), "period", period.toString());
     }
 
-    /** The month's invoices for every active lease that doesn't have one yet; any credit the tenant has is used on them. */
+    /**
+     * The month's invoices for every active lease that doesn't have one yet; any credit the tenant has is used on them.
+     * A lease past its end date that wasn't renewed or ended carries on month to month (owner, 2026-11-13). Approved
+     * rent increases due by the month are put into the rent first.
+     */
     public int raiseInvoices(YearMonth period) {
         int created = 0;
-        for (Map<String, Object> l : db.list("""
-                SELECT l.*, sp.name AS unit_name FROM leases l JOIN spaces sp ON sp.id = l.space_id
-                WHERE l.status = 'ACTIVE' AND l.starts_on <= :last AND (l.ends_on IS NULL OR l.ends_on >= :first)""",
-                "first", period.atDay(1), "last", period.atEndOfMonth())) {
-            UUID leaseId = UUID.fromString(l.get("id").toString());
+        for (Map<String, Object> found : db.list("""
+                SELECT l.id FROM leases l WHERE l.status = 'ACTIVE' AND l.starts_on <= :last""", "last", period.atEndOfMonth())) {
+            UUID leaseId = UUID.fromString(found.get("id").toString());
             if (db.find("SELECT id FROM orders WHERE lease_id = :leaseId AND period = :p AND status <> 'VOID'",
                     "leaseId", leaseId, "p", period.toString()).isPresent()) {
                 continue;
             }
+            life.applyDueIncreases(leaseId, period.atDay(1));
+            Map<String, Object> l = db.one("Lease", "SELECT l.*, sp.name AS unit_name FROM leases l JOIN spaces sp ON sp.id = l.space_id WHERE l.id = :id", "id", leaseId);
             List<Map<String, Object>> lines = new ArrayList<>();
             lines.add(Map.of("name", "Rent · " + l.get("unitName") + " · " + period, "unitPrice", l.get("rent"), "qty", 1, "taxRate", 0));
             if (((BigDecimal) l.get("serviceCharge")).signum() > 0) {
@@ -248,6 +275,79 @@ public class PropertyController {
         db.exec("UPDATE tenants SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{rent}', cast(:v as jsonb)) WHERE id = :t",
                 "v", db.toJson(merged));
         return settings();
+    }
+
+    // ---------------- the lease's life (M2) ----------------
+
+    /** The rent increase written in the lease: increaseKind NONE | PERCENT | FIXED, increaseValue, increaseEvery (months). */
+    @PostMapping("/leases/{id}/increase-terms")
+    public Map<String, Object> increaseTerms(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Body b = new Body(raw);
+        return life.setIncrease(id, b.str("increaseKind", "NONE"), b.num("increaseValue", BigDecimal.ZERO), b.integer("increaseEvery", 12));
+    }
+
+    @PostMapping("/increases/{id}/approve")
+    public Map<String, Object> approveIncrease(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Body b = new Body(raw);
+        return life.approveIncrease(id, b.has("newRent") ? b.num("newRent") : null);
+    }
+
+    @PostMapping("/increases/{id}/skip")
+    public Map<String, Object> skipIncrease(@PathVariable UUID id) {
+        TenantContext.requireRole("MANAGER");
+        return life.skipIncrease(id);
+    }
+
+    @PostMapping("/leases/{id}/renew")
+    public Map<String, Object> renew(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Body b = new Body(raw);
+        return life.renew(id, b.has("endsOn") ? b.date("endsOn") : null, b.has("rent") ? b.num("rent") : null,
+                b.has("serviceCharge") ? b.num("serviceCharge") : null);
+    }
+
+    /** What moving out would settle to, before doing it: {deductions: [{what, amount}]}. */
+    @PostMapping("/leases/{id}/move-out/preview")
+    public Map<String, Object> moveOutPreview(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
+        db.one("Lease", "SELECT id FROM leases WHERE id = :id", "id", id);
+        return life.moveOutPreview(id, new Body(raw).list("deductions"));
+    }
+
+    /** The tenant moves out: {moveOutOn, deductions: [{what, amount}], note}. */
+    @PostMapping("/leases/{id}/move-out")
+    public Map<String, Object> moveOut(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Body b = new Body(raw);
+        return life.moveOut(id, b.has("moveOutOn") ? b.date("moveOutOn") : null, b.list("deductions"), b.str("note", null));
+    }
+
+    /** Money the owner gave back to a tenant who moved out: {amount, method, reference, paidOn}. */
+    @PostMapping("/leases/{id}/refund")
+    public Map<String, Object> refund(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Body b = new Body(raw);
+        return life.recordRefund(id, b.num("amount"), b.str("method", "MPESA"), b.str("reference", null), b.has("paidOn") ? b.date("paidOn") : null);
+    }
+
+    @GetMapping("/leases/{id}/history")
+    public Map<String, Object> history(@PathVariable UUID id) {
+        db.one("Lease", "SELECT id FROM leases WHERE id = :id", "id", id);
+        return life.history(id);
+    }
+
+    /** What needs the owner: increases to approve, leases ending soon or past their end, and moved-out tenants to settle with. */
+    @GetMapping("/attention")
+    public Map<String, Object> attention() {
+        Map<String, Object> out = life.attention(today());
+        out.put("settle", db.list("""
+                SELECT l.id AS lease_id, sp.name AS unit_name, c.name AS tenant_name, c.phone AS tenant_phone, l.moved_out_on, l.credit AS to_give_back,
+                       (SELECT coalesce(sum(o.total - o.paid), 0) FROM orders o WHERE o.lease_id = l.id AND o.status = 'OPEN') AS still_owed
+                FROM leases l JOIN spaces sp ON sp.id = l.space_id JOIN customers c ON c.id = l.customer_id
+                WHERE l.status = 'ENDED' AND (l.credit > 0 OR EXISTS (SELECT 1 FROM orders o WHERE o.lease_id = l.id AND o.status = 'OPEN'))
+                ORDER BY l.moved_out_on DESC NULLS LAST"""));
+        return out;
     }
 
     /** Rent roll: one row per invoice for the month, with what's been paid. */

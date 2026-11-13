@@ -15,6 +15,54 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-13: M2 "The lease's life" is built and tested. Next: M5, the tenant portal (moved up at the owner's request).**
+
+"Lease" always means the agreement between a landlord (our client) and their tenant. It never means BizNez's own plans or billing.
+
+The owner's answers for M2:
+- **Rent increases:**
+  - Written in the lease as a % or a fixed amount every N months.
+  - The owner must approve each one and can change the amount or skip it.
+  - Once approved, the tenant is emailed a notice, and bills use the new rent from that month.
+- **Deposit:**
+  - Billed like rent when the lease starts, or ticked "already received".
+  - It's money held for the tenant, not income: deposit bills (channel `DEPOSIT`) are left out of sales, the dashboard and the tax figures.
+- **Move-out:**
+  - The deposit held, minus unpaid rent and bills, minus the deductions the owner lists.
+  - If money is due to the tenant, the system shows it, and the owner records the refund after paying it themselves.
+  - If the tenant still owes, that shows instead.
+- **Lease end:**
+  - Alerts at 90, 60 and 30 days, by email to the owner and under "Needs you".
+  - If nothing is done, billing carries on monthly.
+  - Renewal is one step.
+
+What M2 built:
+- **API:**
+  - `LeaseLife`: increases (terms, proposals 30 days ahead, approve, skip, applied when billing), deposit bill and held amount, renew, move-out preview and move-out, refunds, the lease's history (`lease_events`), what needs the owner (`/api/property/attention`) and lease-end alerts.
+  - `RentJobs` emails the owner about increases to approve and leases ending.
+  - Migration `V28__lease_life.sql`.
+- **Web:**
+  - A "Needs you" card: approve or skip increases, renew, moving out, and "I've paid it back".
+  - The lease form gains the deposit ("I already received it"), an end date and rent increases.
+  - The tenant panel shows deposit held, the next increase, Renew, Moving out and the history.
+  - The move-out window shows the settlement live as deductions are typed.
+- **Tests:** `LeaseLifeTest` (4). Full API suite **141 passing**.
+
+**M5, the tenant portal (owner's answers, 2026-11-13). To build next:**
+- **Getting in:**
+  - The landlord invites the tenant (an email with a code), or the tenant enters their email.
+  - The first sign-in is a 6-digit code emailed to them, then they set a password.
+  - After that they sign in with email and password, and can reset it by code.
+  - The landlord can send a new code at any time.
+- **What a tenant can do:**
+  - Pay rent: an M-Pesa prompt to their phone, which goes on their bill by itself; receipts and statement are there.
+  - Complaints and repairs: with photos and progress (received, being fixed, done). The landlord assigns the job, records the cost, can charge it to the tenant, and the tenant can rate the fix.
+  - Read notices from the landlord, to everyone or to one floor; they also arrive by email.
+  - See their lease details and documents, and give notice to vacate, which alerts the landlord and starts the move-out.
+- **Who handles complaints:** the owner and managers see all of them. A caretaker or technician (a staff login with PIN) sees only the jobs assigned to them, and marks them done with a photo.
+
+---
+
 **2026-11-13: owner chose "Mall first". M1 "Get paid" is built and tested.**
 
 The owner's answers for M1 (2026-11-13):
@@ -50,7 +98,7 @@ What M1 built:
   - The tenant's own statement page is at `/statement/{slug}/{token}`; on a phone it shows as a list.
 - **Tests:** `RentCollectionTest` (5). Full API suite **137 passing**.
 
-Next: **M2, the lease's life**: rent increases, deposits and move-out, expiry alerts and renewals.
+(M2 followed: see above.)
 
 ---
 

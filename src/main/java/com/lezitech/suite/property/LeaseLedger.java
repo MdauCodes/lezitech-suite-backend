@@ -87,7 +87,8 @@ public class LeaseLedger {
             throw ApiException.bad("Enter the amount received");
         }
         String m = method == null ? "" : method.toUpperCase();
-        if (!METHODS.contains(m)) {
+        // At move-out the deposit the landlord holds is put on the tenant's account like a payment ("DEPOSIT").
+        if (!METHODS.contains(m) && !("DEPOSIT".equals(m) && "MOVEOUT".equals(source))) {
             throw ApiException.bad("Choose how it was paid: M-Pesa, cash, bank or cheque");
         }
         String ref = reference == null || reference.isBlank() ? null : reference.trim().toUpperCase();
@@ -124,6 +125,35 @@ public class LeaseLedger {
         out.put("credit", db.value("SELECT credit FROM leases WHERE id = :id", BigDecimal.class, "id", leaseId));
         out.put("tenantName", db.value("SELECT name FROM customers WHERE id = :c", String.class, "c", lease.get("customerId")));
         return out;
+    }
+
+    /**
+     * Money given back to the tenant (e.g. the deposit after move-out): it comes off their credit, and shows on the
+     * statement as a refund. Refused if it's more than they're owed.
+     */
+    public Map<String, Object> refund(UUID leaseId, BigDecimal amount, String method, String reference, LocalDate on, String note) {
+        if (amount == null || amount.signum() <= 0) {
+            throw ApiException.bad("Enter the amount given back");
+        }
+        String m = method == null ? "" : method.toUpperCase();
+        if (!METHODS.contains(m)) {
+            throw ApiException.bad("Choose how it was given back: M-Pesa, cash, bank or cheque");
+        }
+        BigDecimal credit = db.value("SELECT credit FROM leases WHERE id = :id FOR UPDATE", BigDecimal.class, "id", leaseId);
+        if (credit == null) {
+            throw ApiException.notFound("Lease");
+        }
+        BigDecimal amt = amount.setScale(2, RoundingMode.HALF_UP);
+        if (amt.compareTo(credit) > 0) {
+            throw ApiException.bad("That's more than the " + credit.toPlainString() + " owed to the tenant");
+        }
+        db.insert("""
+                INSERT INTO lease_receipts (tenant_id, lease_id, amount, to_credit, method, reference, source, note, user_id, received_on)
+                VALUES (:t, :lease, :amount, :amount, :method, :ref, 'REFUND', :note, :u, :on) RETURNING id""",
+                "lease", leaseId, "amount", amt.negate(), "method", m, "ref", reference == null || reference.isBlank() ? null : reference.trim().toUpperCase(),
+                "note", note, "u", TenantContext.userId(), "on", on == null ? today() : on);
+        db.exec("UPDATE leases SET credit = credit - :a WHERE id = :id", "id", leaseId, "a", amt);
+        return Map.of("refunded", amt, "credit", credit.subtract(amt), "balance", balance(leaseId));
     }
 
     /** Use the lease's credit on its open invoices (after new invoices or penalties are raised). */
@@ -199,7 +229,7 @@ public class LeaseLedger {
                 SELECT o.id, o.number, o.total, o.paid, o.customer_id, l.id AS lease_id, l.penalty_kind, l.penalty_value
                 FROM orders o JOIN leases l ON l.id = o.lease_id
                 WHERE l.status = 'ACTIVE' AND l.penalty_kind <> 'NONE' AND l.penalty_value > 0
-                  AND o.status = 'OPEN' AND o.kind = 'INVOICE' AND o.penalty_for IS NULL AND o.due_on IS NOT NULL
+                  AND o.status = 'OPEN' AND o.kind = 'INVOICE' AND o.channel = 'RENT' AND o.penalty_for IS NULL AND o.due_on IS NOT NULL
                   AND o.due_on + l.penalty_grace_days < cast(:today as date)
                   AND NOT EXISTS (SELECT 1 FROM orders p WHERE p.penalty_for = o.id)""", "today", today)) {
             BigDecimal unpaid = due(o);
@@ -277,14 +307,20 @@ public class LeaseLedger {
                 FROM orders o WHERE o.lease_id = :l AND o.status <> 'VOID' AND o.kind = 'INVOICE'
                   AND (o.created_at AT TIME ZONE 'Africa/Nairobi')::date BETWEEN cast(:from as date) AND cast(:to as date)""",
                 "l", leaseId, "from", start, "to", end)) {
-            lines.add(line(o.get("day"), "PENALTY".equals(o.get("channel")) ? "PENALTY" : "INVOICE",
+            lines.add(line(o.get("day"), "PENALTY".equals(o.get("channel")) ? "PENALTY" : "DEPOSIT".equals(o.get("channel")) ? "DEPOSIT" : "INVOICE",
                     "Invoice #" + o.get("number") + " · " + o.get("what"), (BigDecimal) o.get("total"), BigDecimal.ZERO, o.get("id"), o.get("at")));
         }
         for (Map<String, Object> r : db.list("""
                 SELECT id, received_on, amount, method, reference, to_credit, created_at AS at FROM lease_receipts
                 WHERE lease_id = :l AND received_on BETWEEN cast(:from as date) AND cast(:to as date)""", "l", leaseId, "from", start, "to", end)) {
-            lines.add(line(r.get("receivedOn"), "PAYMENT", "Payment · " + methodName((String) r.get("method"))
-                    + (r.get("reference") == null ? "" : " " + r.get("reference")), BigDecimal.ZERO, (BigDecimal) r.get("amount"), r.get("id"), r.get("at")));
+            BigDecimal amt = (BigDecimal) r.get("amount");
+            String how = methodName((String) r.get("method")) + (r.get("reference") == null ? "" : " " + r.get("reference"));
+            if (amt.signum() < 0) {
+                lines.add(line(r.get("receivedOn"), "REFUND", "Given back to you · " + how, amt.negate(), BigDecimal.ZERO, r.get("id"), r.get("at")));
+            } else {
+                lines.add(line(r.get("receivedOn"), "PAYMENT", "DEPOSIT".equals(r.get("method")) ? "Your deposit, put on your account"
+                        : "Payment · " + how, BigDecimal.ZERO, amt, r.get("id"), r.get("at")));
+            }
         }
         for (Map<String, Object> p : db.list("""
                 SELECT p.id, (p.created_at AT TIME ZONE 'Africa/Nairobi')::date AS day, p.created_at AS at, p.amount, p.method, p.reference
@@ -375,6 +411,7 @@ public class LeaseLedger {
             case "BANK" -> "Bank";
             case "CHEQUE" -> "Cheque";
             case "CARD" -> "Card";
+            case "DEPOSIT" -> "Deposit";
             default -> m;
         };
     }

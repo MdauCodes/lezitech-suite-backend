@@ -257,8 +257,8 @@ public class SeedService {
                     INSERT INTO customers (tenant_id, name, phone, company, kind) VALUES (:t, :name, :phone, :name, 'CORPORATE') RETURNING id""",
                     "name", l.get("tenant").asText(), "phone", l.path("phone").asText(null));
             db.exec("""
-                    INSERT INTO leases (tenant_id, space_id, customer_id, starts_on, rent, service_charge, deposit, due_day)
-                    VALUES (:t, :unit, :customer, :start, :rent, :svc, :deposit, 5)""",
+                    INSERT INTO leases (tenant_id, space_id, customer_id, starts_on, rent, service_charge, deposit, deposit_before, due_day)
+                    VALUES (:t, :unit, :customer, :start, :rent, :svc, :deposit, :deposit, 5)""",
                     "unit", unit, "customer", customer, "start", today.minusMonths(l.path("monthsAgo").asInt(1)).withDayOfMonth(1),
                     "rent", sp.get("rate"), "svc", sp.get("serviceCharge"), "deposit", new BigDecimal(l.path("deposit").asText("0")));
         }

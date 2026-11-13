@@ -40,13 +40,15 @@ public class RentJobs {
     private final TransactionTemplate tx;
     private final PropertyController property;
     private final LeaseLedger ledger;
+    private final LeaseLife life;
     private final Mailer mailer;
 
-    public RentJobs(JdbcTemplate jdbc, PlatformTransactionManager txm, PropertyController property, LeaseLedger ledger, Mailer mailer) {
+    public RentJobs(JdbcTemplate jdbc, PlatformTransactionManager txm, PropertyController property, LeaseLedger ledger, LeaseLife life, Mailer mailer) {
         this.jdbc = jdbc;
         this.tx = new TransactionTemplate(txm);
         this.property = property;
         this.ledger = ledger;
+        this.life = life;
         this.mailer = mailer;
     }
 
@@ -78,15 +80,22 @@ public class RentJobs {
 
     /** The day's rent work for one landlord. Public for tests. */
     public int forTenant(UUID tenant, UUID owner, LocalDate today) {
+        List<Map<String, Object>> increases = new ArrayList<>();
+        List<Map<String, Object>> ending = new ArrayList<>();
         Map<String, Object> settings = TenantContext.runAs(tenant, owner, () -> tx.execute(s -> {
             Map<String, Object> rs = RentSettings.withDefaults(jdbc.queryForObject(
                     "SELECT coalesce(settings->'rent', '{}'::jsonb)::text FROM tenants WHERE id = ?", String.class, tenant));
+            increases.addAll(life.proposeIncreases(today));
+            ending.addAll(life.endAlertsDue(today));
             if (Boolean.TRUE.equals(rs.get("autoInvoice"))) {
                 property.raiseInvoices(YearMonth.from(today));
             }
             ledger.raisePenalties(today);
             return rs;
         }));
+        if (!increases.isEmpty() || !ending.isEmpty()) {
+            alertOwner(tenant, increases, ending);
+        }
         if (!Boolean.TRUE.equals(settings.get("emailReminders"))) {
             return 0;
         }
@@ -103,6 +112,49 @@ public class RentJobs {
             }
         }
         return sent;
+    }
+
+    /** One email to the owner: rent increases waiting for their approval, and leases coming to an end. */
+    private void alertOwner(UUID tenant, List<Map<String, Object>> increases, List<Map<String, Object>> ending) {
+        List<Map<String, Object>> owners = jdbc.queryForList("""
+                SELECT u.email, u.name FROM users u WHERE u.tenant_id = ? AND u.role = 'OWNER' AND u.active AND u.email IS NOT NULL
+                ORDER BY u.created_at LIMIT 1""", tenant);
+        if (owners.isEmpty()) {
+            return;
+        }
+        String link = mailer.appUrl() + "/property";
+        StringBuilder text = new StringBuilder();
+        StringBuilder html = new StringBuilder();
+        if (!increases.isEmpty()) {
+            text.append("Rent increases waiting for your approval:\n");
+            html.append("<p><b>Rent increases waiting for your approval</b></p><ul>");
+            for (Map<String, Object> i : increases) {
+                String line = i.get("unitName") + " (" + i.get("tenantName") + "): " + LeaseLife.kes((BigDecimal) i.get("rent")) + " to "
+                        + LeaseLife.kes((BigDecimal) i.get("newRent")) + " from " + DAY.format(LocalDate.parse(i.get("nextIncreaseOn").toString()));
+                text.append("- ").append(line).append('\n');
+                html.append("<li>").append(esc(line)).append("</li>");
+            }
+            text.append("Nothing changes until you approve. You can change the amount or skip it.\n\n");
+            html.append("</ul><p>Nothing changes until you approve. You can change the amount or skip it.</p>");
+        }
+        if (!ending.isEmpty()) {
+            text.append("Leases coming to an end:\n");
+            html.append("<p><b>Leases coming to an end</b></p><ul>");
+            for (Map<String, Object> e : ending) {
+                String line = e.get("unitName") + " (" + e.get("tenantName") + "): ends " + DAY.format(LocalDate.parse(e.get("endsOn").toString()))
+                        + ", in " + e.get("daysLeft") + " days";
+                text.append("- ").append(line).append('\n');
+                html.append("<li>").append(esc(line)).append("</li>");
+            }
+            text.append("Renew it, or record the move-out. If you do nothing, rent carries on being billed monthly.\n\n");
+            html.append("</ul><p>Renew it, or record the move-out. If you do nothing, rent carries on being billed monthly.</p>");
+        }
+        text.append("Open Rent & tenants: ").append(link);
+        html.append("<p><a href=\"").append(esc(link)).append("\">Open Rent &amp; tenants</a></p>");
+        Map<String, Object> o = owners.get(0);
+        String subject = !increases.isEmpty() && !ending.isEmpty() ? "Rent increases to approve and leases ending"
+                : !increases.isEmpty() ? "Rent increases waiting for your approval" : "Leases coming to an end";
+        mailer.send((String) o.get("email"), (String) o.get("name"), subject, "Hi,\n\n" + text, "<p>Hi,</p>" + html);
     }
 
     record Reminder(UUID tenant, UUID orderId, String kind, String to, String name, String unit, String account, int number,

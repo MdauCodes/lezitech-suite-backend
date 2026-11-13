@@ -20,7 +20,8 @@ import java.util.Map;
 public class ReportController {
 
     private static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
-    private static final String SOLD = " o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE'";
+    /** Completed sales. A landlord's deposit bills are money held for the tenant, not income, so they're left out. */
+    private static final String SOLD = " o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.channel <> 'DEPOSIT'";
 
     private final Db db;
 

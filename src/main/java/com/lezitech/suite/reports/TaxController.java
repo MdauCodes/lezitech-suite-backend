@@ -85,7 +85,7 @@ public class TaxController {
                 SELECT to_char(date_trunc('{unit}', o.closed_at AT TIME ZONE 'Africa/Nairobi'), 'YYYY-MM-DD') AS period,
                        coalesce(sum(o.total), 0) AS gross, coalesce(sum(o.tax), 0) AS vat, count(*) AS orders
                 FROM orders o
-                WHERE o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.closed_at >= :from AND o.closed_at < :to
+                WHERE o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.channel <> 'DEPOSIT' AND o.closed_at >= :from AND o.closed_at < :to
                 GROUP BY 1 ORDER BY 1""".replace("{unit}", unit), range);
         List<Map<String, Object>> buys = db.list("""
                 SELECT to_char(date_trunc('{unit}', p.received_at AT TIME ZONE 'Africa/Nairobi'), 'YYYY-MM-DD') AS period,
@@ -187,11 +187,11 @@ public class TaxController {
                        coalesce(sum(total) FILTER (WHERE etr_file_id IS NOT NULL), 0) AS with_etr_amount,
                        count(*) FILTER (WHERE etr_file_id IS NULL) AS without_etr,
                        coalesce(sum(total) FILTER (WHERE etr_file_id IS NULL), 0) AS without_etr_amount
-                FROM orders WHERE status IN ('PAID','CREDIT') AND kind <> 'QUOTE' AND closed_at >= :from AND closed_at < :to""", range));
+                FROM orders WHERE status IN ('PAID','CREDIT') AND kind <> 'QUOTE' AND channel <> 'DEPOSIT' AND closed_at >= :from AND closed_at < :to""", range));
         c.put("missing", db.list("""
                 SELECT o.id, o.number, o.total, o.closed_at, c.name AS customer_name
                 FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
-                WHERE o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.etr_file_id IS NULL
+                WHERE o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.channel <> 'DEPOSIT' AND o.etr_file_id IS NULL
                   AND o.closed_at >= :from AND o.closed_at < :to
                 ORDER BY o.closed_at DESC LIMIT 50""", range));
         return c;
