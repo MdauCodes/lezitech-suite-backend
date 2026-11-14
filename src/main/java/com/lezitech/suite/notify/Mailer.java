@@ -42,6 +42,30 @@ public class Mailer {
         }
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private BrandedEmail branded;
+
+    /**
+     * Send in a business's own name and look (logo, colours, contacts, sender name, replies to the business). The body
+     * is just the message; the layout is added here. Returns null when sent, otherwise what went wrong.
+     */
+    public String trySendAs(java.util.UUID tenant, String to, String toName, String subject, String text, String bodyHtml) {
+        if (sender == null) {
+            return "Emails aren't switched on for this system";
+        }
+        if (to == null || to.isBlank()) {
+            return "No email address";
+        }
+        BrandedEmail.Brand b = branded.brand(tenant);
+        try {
+            sender.send(new EmailSender.Email(to, toName, subject, text, BrandedEmail.page(b, bodyHtml, firstLine(text)), java.util.List.of(),
+                    b.name(), b.email()));
+            return null;
+        } catch (RuntimeException e) {
+            return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        }
+    }
+
     /** For tests: swap the email service. */
     public void useSender(EmailSender s) {
         this.sender = s;
@@ -109,14 +133,45 @@ public class Mailer {
         }
     }
 
-    /** A plain, readable email: LeziTech mark on top, the message, a short footer. */
+    /**
+     * BizNez's own emails to business owners (codes, trial reminders, alerts), in the same card layout as the
+     * businesses' emails: our mark on top, the message in a white card, our contact details below.
+     */
     public String layout(String bodyHtml) {
-        return "<div style=\"font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#101415;max-width:560px;margin:0 auto;padding:16px\">"
-                + "<div style=\"margin-bottom:18px\"><span style=\"display:inline-block;width:26px;height:26px;border-radius:6px;background:#b8f24a;"
-                + "color:#101415;font-weight:bold;text-align:center;line-height:26px\">B</span> <b>BizNez</b></div>"
-                + bodyHtml
-                + "<p style=\"margin-top:28px;font-size:12px;color:#6b7280\">BizNez by LeziTech"
-                + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)) + "</p></div>";
+        String mark = "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\"><tr>"
+                + "<td width=\"44\" height=\"44\" align=\"center\" valign=\"middle\" bgcolor=\"#b8f24a\" style=\"width:44px;height:44px;border-radius:12px;"
+                + "background:#b8f24a;color:#101415;font:bold 22px Arial,Helvetica,sans-serif\">B</td></tr></table>";
+        return EmailLayout.page(new EmailLayout.Look("BizNez", "#101415", "#f4f2ec", mark,
+                "BizNez by LeziTech" + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)), null), bodyHtml, null);
+    }
+
+    /**
+     * Send an email in a business's own name: their brand on the email, their name as the sender, replies to their
+     * email. Returns SENT, OFF, NO_EMAIL or FAILED (never throws).
+     */
+    public String sendAs(BrandedEmail.Brand brand, String to, String toName, String subject, String text, String bodyHtml) {
+        if (sender == null) {
+            return "OFF";
+        }
+        if (to == null || to.isBlank()) {
+            return "NO_EMAIL";
+        }
+        try {
+            sender.send(new EmailSender.Email(to, toName, subject, text, BrandedEmail.page(brand, bodyHtml, firstLine(text)), java.util.List.of(),
+                    brand.name(), brand.email()));
+            return "SENT";
+        } catch (RuntimeException e) {
+            log.warn("Email '{}' to {} failed: {}", subject, to, e.getMessage());
+            return "FAILED";
+        }
+    }
+
+    private static String firstLine(String text) {
+        if (text == null) {
+            return null;
+        }
+        String t = text.strip().replaceAll("\\s+", " ");
+        return t.length() > 110 ? t.substring(0, 110) : t;
     }
 
     public static String esc(String s) {

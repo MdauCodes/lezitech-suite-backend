@@ -16,9 +16,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /** Sends one plain email. Chosen by EMAIL_PROVIDER: off, log (local), brevo or resend. */
 public interface EmailSender {
 
-    record Email(String to, String toName, String subject, String text, String html, List<Attachment> attachments) {
+    /**
+     * One email. {@code fromName} shows as the sender (e.g. the business's own name; null = the system's), and
+     * {@code replyTo} is where the customer's reply goes (e.g. the business's own email; null = no reply-to).
+     */
+    record Email(String to, String toName, String subject, String text, String html, List<Attachment> attachments,
+                 String fromName, String replyTo) {
         public Email(String to, String toName, String subject, String text, String html) {
-            this(to, toName, subject, text, html, List.of());
+            this(to, toName, subject, text, html, List.of(), null, null);
+        }
+
+        public Email(String to, String toName, String subject, String text, String html, List<Attachment> attachments) {
+            this(to, toName, subject, text, html, attachments, null, null);
         }
     }
 
@@ -59,11 +68,14 @@ public interface EmailSender {
         @Override
         public void send(Email e) {
             Map<String, Object> body = new java.util.LinkedHashMap<>(Map.of(
-                    "sender", Map.of("email", from, "name", fromName),
+                    "sender", Map.of("email", from, "name", e.fromName() == null || e.fromName().isBlank() ? fromName : e.fromName()),
                     "to", List.of(Map.of("email", e.to(), "name", e.toName() == null ? e.to() : e.toName())),
                     "subject", e.subject(), "textContent", e.text(), "htmlContent", e.html()));
             if (e.attachments() != null && !e.attachments().isEmpty()) {
                 body.put("attachment", e.attachments().stream().map(a -> Map.of("name", a.name(), "content", a.base64())).toList());
+            }
+            if (e.replyTo() != null && !e.replyTo().isBlank()) {
+                body.put("replyTo", Map.of("email", e.replyTo()));
             }
             post("https://api.brevo.com/v3/smtp/email", Map.of("api-key", apiKey), body);
         }
@@ -83,10 +95,14 @@ public interface EmailSender {
         @Override
         public void send(Email e) {
             Map<String, Object> body = new java.util.LinkedHashMap<>(Map.of(
-                    "from", fromName + " <" + from + ">", "to", List.of(e.to()),
+                    "from", (e.fromName() == null || e.fromName().isBlank() ? fromName : e.fromName().replace("<", "").replace(">", "")) + " <" + from + ">",
+                    "to", List.of(e.to()),
                     "subject", e.subject(), "text", e.text(), "html", e.html()));
             if (e.attachments() != null && !e.attachments().isEmpty()) {
                 body.put("attachments", e.attachments().stream().map(a -> Map.of("filename", a.name(), "content", a.base64())).toList());
+            }
+            if (e.replyTo() != null && !e.replyTo().isBlank()) {
+                body.put("reply_to", e.replyTo());
             }
             post("https://api.resend.com/emails", Map.of("Authorization", "Bearer " + apiKey), body);
         }

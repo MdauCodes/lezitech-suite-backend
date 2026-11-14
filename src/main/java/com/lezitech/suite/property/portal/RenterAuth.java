@@ -105,7 +105,7 @@ public class RenterAuth {
                         + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                         + button((String) biz.get("brand_color"), link, "Open your tenant page")
                         + "<p style=\"color:#6b7280\">Choose “First time here”, enter this email and the code, then choose a password. The code works for 3 days.</p>");
-        String err = mailer.trySend(e, name, "Your tenant page at " + business, text, html);
+        String err = mailer.trySendAs(tenant, e, name, "Your tenant page at " + business, text, html);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("invited", err == null);
         out.put("email", e);
@@ -150,7 +150,7 @@ public class RenterAuth {
         }
         String code = issue(account, "ACCESS", ACCESS_TTL);
         String business = (String) biz.get("name");
-        mailer.trySend(e, name, code + " is your code for " + business,
+        mailer.trySendAs(tenant, e, name, code + " is your code for " + business,
                 "Hi " + first(name) + ",\n\nYour code for your tenant page at " + business + " is " + code + ".\nIt works for 15 minutes.\n\n"
                         + "If you didn't ask for it, ignore this email.\n\n" + business,
                 branded((String) biz.get("brand_color"), business, "<p>Hi " + esc(first(name)) + ",</p><p>Your code for your tenant page is:</p>"
@@ -245,16 +245,12 @@ public class RenterAuth {
         return name == null || name.isBlank() ? "there" : name.trim().split("\\s+")[0];
     }
 
+    /** The message of a business's email; {@code Mailer.trySendAs} puts it in the business's own layout (logo, colours, contacts). */
     public static String branded(String color, String business, String body) {
-        String brand = color == null ? "#101415" : color;
-        return "<div style=\"background:#f3f4ef;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#101415\">"
-                + "<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6df\">"
-                + "<div style=\"height:6px;background:" + esc(brand) + "\"></div><div style=\"padding:22px 24px;font-size:15px;line-height:1.55\">"
-                + "<div style=\"font-size:18px;font-weight:bold;margin-bottom:14px\">" + esc(business) + "</div>" + body + "</div></div></div>";
+        return body;
     }
 
     public static String button(String color, String link, String label) {
-        return "<p style=\"margin:20px 0\"><a href=\"" + esc(link) + "\" style=\"background:" + esc(color == null ? "#101415" : color)
-                + ";color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:bold;display:inline-block\">" + esc(label) + "</a></p>";
+        return com.lezitech.suite.notify.EmailLayout.button(label, link, color);
     }
 }

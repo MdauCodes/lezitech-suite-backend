@@ -271,7 +271,7 @@ public class Maintenance {
         };
         String business = (String) r.get("business");
         String link = mailer.appUrl() + "/t/" + r.get("slug");
-        mailer.trySend(to, (String) r.get("name"), "Update on your request #" + r.get("number") + ": " + r.get("title"),
+        mailer.trySendAs(TenantContext.tenantId(), to, (String) r.get("name"), "Update on your request #" + r.get("number") + ": " + r.get("title"),
                 what + "." + (message == null ? "" : "\n\n\"" + message + "\"") + "\n\nSee it on your tenant page: " + link + "\n\n" + business,
                 RenterAuth.branded((String) r.get("brandColor"), business, "<p>Your request <b>#" + r.get("number") + " · " + esc((String) r.get("title"))
                         + "</b>: " + esc(what) + ".</p>" + (message == null ? "" : "<p style=\"background:#f6f7f3;border-radius:10px;padding:12px 14px\">" + esc(message) + "</p>")

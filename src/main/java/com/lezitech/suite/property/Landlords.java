@@ -239,7 +239,7 @@ public class Landlords {
         String first = ((String) l.get("name")).trim().split("\\s+")[0];
         String lines = "Rent collected: " + LeaseLife.kes((BigDecimal) s.get("collected")) + "\nCommission: " + LeaseLife.kes((BigDecimal) s.get("commission"))
                 + "\nExpenses paid for you: " + LeaseLife.kes((BigDecimal) s.get("expensesTotal")) + "\nDue to you for the month: " + LeaseLife.kes((BigDecimal) s.get("net"));
-        String err = mailer.trySend(email, (String) l.get("name"), "Your statement for " + MONTH.format(period.atDay(1)) + " from " + business,
+        String err = mailer.trySendAs(TenantContext.tenantId(), email, (String) l.get("name"), "Your statement for " + MONTH.format(period.atDay(1)) + " from " + business,
                 "Hi " + first + ",\n\nYour statement for " + MONTH.format(period.atDay(1)) + ":\n\n" + lines + "\n\nSee every unit, payment and expense: " + link
                         + "\n\n" + business,
                 com.lezitech.suite.property.portal.RenterAuth.branded((String) biz.get("brandColor"), business,

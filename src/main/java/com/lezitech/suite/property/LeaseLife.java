@@ -239,13 +239,10 @@ public class LeaseLife {
                 + " a month, starting with the bill for " + MONTH.format(due) + ".";
         String text = "Hi " + first + ",\n\n" + msg + "\n\nIf you have any questions, please contact us"
                 + (l.get("businessPhone") == null ? "." : " on " + l.get("businessPhone") + ".") + "\n\n" + business;
-        String html = "<div style=\"background:#f3f4ef;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#101415\">"
-                + "<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6df\">"
-                + "<div style=\"height:6px;background:" + esc(brand) + "\"></div><div style=\"padding:22px 24px;font-size:15px;line-height:1.55\">"
-                + "<div style=\"font-size:18px;font-weight:bold;margin-bottom:14px\">" + esc(business) + "</div>"
-                + "<p>Hi " + esc(first) + ",</p><p>" + esc(msg) + "</p><p style=\"color:#6b7280\">If you have any questions, please contact us"
-                + (l.get("businessPhone") == null ? "." : " on " + esc((String) l.get("businessPhone")) + ".") + "</p></div></div></div>";
-        String err = mailer.trySend(to.trim(), (String) l.get("name"), "Notice of rent change for " + l.get("unit") + " from " + MONTH.format(due), text, html);
+        String html = "<p style=\"margin:0 0 14px\">Hi " + esc(first) + ",</p><p style=\"margin:0 0 14px\">" + esc(msg) + "</p>"
+                + "<p style=\"margin:0;color:#6b6b66\">If you have any questions, please contact us"
+                + (l.get("businessPhone") == null ? "." : " on " + esc((String) l.get("businessPhone")) + ".") + "</p>";
+        String err = mailer.trySendAs(TenantContext.tenantId(), to.trim(), (String) l.get("name"), "Notice of rent change for " + l.get("unit") + " from " + MONTH.format(due), text, html);
         return err == null ? "SENT" : "FAILED";
     }
 

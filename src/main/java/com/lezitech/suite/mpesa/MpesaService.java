@@ -228,6 +228,36 @@ public class MpesaService {
         return push(id, acct.orElse(null), phone, amount, "Order " + o.get("number"), "Food court");
     }
 
+    /** A table booking's deposit was paid (or the prompt failed): the booking side confirms it and emails the guest. */
+    public record ReservationDepositSettled(UUID tenant, UUID reservationId, String outcome) {
+    }
+
+    /** A table booking's deposit: one prompt to the guest's phone, to the restaurant's own till or paybill. */
+    public Map<String, Object> startReservationDeposit(UUID reservationId, String phoneRaw) {
+        requireEnabled();
+        Map<String, Object> r = tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT deposit_amount, deposit_status, status FROM reservations WHERE id = ? AND tenant_id = ?", reservationId, TenantContext.tenantId());
+            if (rows.isEmpty()) {
+                throw ApiException.notFound("Booking");
+            }
+            return rows.get(0);
+        });
+        if (!"WAITING".equals(r.get("deposit_status")) || !"HELD".equals(r.get("status"))) {
+            throw ApiException.conflict("There's no deposit to pay on this booking");
+        }
+        String phone = normalizePhone(phoneRaw);
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "Paying by phone isn't switched on here yet. Please call the restaurant to confirm your booking.");
+        }
+        BigDecimal amount = ((BigDecimal) r.get("deposit_amount")).setScale(0, RoundingMode.CEILING);
+        UUID id = insertRequest("RESERVATION", null, null, phone, amount);
+        jdbc.update("UPDATE mpesa_requests SET reservation_id = ? WHERE id = ?", reservationId, id);
+        return push(id, acct.orElse(null), phone, amount, "Booking", "Table booking");
+    }
+
     /** What's still due over a group order's open bills. */
     public BigDecimal groupDue(UUID batchId) {
         BigDecimal due = jdbc.queryForObject("""
@@ -427,6 +457,25 @@ public class MpesaService {
                 jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
             });
             log.info("Plan activated by M-Pesa {} for tenant {}", receipt, tenant);
+            return;
+        }
+        if ("RESERVATION".equals(r.get("purpose"))) {
+            UUID booking = (UUID) r.get("reservation_id");
+            TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
+                jdbc.update("""
+                        UPDATE reservations SET deposit_status = 'PAID', deposit_receipt = ?, hold_until = NULL,
+                               status = CASE WHEN status IN ('HELD', 'CANCELLED') THEN 'BOOKED' ELSE status END, cancel_reason = NULL
+                        WHERE id = ? AND deposit_status IN ('WAITING', 'NONE')""", receipt, booking);
+                jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+                return null;
+            }));
+            if (events != null) {
+                try {
+                    events.publishEvent(new ReservationDepositSettled(tenant, booking, "PAID"));
+                } catch (RuntimeException e) {
+                    log.warn("After the deposit for booking {}: {}", booking, e.toString());
+                }
+            }
             return;
         }
         if ("FOODCOURT".equals(r.get("purpose"))) {

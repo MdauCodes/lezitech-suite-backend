@@ -252,16 +252,13 @@ public class RentJobs {
         String text = "Hi " + first + ",\n\nThis is " + r.business() + ": " + lead + total + "\n\n" + how
                 + "\n\nYour statement: " + r.link() + "\n\nIf you've already paid, thank you, and please ignore this message."
                 + (r.phone() == null ? "" : "\nQuestions? Call " + r.phone() + ".") + "\n\n" + r.business();
-        String html = "<div style=\"background:#f3f4ef;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#101415\">"
-                + "<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6df\">"
-                + "<div style=\"height:6px;background:" + esc(r.brand()) + "\"></div><div style=\"padding:22px 24px;font-size:15px;line-height:1.55\">"
-                + "<div style=\"font-size:18px;font-weight:bold;margin-bottom:14px\">" + esc(r.business()) + "</div>"
-                + "<p>Hi " + esc(first) + ",</p><p>This is " + esc(r.business()) + ": " + esc(lead) + esc(total) + "</p>"
-                + "<p style=\"background:#f6f7f3;border-radius:10px;padding:12px 14px\">" + esc(how) + "</p>"
-                + "<p style=\"margin:20px 0\"><a href=\"" + esc(r.link()) + "\" style=\"background:" + esc(r.brand())
-                + ";color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:bold;display:inline-block\">See your statement</a></p>"
-                + "<p style=\"color:#6b7280\">If you've already paid, thank you, and please ignore this message."
-                + (r.phone() == null ? "" : " Questions? Call " + esc(r.phone()) + ".") + "</p></div></div></div>";
-        return mailer.trySend(r.to(), r.name(), subject, text, html);
+        String html = "<p style=\"margin:0 0 14px\">Hi " + esc(first) + ",</p><p style=\"margin:0 0 14px\">This is " + esc(r.business()) + ": "
+                + esc(lead) + esc(total) + "</p>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td bgcolor=\"#f7f6f2\" "
+                + "style=\"background:#f7f6f2;border-radius:10px;padding:12px 14px;font:14px/1.5 Arial,Helvetica,sans-serif\">" + esc(how) + "</td></tr></table>"
+                + com.lezitech.suite.notify.EmailLayout.button("See your statement", r.link(), r.brand())
+                + "<p style=\"margin:14px 0 0;color:#6b6b66\">If you've already paid, thank you, and please ignore this message."
+                + (r.phone() == null ? "" : " Questions? Call " + esc(r.phone()) + ".") + "</p>";
+        return mailer.trySendAs(r.tenant(), r.to(), r.name(), subject, text, html);
     }
 }

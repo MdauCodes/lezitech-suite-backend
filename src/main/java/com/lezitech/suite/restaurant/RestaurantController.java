@@ -46,6 +46,7 @@ public class RestaurantController {
         List<Map<String, Object>> tables = db.list("""
                 SELECT t.*, o.id AS order_id, o.number AS order_number, o.total, o.guests, o.created_at AS opened_at, o.self_order,
                        u.name AS waiter_name, (o.status <> 'OPEN') AS awaiting_pay_check,
+                       nb.starts_at AS next_booking_at, nb.name AS next_booking_name, nb.party AS next_booking_party,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status = 'READY') AS ready_count,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status = 'PENDING') AS unsent_count
                 FROM dining_tables t
@@ -54,6 +55,10 @@ public class RestaurantController {
                                           AND o.closed_at > now() - interval '16 hours'))
                                    ORDER BY (o.status = 'OPEN') DESC, o.created_at LIMIT 1) o ON true
                 LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
+                LEFT JOIN LATERAL (SELECT r.starts_at, r.name, r.party FROM reservations r
+                                   WHERE r.table_id = t.id AND r.status IN ('HELD', 'BOOKED')
+                                     AND r.starts_at > now() - interval '30 minutes' AND r.starts_at < now() + interval '4 hours'
+                                   ORDER BY r.starts_at LIMIT 1) nb ON true
                 ORDER BY t.y, t.x, t.label""");
         for (Map<String, Object> f : floors) {
             f.put("tables", tables.stream().filter(t -> f.get("id").equals(t.get("floorId"))).toList());

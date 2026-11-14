@@ -15,6 +15,64 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: R4, table bookings and the waiting list, is built, tested and checked in the browser, with branded emails.**
+
+The owner's decisions:
+- **Deposit: the owner sets a rule** (e.g. KES 500 a person for groups of 4+, only on chosen days). It's paid by M-Pesa
+  when booking, the table is held 20 minutes for it, it goes on the bill when the guests are seated, and it's kept if
+  they don't come.
+- **Online bookings are confirmed at once if a table fits.**
+- **The table is freed 15 minutes after the time** (changeable) and the booking is marked "didn't come".
+- **Every online booking rings on staff screens until someone stops it** (the Trendysh ring: sound, flashing tab,
+  can't be clicked away). Then the guest's page says the restaurant has it.
+- **Email is the main channel** (confirmation, reminder, "you're on the waiting list", "your table is ready"); SMS and
+  WhatsApp only for businesses that set them up.
+- **Every email a business sends looks like that business** (the Ushirika model): its logo or initials in its colour,
+  its name as the sender, replies to its email, its phone and address in the footer. It's built from tables and inline
+  styles only, so Gmail keeps the design.
+- Africa's Talking is listed by others as a WhatsApp Business provider in Kenya; BizNez already talks to Meta's
+  WhatsApp Cloud API directly, so it isn't needed for WhatsApp.
+
+What R4 built:
+- **Emails, for the whole platform:**
+  - `EmailLayout`: the card layout, a button that works in every mail app, fact tables, and the preview line.
+  - `BrandedEmail`: a business's brand and contacts, with its colour on the page.
+  - `Mailer.sendAs` and `Mailer.trySendAs`: sent in the business's name, with reply-to.
+  - `EmailSender.Email` has a sender name and reply-to, for Brevo and Resend.
+  - `LogoController` (`/api/public/logo/{slug}`): mail apps block embedded logos.
+  - BizNez's own emails use the same layout.
+  - Rent reminders, rent changes, landlord statements, repair updates, notices and tenant codes now go out in the
+    business's own name and look.
+- **API:**
+  - `Reservations`:
+    - finding a table (the smallest free one that fits)
+    - free times
+    - online, staff and walk-in bookings
+    - deposit rule, hold and expiry
+    - seating (opens the bill; a paid deposit goes on it)
+    - table ready, didn't come, cancel, move
+    - the ring and acknowledging it
+    - the guest's page
+    - the emails
+  - `ReservationController` (staff `/api/reservations`, guest `/api/public/book/{slug}`), plus:
+    - after a paid deposit, the confirmation email
+    - every 5 minutes: free tables nobody came for, and reminder emails
+  - `MpesaService.startReservationDeposit` (purpose `RESERVATION`).
+  - `OrderService.depositByServer`.
+  - Tables show their next booking.
+  - Migration `V40__table_bookings.sql`.
+- **Web:**
+  - The booking page `/book/{slug}`: 14 days, party size, free times, name, phone and email, deposit note.
+  - The guest's page `/book/{slug}/r/{token}`: status, "the restaurant has your booking", deposit retry,
+    place in the queue, cancel.
+  - Staff "Table bookings": the day's list, seat, didn't come, cancel, new booking by phone, the waiting list with
+    "Table ready", the booking link with QR, and the booking rules and deposit.
+  - `BookingRing` on every floor-staff screen.
+  - "Booked 7:30 pm · Wanjiru (4)" on table tiles.
+- **Tests:** `TableBookingsTest` (4). Full API suite **169 passing**.
+
+**Next restaurant package:** R5, delivery.
+
 **2026-11-14: Waiter end of shift is built, tested and checked in the browser** (the owner's request: in Kenya each
 waiter answers for every bill they served and clears with the cashier when their shift ends).
 

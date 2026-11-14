@@ -71,7 +71,7 @@ public class Notices {
                 continue;
             }
             sentTo.add(email.toLowerCase());
-            String err = mailer.trySend(email.trim(), (String) r.get("name"), title.trim() + " · " + business,
+            String err = mailer.trySendAs(TenantContext.tenantId(), email.trim(), (String) r.get("name"), title.trim() + " · " + business,
                     body.trim() + "\n\n" + business + "\nYour tenant page: " + link,
                     RenterAuth.branded((String) biz.get("brandColor"), business, "<p><b>" + esc(title.trim()) + "</b></p><p style=\"white-space:pre-wrap\">"
                             + esc(body.trim()) + "</p>" + RenterAuth.button((String) biz.get("brandColor"), link, "Open your tenant page")));
