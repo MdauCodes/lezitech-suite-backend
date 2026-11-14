@@ -1118,7 +1118,7 @@
     {
       "key": "phones",
       "name": "Electronics & phones",
-      "tagline": "Phones, accessories and repair jobs, with your margin on every handset",
+      "tagline": "Phones, accessories and repair jobs, with your profit on every handset",
       "terms": {
         "item": "Product",
         "items": "Products"
@@ -1228,7 +1228,7 @@
       ],
       "seo": {
         "headline": "Phone shop and electronics POS for Kenya",
-        "pitch": "Sell phones and accessories fast, record repair jobs and see your margin on every handset.",
+        "pitch": "Sell phones and accessories fast, record repair jobs and see your profit on every handset.",
         "keywords": [
           "phone shop POS Kenya",
           "electronics shop system Nairobi",
@@ -2948,7 +2948,7 @@
       ],
       "seo": {
         "headline": "Distributor management software for Kenya",
-        "pitch": "Invoice retailers at the right price tier, track what each customer owes and restock on time.",
+        "pitch": "Invoice retailers at the right price tier, track what each customer still has to pay and restock on time.",
         "keywords": [
           "distributor software Kenya",
           "distribution management system"
@@ -3217,7 +3217,7 @@
       ],
       "seo": {
         "headline": "School fees and training centre software for Kenya",
-        "pitch": "Invoice term fees, take payments by M-Pesa and see what each student still owes.",
+        "pitch": "Invoice term fees, take payments by M-Pesa and see what each student still has to pay.",
         "keywords": [
           "school fees software Kenya",
           "school management system Kenya",
@@ -3247,7 +3247,7 @@
       "tagline": "Quotes per trip, deliveries and customer accounts",
       "seo": {
         "headline": "Logistics and courier software for Kenya",
-        "pitch": "Quote per trip or per kilo, invoice customers and track who still owes for deliveries.",
+        "pitch": "Quote per trip or per kilo, invoice customers and track who still has to pay for deliveries.",
         "keywords": [
           "logistics software Kenya",
           "courier business system"
@@ -3685,7 +3685,7 @@
       ],
       "seo": {
         "headline": "Furniture workshop software for Kenya",
-        "pitch": "Quote made-to-order furniture, take an M-Pesa deposit, track timber stock and see what each customer still owes.",
+        "pitch": "Quote made-to-order furniture, take an M-Pesa deposit, track timber stock and see what each customer still has to pay.",
         "keywords": [
           "furniture shop software Kenya",
           "carpentry workshop system",
@@ -3789,7 +3789,7 @@
       ],
       "seo": {
         "headline": "Tailoring and dressmaking software for Kenya",
-        "pitch": "Record each order with its deposit, book fittings and know what every customer owes on collection.",
+        "pitch": "Record each order with its deposit, book fittings and know what every customer still has to pay on collection.",
         "keywords": [
           "tailoring business software Kenya",
           "fashion designer order system",
@@ -3912,7 +3912,7 @@
       ],
       "seo": {
         "headline": "Printing and branding business software for Kenya",
-        "pitch": "Quote print jobs, take artwork deposits by M-Pesa, invoice corporate clients and see who still owes.",
+        "pitch": "Quote print jobs, take artwork deposits by M-Pesa, invoice corporate clients and see who still has to pay.",
         "keywords": [
           "printing business software Kenya",
           "branding company system Nairobi",
@@ -4028,7 +4028,7 @@
       "tagline": "Units, leases, rent, service charge and occupancy",
       "seo": {
         "headline": "Mall and shopping centre management software for Kenya",
-        "pitch": "Every unit on one grid, monthly rent and service charge invoices, M-Pesa payments matched to tenants and an arrears list.",
+        "pitch": "Every unit on one grid, monthly rent and service charge invoices, M-Pesa payments matched to tenants and a list of who is late.",
         "keywords": [
           "mall management software Kenya",
           "shopping centre system",
@@ -4063,7 +4063,7 @@
       "tagline": "Offices, leases and service charges",
       "seo": {
         "headline": "Commercial building management software for Kenya",
-        "pitch": "Leases, monthly rent and service charges for offices, with arrears and occupancy at a glance.",
+        "pitch": "Leases, monthly rent and service charges for offices, with late payers and empty units at a glance.",
         "keywords": [
           "office building management Kenya"
         ]
@@ -4072,14 +4072,14 @@
     {
       "key": "apartments",
       "name": "Residential apartments",
-      "tagline": "Tenants, monthly rent, deposits and arrears",
+      "tagline": "Tenants, monthly rent, deposits and late payers",
       "terms": {
         "customer": "Tenant",
         "customers": "Tenants"
       },
       "seo": {
         "headline": "Rental apartment management software for Kenya",
-        "pitch": "Invoice rent every month, match M-Pesa payments to units and chase arrears early.",
+        "pitch": "Invoice rent every month, match M-Pesa payments to units and follow up late payers early.",
         "keywords": [
           "rent management software Kenya",
           "landlord app Kenya",

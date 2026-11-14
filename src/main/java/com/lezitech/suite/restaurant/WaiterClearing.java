@@ -192,7 +192,7 @@ public class WaiterClearing {
             throw ApiException.bad("Enter the amount");
         }
         if (amount.compareTo(owed) > 0) {
-            throw ApiException.bad("That's more than they owe (" + owed.toPlainString() + ")");
+            throw ApiException.bad("That's more than they have to pay back (" + owed.toPlainString() + ")");
         }
         db.exec("""
                 INSERT INTO staff_debts (tenant_id, user_id, kind, amount, note, by_user) VALUES (:t, :w, :k, :a, :note, :u)""",

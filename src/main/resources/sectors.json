@@ -2438,7 +2438,7 @@
   {
     "key": "property",
     "name": "Malls, landlords & property",
-    "tagline": "Stalls and units, leases, monthly rent and service-charge invoices, arrears and occupancy",
+    "tagline": "Stalls and units, leases, monthly rent and service-charge bills, late payers and how full you are",
     "icon": "building",
     "color": "#4338ca",
     "subSectors": [
