@@ -15,6 +15,34 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M9 food court is built, tested and checked in the browser. All mall packages (M1 to M9) are done.**
+
+The owner's decisions:
+- Food stalls live inside the mall's own BizNez. Each stall gets a private screen link for its phone or tablet (no separate account).
+- Diners pay the mall once, by M-Pesa, for food from any stalls. The mall then pays each stall.
+- The mall can take an optional % of each stall's food court sales, set per stall (0 when it only charges rent).
+- Collection: the diner gets an order number; a TV shows "42 ready at Java Corner"; they collect at the stall.
+
+What M9 built:
+- **API:**
+  - `FoodCourt` and `FoodCourtController`: stalls (fee %, where the mall pays them, optional link to their lease), dishes, and the money per stall (sold today, mall fee, paid to the stall, still to pay them). Also a daily breakdown and a record of payouts.
+  - Public pages, all checked server-side:
+    - the menu
+    - placing an order (prices from the server; open stalls and available dishes only; numbers restart each day)
+    - one M-Pesa prompt (purpose `FOODCOURT`)
+    - tracking each stall's part
+    - paying again after a cancelled prompt
+  - Each stall's screen (its own key; only paid orders, only its part; Ready / Collected; mark dishes as finished).
+  - The TV board (its own key).
+  - Rate limits on orders and payment prompts.
+  - Migration `V35__food_court.sql`.
+- **Web:**
+  - A Food court tab under Rent & tenants: a table QR, the TV link, stalls and dishes, each stall's screen link, today's orders, and "I've paid them".
+  - The diner's page `/fc/{slug}` (`?table=T4` from a table's QR), with a basket across stalls.
+  - The order page with the number and each stall's progress.
+  - The stall's screen `/fc/{slug}/k/{stall}` and the TV `/fc/{slug}/board`.
+- **Tests:** `FoodCourtTest` (2). Full API suite **159 passing**.
+
 **2026-11-14: M8 is built, tested and checked in the browser: floors for multi-storey buildings, and the mall directory.**
 
 The owner's decisions:
@@ -173,7 +201,7 @@ What M5 built:
 
 **Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
 
-**Remaining mall packages:** M9 (food court in one QR).
+**Remaining mall packages:** none. M9 was the last (see the top).
 
 ---
 

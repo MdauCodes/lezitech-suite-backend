@@ -199,6 +199,35 @@ public class MpesaService {
         return push(id, acct.orElse(null), phone, whole, unit.length() > 12 ? unit.substring(0, 12) : unit, "Rent");
     }
 
+    /**
+     * A food court order: one prompt for the whole basket (several stalls), to the mall's own till or paybill. When it's
+     * paid the order goes to each stall's screen.
+     */
+    public Map<String, Object> startFoodCourtPayment(UUID orderId, String phoneRaw) {
+        requireEnabled();
+        Map<String, Object> o = tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList("SELECT number, total, status FROM fc_orders WHERE id = ? AND tenant_id = ?",
+                    orderId, TenantContext.tenantId());
+            if (rows.isEmpty()) {
+                throw ApiException.notFound("Order");
+            }
+            return rows.get(0);
+        });
+        if (!"WAITING_PAYMENT".equals(o.get("status"))) {
+            throw ApiException.conflict("This order is already paid");
+        }
+        String phone = normalizePhone(phoneRaw);
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "Paying by phone isn't switched on here yet. Please pay at the food court desk.");
+        }
+        BigDecimal amount = ((BigDecimal) o.get("total")).setScale(0, RoundingMode.CEILING);
+        UUID id = insertRequest("FOODCOURT", null, null, phone, amount);
+        jdbc.update("UPDATE mpesa_requests SET fc_order_id = ? WHERE id = ?", orderId, id);
+        return push(id, acct.orElse(null), phone, amount, "Order " + o.get("number"), "Food court");
+    }
+
     /** What's still due over a group order's open bills. */
     public BigDecimal groupDue(UUID batchId) {
         BigDecimal due = jdbc.queryForObject("""
@@ -398,6 +427,15 @@ public class MpesaService {
                 jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
             });
             log.info("Plan activated by M-Pesa {} for tenant {}", receipt, tenant);
+            return;
+        }
+        if ("FOODCOURT".equals(r.get("purpose"))) {
+            UUID fcOrder = (UUID) r.get("fc_order_id");
+            TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
+                jdbc.update("UPDATE fc_orders SET status = 'PAID', paid_at = now(), receipt = ? WHERE id = ? AND status = 'WAITING_PAYMENT'", receipt, fcOrder);
+                jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+                return null;
+            }));
             return;
         }
         if ("LEASE".equals(r.get("purpose"))) {
