@@ -48,6 +48,8 @@ public class PublicController {
     /** Orders from one table, and from one phone or network, per hour. */
     public static final RateLimit PER_TABLE = new RateLimit(5, 3_600_000);
     public static final RateLimit PER_CLIENT = new RateLimit(12, 3_600_000);
+    /** Typing a bill code on the table's Pay QR: 10 tries per table and per network in 10 minutes. */
+    public static final RateLimit FIND_BILL = new RateLimit(10, 600_000);
 
     public PublicController(JdbcTemplate jdbc, PublicService service, SectorCatalog sectors, ObjectMapper json) {
         this.jdbc = jdbc;
@@ -201,20 +203,68 @@ public class PublicController {
     }
 
     /**
-     * "Scan to pay" on the table card: the table's open bills, so the diner can pick theirs and pay it from its own page.
-     * Works whether or not the restaurant takes orders by phone (waiters' orders can be paid this way too).
+     * "Scan to pay" on the table card: the table, and how many bills are open on it. No bill is listed: the phone
+     * that ordered opens its own, anyone else types the bill code, so nobody can pick a bill that isn't theirs.
      */
     @GetMapping("/tables/{slug}/{tableId}/bills")
     public Map<String, Object> tableBills(@PathVariable String slug, @PathVariable UUID tableId) {
         Map<String, Object> t = tenant(slug);
         Map<String, Object> out = brand(t);
         out.put("table", as(t, () -> service.table(tableId)));
-        out.put("bills", as(t, () -> service.openOnTable(tableId)).stream().map(b -> {
+        out.put("openBills", as(t, () -> service.openCountOnTable(tableId)));
+        return out;
+    }
+
+    /**
+     * {tokens} (the orders this phone placed, which it remembers) and/or {code} (the 4-digit code on the bill): the open
+     * bills on this table the diner may open, each with the link to its own page. Only a code counts as a try.
+     */
+    @PostMapping("/tables/{slug}/{tableId}/find-bill")
+    public Map<String, Object> findBill(@PathVariable String slug, @PathVariable UUID tableId, @RequestBody Map<String, Object> raw,
+                                        jakarta.servlet.http.HttpServletRequest req) {
+        Map<String, Object> t = tenant(slug);
+        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        Object rawCode = raw.get("code");
+        String code = rawCode == null ? "" : String.valueOf(rawCode).replaceAll("\\D", "");
+        List<UUID> tokens = new java.util.ArrayList<>();
+        if (raw.get("tokens") instanceof List<?> list) {
+            for (Object o : list) {
+                try {
+                    tokens.add(UUID.fromString(String.valueOf(o)));
+                } catch (IllegalArgumentException ignored) {
+                    // not one of ours
+                }
+                if (tokens.size() >= 10) {
+                    break;
+                }
+            }
+        }
+        if (code.isEmpty() && tokens.isEmpty()) {
+            throw ApiException.bad("Type the 4-digit code on your bill");
+        }
+        if (!code.isEmpty()) {
+            if (code.length() != 4) {
+                throw ApiException.bad("The bill code has 4 digits");
+            }
+            if (!FIND_BILL.allow(t.get("id") + ":" + tableId) || !FIND_BILL.allow(t.get("id") + ":ip:" + client)) {
+                throw new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY",
+                        "Several tries just now. Wait a few minutes, or ask your waiter.");
+            }
+        }
+        List<Map<String, Object>> bills = as(t, () -> {
+            service.table(tableId);
+            return service.openOnTableFor(tableId, code.isEmpty() ? null : code, tokens);
+        }).stream().map(b -> {
             Map<String, Object> m = new LinkedHashMap<>(b);
             m.put("trackPath", "/track/" + slug + "/" + m.remove("token"));
             return m;
-        }).toList());
-        return out;
+        }).toList();
+        if (bills.isEmpty()) {
+            throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND, "NO_BILL",
+                    code.isEmpty() ? "No bill from this phone on this table. Type the code on your bill, or ask your waiter."
+                            : "That code isn't for a bill on this table. Check the code on your bill, or ask your waiter.");
+        }
+        return Map.of("bills", bills);
     }
 
     /** The restaurant's tables, for choosing the tables of a group order. Only while it takes orders by phone. */

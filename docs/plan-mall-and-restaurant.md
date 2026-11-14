@@ -15,6 +15,39 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: R1, paying the right bill, is built, tested and checked in the browser. Restaurant packages begin.**
+
+The owner's decisions:
+- **Nobody chooses a bill from a list.** A list (even without prices) lets a diner pick the wrong bill, and either the
+  restaurant loses money or the diner gets a shock.
+- **No phone number is asked when ordering.** Asking up front can feel suspicious; it stays optional.
+- **The phone that ordered opens its own bill** from the table's Pay QR. **Anyone else types the bill's 4-digit code**
+  (on the till's bill screen, on the printed bill, and on the diner's own bill page so a friend can pay). A code works
+  only on its own table; wrong guesses are slowed down.
+- **The M-Pesa number is asked only when paying**, and can be anyone's (a friend, sharing the bill).
+- **The waiter checks every table paid from a phone** ("Paid, checked") before it shows as free. A payment from a
+  number other than the one that ordered gets a gentle note.
+
+What R1 built:
+- **API:**
+  - `orders.bill_code` (4 digits, every bill), `ordered_phones`, `needs_pay_check`, `pay_checked_at/by`.
+  - The Pay QR's `GET /api/public/tables/{slug}/{table}/bills` now gives only the table and how many bills are open.
+  - `POST .../find-bill` takes `{tokens}` (the orders this phone placed) or `{code}`, and returns only those bills.
+    Codes are rate-limited per table and per network.
+  - A bill paid from a diner's phone (not a prompt from the till) is marked for the waiter's check.
+    The floor keeps the table taken ("paid, check") until `POST /api/waiter/orders/{id}/pay-checked`.
+    My tables shows who paid and flags a different number.
+  - Migration `V36__right_bill.sql`.
+- **Web:**
+  - The Pay QR page: your own bill, or a code box.
+  - The bill code and "Print bill" on the till; the printed bill carries the code and how to use it.
+  - The code on the diner's bill page.
+  - A dashed green "Paid by M-Pesa: check, then tap" table, and a "Paid, checked" notice in My tables.
+  - Plain-word hints on the phone number fields.
+- **Tests:** `RightBillTest` (2) replaces `TableBillsTest`. Full API suite **160 passing**.
+
+**Next restaurant package:** R2, recipes and ingredients.
+
 **2026-11-14: M9 food court is built, tested and checked in the browser. All mall packages (M1 to M9) are done.**
 
 The owner's decisions:

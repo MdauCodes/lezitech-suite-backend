@@ -58,7 +58,7 @@ public class PublicService {
         Map<String, Object> o = new LinkedHashMap<>(db.one("Order", """
                 SELECT o.id, o.number, o.kind, o.channel, o.status, o.total, o.paid, o.created_at, o.ready_at, o.closed_at,
                        o.pickup_code, o.held_for_payment, o.estimated_ready_at, o.customer_label, o.self_order, o.tip, o.rated_at IS NOT NULL AS rated,
-                       t.label AS table_label
+                       t.label AS table_label, CASE WHEN o.table_id IS NOT NULL THEN o.bill_code END AS bill_code
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id WHERE o.public_token = :token""", "token", token));
         List<Map<String, Object>> lines = db.list("""
                 SELECT l.id, l.name, l.qty, l.line_total, l.options, l.kitchen_status, l.substitute_status, l.rejected_reason,
@@ -100,12 +100,19 @@ public class PublicService {
         return floors;
     }
 
+    /** How many bills are open on the table (the Pay QR says so, without showing whose or how much). */
+    public long openCountOnTable(UUID tableId) {
+        return db.value("""
+                SELECT count(*) FROM orders o
+                WHERE o.table_id = :t2 AND o.status = 'OPEN' AND o.kind = 'SALE' AND o.created_at > now() - interval '16 hours'""",
+                Long.class, "t2", tableId);
+    }
+
     /**
-     * The bills still open on a table, for the "Scan to pay" code on the table card: the diner picks theirs. Only what
-     * they need to recognise it (number, name, a few dishes, amounts) and the link to pay it.
-     * TODO (owner, 2026-11-12, to brainstorm): stop someone paying a cheaper order that isn't theirs; a waiter confirms.
+     * R1: the open bills on this table the diner may open: the ones this phone placed (their tracking links, which only
+     * that phone has) or the one with this bill code. Never a list of the table's bills.
      */
-    public List<Map<String, Object>> openOnTable(UUID tableId) {
+    public List<Map<String, Object>> openOnTableFor(UUID tableId, String code, List<UUID> tokens) {
         return db.list("""
                 SELECT o.number, o.public_token AS token, o.customer_label, o.total, greatest(o.total - o.paid, 0) AS due,
                        o.created_at,
@@ -114,7 +121,8 @@ public class PublicService {
                        (SELECT count(*) FROM order_lines WHERE order_id = o.id) AS lines
                 FROM orders o
                 WHERE o.table_id = :t2 AND o.status = 'OPEN' AND o.kind = 'SALE' AND o.created_at > now() - interval '16 hours'
-                ORDER BY o.created_at""", "t2", tableId);
+                  AND (o.bill_code = cast(:code as varchar) OR o.public_token = ANY(cast(:tokens as uuid[])))
+                ORDER BY o.created_at""", "t2", tableId, "code", code, "tokens", tokens.toArray(new UUID[0]));
     }
 
     /** The tracking tokens of a group order's tables, in order; empty if there's no such group. */

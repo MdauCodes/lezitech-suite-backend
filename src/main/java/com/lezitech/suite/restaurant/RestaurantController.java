@@ -45,12 +45,14 @@ public class RestaurantController {
         List<Map<String, Object>> floors = db.list("SELECT * FROM floors ORDER BY sort, name");
         List<Map<String, Object>> tables = db.list("""
                 SELECT t.*, o.id AS order_id, o.number AS order_number, o.total, o.guests, o.created_at AS opened_at, o.self_order,
-                       u.name AS waiter_name,
+                       u.name AS waiter_name, (o.status <> 'OPEN') AS awaiting_pay_check,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status = 'READY') AS ready_count,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id AND l.kitchen_status = 'PENDING') AS unsent_count
                 FROM dining_tables t
-                LEFT JOIN LATERAL (SELECT * FROM orders o WHERE o.table_id = t.id AND o.status = 'OPEN'
-                                   ORDER BY o.created_at LIMIT 1) o ON true
+                LEFT JOIN LATERAL (SELECT * FROM orders o WHERE o.table_id = t.id
+                                     AND (o.status = 'OPEN' OR (o.needs_pay_check AND o.pay_checked_at IS NULL
+                                          AND o.closed_at > now() - interval '16 hours'))
+                                   ORDER BY (o.status = 'OPEN') DESC, o.created_at LIMIT 1) o ON true
                 LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
                 ORDER BY t.y, t.x, t.label""");
         for (Map<String, Object> f : floors) {
@@ -188,13 +190,20 @@ public class RestaurantController {
                        count(l.id) FILTER (WHERE l.kitchen_status = 'READY') AS ready,
                        count(l.id) FILTER (WHERE l.kitchen_status = 'ON_HOLD') AS waiting_on_diner,
                        count(l.id) FILTER (WHERE l.kitchen_status = 'PENDING') AS not_sent,
-                       coalesce(sum(l.qty) FILTER (WHERE l.kitchen_status <> 'SERVED'), 0) AS plates
+                       coalesce(sum(l.qty) FILTER (WHERE l.kitchen_status <> 'SERVED'), 0) AS plates,
+                       (o.needs_pay_check AND o.pay_checked_at IS NULL) AS awaiting_pay_check,
+                       (SELECT string_agg(DISTINCT m.phone, ', ') FROM mpesa_requests m
+                        WHERE m.status = 'PAID' AND (m.order_id = o.id OR m.batch_id = o.batch_id)) AS paid_by,
+                       (cardinality(o.ordered_phones) > 0 AND EXISTS (SELECT 1 FROM mpesa_requests m
+                               WHERE m.status = 'PAID' AND m.user_id IS NULL AND (m.order_id = o.id OR m.batch_id = o.batch_id)
+                               AND NOT (m.phone = ANY(o.ordered_phones)))) AS paid_from_other_number
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id
                 LEFT JOIN users u ON u.id = coalesce(o.assigned_to, o.user_id)
                 LEFT JOIN order_lines l ON l.order_id = o.id
                 WHERE o.kind = 'SALE' AND o.channel IN ('DINE_IN', 'TAKEAWAY')
                   AND (o.status = 'OPEN' OR (o.status = 'PAID' AND o.self_order AND o.closed_at > now() - interval '6 hours'
-                       AND EXISTS (SELECT 1 FROM order_lines x WHERE x.order_id = o.id AND x.kitchen_status <> 'SERVED')))
+                       AND EXISTS (SELECT 1 FROM order_lines x WHERE x.order_id = o.id AND x.kitchen_status <> 'SERVED'))
+                       OR (o.needs_pay_check AND o.pay_checked_at IS NULL AND o.closed_at > now() - interval '16 hours'))
                   AND (:all OR coalesce(o.assigned_to, o.user_id) = :u)
                 GROUP BY o.id, t.label, u.name ORDER BY count(l.id) FILTER (WHERE l.kitchen_status = 'READY') DESC, o.created_at""",
                 "all", all);
@@ -243,6 +252,17 @@ public class RestaurantController {
     @PostMapping("/waiter/notices/{id}/done")
     public Map<String, Object> noticeDone(@PathVariable UUID id) {
         kitchen.noticeDone(id);
+        return Map.of("ok", true);
+    }
+
+    /** R1: the waiter looked at a table paid from a diner's phone: "paid, checked". The table shows as free again. */
+    @PostMapping("/waiter/orders/{orderId}/pay-checked")
+    public Map<String, Object> payChecked(@PathVariable UUID orderId) {
+        if (db.exec("""
+                UPDATE orders SET pay_checked_at = now(), pay_checked_by = :u
+                WHERE id = :id AND needs_pay_check AND pay_checked_at IS NULL""", "id", orderId) == 0) {
+            throw ApiException.notFound("A paid table waiting for a check");
+        }
         return Map.of("ok", true);
     }
 

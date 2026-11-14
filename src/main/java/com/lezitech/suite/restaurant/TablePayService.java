@@ -266,6 +266,14 @@ public class TablePayService {
             db.exec("UPDATE orders SET held_for_payment = false WHERE id = :id", "id", id);
             tableOrders.sendToKitchen(id);
         }
+        // R1: a table bill paid from a diner's phone (nobody at the till pressed the button) waits for the waiter to
+        // look and tick "paid, checked" before the table shows as free.
+        if ("PAID".equals(e.outcome()) && jdbc.queryForObject("SELECT user_id IS NULL FROM mpesa_requests WHERE id = ?", Boolean.class, e.requestId())) {
+            db.exec(e.batchId() == null
+                            ? "UPDATE orders SET needs_pay_check = true WHERE id = :o AND table_id IS NOT NULL AND status = 'PAID' AND pay_checked_at IS NULL"
+                            : "UPDATE orders SET needs_pay_check = true WHERE batch_id = :b AND table_id IS NOT NULL AND status = 'PAID' AND pay_checked_at IS NULL",
+                    "o", e.orderId(), "b", e.batchId());
+        }
         if (e.splitId() != null) {
             boolean stillOwed = e.batchId() != null
                     ? mpesa.groupDue(e.batchId()).signum() > 0

@@ -133,6 +133,8 @@ public class TableOrderService {
         }
         db.exec("""
                 UPDATE orders SET self_order = true, customer_phone = coalesce(:phone, customer_phone),
+                       ordered_phones = CASE WHEN cast(:phone as varchar) IS NULL OR cast(:phone as varchar) = ANY(ordered_phones)
+                                             THEN ordered_phones ELSE array_append(ordered_phones, cast(:phone as varchar)) END,
                        customer_label = coalesce(customer_label, :label), assigned_to = :waiter,
                        pickup_code = coalesce(pickup_code, :code), held_for_payment = :held,
                        batch_id = coalesce(:batch, batch_id)
@@ -222,7 +224,7 @@ public class TableOrderService {
         return out;
     }
 
-    static String phone(String raw) {
+    public static String phone(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }

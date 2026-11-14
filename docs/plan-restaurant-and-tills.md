@@ -79,7 +79,7 @@ E design (as planned before building):
   open on that table in the last 16 hours (number, name, first dishes, due, time), each opening its own page to pay. A waiter's
   dine-in bill can now be paid from its page too (the pay box shows for any table order, not only phone orders).
 - Test: `TableBillsTest`.
-- **TODO, owner to brainstorm (2026-11-12):** stop someone choosing and paying a cheaper bill that isn't theirs, and have the waiter
+- **Done 2026-11-14 as R1 (see plan-mall-and-restaurant.md): no bill list, own phone or bill code, waiter checks.** Was: stop someone choosing and paying a cheaper bill that isn't theirs, and have the waiter
   confirm a table's payment. Ideas to discuss then: show only the bill the phone placed (remembered on the phone) and hide the
   rest behind "Not here? Ask your waiter"; a short code printed on the receipt or said by the waiter; the waiter ticks "paid,
   checked" on My tables before the table is cleared; flag a bill paid from a phone that didn't place it.
