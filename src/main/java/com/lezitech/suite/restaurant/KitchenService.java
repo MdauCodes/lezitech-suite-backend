@@ -91,7 +91,7 @@ public class KitchenService {
                 }
                 db.exec("UPDATE items SET unavailable_until = :at WHERE id = :id", "at", java.sql.Timestamp.from(at), "id", itemId);
             }
-            case "NOW" -> db.exec("UPDATE items SET unavailable_until = NULL WHERE id = :id", "id", itemId);
+            case "NOW" -> db.exec("UPDATE items SET unavailable_until = NULL, finished_by_stock = false WHERE id = :id", "id", itemId);
             default -> throw ApiException.bad("Say until when " + name + " is finished");
         }
     }

@@ -37,6 +37,9 @@ public class OrderService {
     @org.springframework.beans.factory.annotation.Autowired
     private TillRules tills;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.Recipes recipes;
+
     public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
         this.db = db;
         this.jdbc = jdbc;
@@ -121,6 +124,9 @@ public class OrderService {
             if (l.has("itemId")) {
                 item = db.one("Item", "SELECT * FROM items WHERE id = :id", "id", l.str("itemId"));
                 name = (String) item.get("name");
+                if (com.lezitech.suite.restaurant.Recipes.KITCHEN_KINDS.contains(item.get("kind"))) {
+                    throw ApiException.bad(name + " is a kitchen ingredient, not something to sell");
+                }
                 price = (BigDecimal) item.get("price");
                 if (wholesale && item.get("wholesalePrice") != null) {
                     BigDecimal min = (BigDecimal) item.get("wholesaleMinQty");
@@ -421,6 +427,8 @@ public class OrderService {
         for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
             stock.move(UUID.fromString(l.get("itemId").toString()), loc, ((BigDecimal) l.get("qty")).negate(), "SALE", ref, null);
         }
+        // R2: dishes with a recipe use up their ingredients.
+        recipes.useForOrder(orderId, loc, -1, "SALE", ref);
         // Loyalty points on the owner's rules (the old flat 1-per-100 counter, customers.points, is no longer used).
         if ("PAID".equals(status)) {
             loyalty.earn(orderId);
@@ -482,6 +490,7 @@ public class OrderService {
         for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
             stock.move(UUID.fromString(l.get("itemId").toString()), loc, (BigDecimal) l.get("qty"), "VOID", "Refund #" + o.get("number"), reason);
         }
+        recipes.useForOrder(orderId, loc, 1, "VOID", "Refund #" + o.get("number"));
         loyalty.refunded(orderId);
         db.exec("""
                 UPDATE orders SET status = 'REFUNDED', refunded_at = now(), refunded_by = :u,

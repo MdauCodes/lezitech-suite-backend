@@ -39,7 +39,15 @@ public class StockService {
      * and pharmacies don't). The stock row is locked so two tills can't both sell the last one.
      */
     public void move(UUID itemId, UUID locationId, BigDecimal qty, String reason, String ref, String note) {
-        Map<String, Object> item = db.find("SELECT name, track_stock FROM items WHERE id = :id", "id", itemId).orElse(null);
+        move(itemId, locationId, qty, reason, ref, note, false);
+    }
+
+    /**
+     * As above; {@code belowZeroOk} lets a kitchen ingredient run below zero (a dish sold, a batch made: the kitchen may
+     * hold more than the records say). Moving an ingredient or a batch updates which dishes show as finished.
+     */
+    public void move(UUID itemId, UUID locationId, BigDecimal qty, String reason, String ref, String note, boolean belowZeroOk) {
+        Map<String, Object> item = db.find("SELECT name, track_stock, kind FROM items WHERE id = :id", "id", itemId).orElse(null);
         if (item == null || !Boolean.TRUE.equals(item.get("trackStock")) || qty.signum() == 0) {
             return;
         }
@@ -49,7 +57,7 @@ public class StockService {
         BigDecimal current = db.value("SELECT qty FROM stock_levels WHERE item_id = :item AND location_id = :loc FOR UPDATE",
                 BigDecimal.class, "item", itemId, "loc", locationId);
         BigDecimal after = current.add(qty);
-        if (qty.signum() < 0 && after.signum() < 0 && !allowNegative()) {
+        if (qty.signum() < 0 && after.signum() < 0 && !belowZeroOk && !allowNegative()) {
             String where = db.value("SELECT name FROM locations WHERE id = :loc", String.class, "loc", locationId);
             throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "OUT_OF_STOCK",
                     "Not enough " + item.get("name") + ": only " + current.stripTrailingZeros().toPlainString() + " left in " + where
@@ -62,6 +70,30 @@ public class StockService {
                 VALUES (:t, :item, :loc, :qty, :reason, :ref, :note, :u)""",
                 "item", itemId, "loc", locationId, "qty", qty, "reason", reason, "ref", ref, "note", note);
         reconcileBatches(itemId, locationId, after);
+        if ("INGREDIENT".equals(item.get("kind")) || "BATCH".equals(item.get("kind"))) {
+            syncFinishedDishes(itemId);
+        }
+    }
+
+    /**
+     * R2: a dish shows as finished while something its recipe always uses has run out (zero or below), and comes back
+     * when that is restocked. Only ingredients the restaurant has actually counted or received count, so a new
+     * restaurant that hasn't entered its stock yet doesn't see every dish go finished. {@code ingredient} limits the
+     * check to dishes using it; null checks every dish.
+     */
+    public void syncFinishedDishes(UUID ingredient) {
+        String uses = ingredient == null ? "true"
+                : "EXISTS (SELECT 1 FROM recipe_lines r WHERE r.item_id = d.id AND r.option_group IS NULL AND r.ingredient_id = cast(:ing as uuid))";
+        String short_ = """
+                EXISTS (SELECT 1 FROM recipe_lines r WHERE r.item_id = d.id AND r.option_group IS NULL
+                          AND EXISTS (SELECT 1 FROM stock_moves m WHERE m.item_id = r.ingredient_id
+                                      AND (m.reason IN ('RECEIVE', 'ADJUST', 'OPENING', 'TRANSFER') OR (m.reason = 'BATCH' AND m.qty > 0)))
+                          AND coalesce((SELECT sum(s.qty) FROM stock_levels s WHERE s.item_id = r.ingredient_id), 0) <= 0)""";
+        db.exec("UPDATE items d SET unavailable_until = 'infinity', finished_by_stock = true"
+                + " WHERE d.kind NOT IN ('INGREDIENT', 'BATCH') AND (d.unavailable_until IS NULL OR d.unavailable_until <= now())"
+                + " AND " + uses + " AND " + short_, "ing", ingredient);
+        db.exec("UPDATE items d SET unavailable_until = NULL, finished_by_stock = false"
+                + " WHERE d.finished_by_stock AND " + uses + " AND NOT " + short_, "ing", ingredient);
     }
 
     /**

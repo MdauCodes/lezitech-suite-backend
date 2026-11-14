@@ -109,6 +109,14 @@ public class PurchaseController {
                         VALUES (:t, :itemId, :loc, :batch, cast(:exp as date), :qty)""",
                         "itemId", itemId, "loc", loc, "batch", l.get("batchNo"), "exp", l.get("expiryDate"), "qty", qty);
             }
+            // An ingredient bought by the bag: the line is in bags; stock is kept in the cooking unit (g, ml, pc).
+            BigDecimal size = db.value("SELECT buy_size FROM items WHERE id = :itemId AND kind = 'INGREDIENT'", BigDecimal.class, "itemId", itemId);
+            if (size != null) {
+                stock.move(itemId, loc, qty.multiply(size), "RECEIVE", "PO " + id.toString().substring(0, 8), null);
+                db.exec("UPDATE items SET buy_price = :cost, cost = round(:cost / buy_size, 2) WHERE id = :itemId",
+                        "itemId", itemId, "cost", l.get("unitCost"));
+                continue;
+            }
             stock.move(itemId, loc, qty, "RECEIVE", "PO " + id.toString().substring(0, 8), null);
             db.exec("UPDATE items SET cost = :cost WHERE id = :itemId", "itemId", itemId, "cost", l.get("unitCost"));
         }

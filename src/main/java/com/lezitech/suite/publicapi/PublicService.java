@@ -149,7 +149,7 @@ public class PublicService {
                 SELECT i.id, i.category_id, i.name, i.price, i.options, i.kind, i.duration_min, i.photo_file_id, i.allergens, i.allergen_note,
                        ((i.track_stock AND coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) <= 0)
                         OR (i.unavailable_until IS NOT NULL AND i.unavailable_until > now())) AS sold_out
-                FROM items i WHERE i.active AND i.kind <> 'SERVICE' ORDER BY i.name"""));
+                FROM items i WHERE i.active AND i.kind NOT IN ('SERVICE', 'INGREDIENT', 'BATCH') ORDER BY i.name"""));
         return out;
     }
 }

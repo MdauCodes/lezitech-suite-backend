@@ -15,6 +15,43 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: R2, recipes and ingredients, is built, tested and checked in the browser.**
+
+The owner's decisions:
+- **Two sizes per ingredient.** You buy by the bag, jerrycan or kg; the kitchen measures in g, ml or pieces. BizNez converts
+  ("bag of rice = 2,000 g").
+- **When an ingredient runs out, dishes using it show as finished** on the menu, the QR menu and the till, and come back
+  when a delivery or count adds stock. The sale itself always goes through. Only ingredients the restaurant has actually
+  counted or received count, so a new restaurant isn't flooded with finished dishes.
+- **Batch recipes** ("cooked ahead": stew, dough, juice). Making one takes its ingredients out and puts the batch in;
+  dishes use the batch.
+- **Choices change ingredients**: a choice adds an ingredient, or swaps one out ("Chicken instead" of the stew).
+
+What R2 built:
+- **API:**
+  - `Recipes` (costs, what a dish uses with choices, using up stock on a sale and putting it back on a refund, batches made).
+  - `RecipeController` `/api/recipes`:
+    - ingredients (add or edit, a delivery in bags)
+    - batches (add or edit, "we made one")
+    - a recipe for a dish or batch
+    - the kitchen count (shows missing and extra in money; big losses go to the Activity log)
+  - Ingredients and batches are items of kind `INGREDIENT` or `BATCH`: never on the till, the QR menu or the item list,
+    and refused if someone tries to sell one.
+  - `StockService.move` can let an ingredient run below zero, and keeps dishes finished or back on.
+  - Purchases of an ingredient are in bags.
+  - Migration `V37__recipes.sql`.
+- **Web:**
+  - A "Recipes & kitchen stock" page (owner, managers, kitchen) with four tabs:
+    - Dishes: what one plate uses, what it costs you, % of price (aim 30–35%)
+    - Ingredients: stock in grams and bags, delivery
+    - Cooked ahead
+    - Count
+  - The till marks finished dishes and asks before selling one.
+  - Buying stock lists ingredients by the bag.
+- **Tests:** `RecipesTest` (2). Full API suite **162 passing**.
+
+**Next restaurant package:** R3, waste and bar tots.
+
 **2026-11-14: R1, paying the right bill, is built, tested and checked in the browser. Restaurant packages begin.**
 
 The owner's decisions:

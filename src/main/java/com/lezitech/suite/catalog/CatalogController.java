@@ -30,7 +30,8 @@ public class CatalogController {
             i.id, i.category_id, c.name AS category_name, i.name, i.kind, i.sku, i.barcode, i.unit, i.price, i.cost,
             i.wholesale_price, i.wholesale_min_qty, i.tax_rate, i.track_stock, i.reorder_level, i.duration_min, i.station,
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
-            i.photo_file_id, i.allergens, i.allergen_note,
+            i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price,
+            (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand""";
 
     private final Db db;
@@ -82,19 +83,21 @@ public class CatalogController {
 
     @GetMapping("/items")
     public List<Map<String, Object>> items(@RequestParam(required = false) String q,
-                                           @RequestParam(defaultValue = "false") boolean all) {
+                                           @RequestParam(defaultValue = "false") boolean all,
+                                           @RequestParam(defaultValue = "false") boolean kitchen) {
         return db.list("SELECT " + ITEM_COLUMNS + """
                  FROM items i LEFT JOIN categories c ON c.id = i.category_id
-                WHERE (:all OR i.active)
+                WHERE (:all OR i.active) AND (:kitchen OR i.kind NOT IN ('INGREDIENT', 'BATCH'))
                   AND (cast(:q as text) IS NULL OR i.name ILIKE '%' || cast(:q as text) || '%'
                        OR i.barcode = cast(:q as text) OR i.sku ILIKE cast(:q as text))
-                ORDER BY c.sort NULLS LAST, i.name""", "q", q == null || q.isBlank() ? null : q.trim(), "all", all);
+                ORDER BY c.sort NULLS LAST, i.name""", "q", q == null || q.isBlank() ? null : q.trim(), "all", all, "kitchen", kitchen);
     }
 
     @GetMapping("/items/barcode/{code}")
     public Map<String, Object> byBarcode(@PathVariable String code) {
         return db.one("Item with that barcode", "SELECT " + ITEM_COLUMNS
-                + " FROM items i LEFT JOIN categories c ON c.id = i.category_id WHERE i.active AND (i.barcode = :code OR i.sku = :code)",
+                + " FROM items i LEFT JOIN categories c ON c.id = i.category_id WHERE i.active AND i.kind NOT IN ('INGREDIENT', 'BATCH')"
+                + " AND (i.barcode = :code OR i.sku = :code)",
                 "code", code);
     }
 

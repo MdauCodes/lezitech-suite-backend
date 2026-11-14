@@ -202,7 +202,7 @@ public class TableOrderService {
                     SELECT name, active, kind, (unavailable_until IS NOT NULL AND unavailable_until > now()) AS unavailable,
                            (track_stock AND coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = items.id), 0) < :qty) AS short
                     FROM items WHERE id = :id""", "id", itemId, "qty", qty).orElseThrow(() -> ApiException.notFound("That item"));
-            if (!Boolean.TRUE.equals(item.get("active")) || "SERVICE".equals(item.get("kind"))) {
+            if (!Boolean.TRUE.equals(item.get("active")) || "SERVICE".equals(item.get("kind")) || Recipes.KITCHEN_KINDS.contains(item.get("kind"))) {
                 throw ApiException.bad(item.get("name") + " isn't on the menu any more");
             }
             if (Boolean.TRUE.equals(item.get("unavailable"))) {
