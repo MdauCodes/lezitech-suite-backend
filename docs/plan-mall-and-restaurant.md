@@ -15,6 +15,30 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M8 is built, tested and checked in the browser: floors for multi-storey buildings, and the mall directory.**
+
+The owner's decisions:
+- **Turnover rent** (rent tied to a tenant's sales) is not built now. Most Kenyan landlords charge fixed rent, and tenants are wary of sharing sales. It moves to the multi-business work (memory). There it only applies to tenants who run their own shop on BizNez, linked to their landlord, sharing only the monthly total and only with their consent.
+- **Also for the multi-business work:** a discount for landlords who recommend or require BizNez for their tenants. And the tenant stays in control: they can use BizNez without their landlord, connect for smoother contact, or keep the two businesses almost entirely apart.
+- **Buildings of three or more floors:** set up floors in order and make a floor's units in one go.
+- **Mall directory:** tenants keep their own entry and offers from their tenant page; the landlord approves.
+
+What M8 built:
+- **API:**
+  - `Floors` (`building_floors`: order picked up from names like Basement, Ground, 1st or Floor 3; add, rename, reorder, remove; bulk units S301 to S320).
+  - Unit lists and the map follow the floor order.
+  - `Directory`: one entry per occupied unit, kept in step with leases (a new tenant starts fresh). The tenant's changes wait as a draft for approval. Offers need approval. The landlord can edit or hide any entry. A public page `/api/public/mall/{slug}` with logos.
+  - Portal: `/api/portal/leases/{id}/shop` (details, logo, offers).
+  - Migration `V34__floors_and_directory.sql`.
+- **Web:**
+  - A Floors window (top floor first like a lift panel, reorder, rename, add units in one go).
+  - A Directory tab (link, QR, WhatsApp; approve or turn down changes and offers; edit or hide).
+  - "Your shop in the mall directory" in the tenant portal's More tab.
+  - The public mall page `/mall/{slug}` (search, categories, offers, by floor, Call and WhatsApp).
+- **Tests:** `FloorsAndDirectoryTest` (2). Full API suite **157 passing**.
+
+**Next, the owner's request (2026-11-14): wording.** Every property screen in plain words a new landlord understands. Say exactly what happens when something is ticked or set. Avoid "due", "owe" and other unclear words. Landlords list what their service charge pays for, and tenants see it.
+
 **2026-11-14: M7, floor map and units to let, is built, tested and checked in the browser.**
 
 The owner's answers:
@@ -149,7 +173,7 @@ What M5 built:
 
 **Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
 
-**Remaining mall packages:** M8 (turnover rent and mall directory), M9 (food court in one QR).
+**Remaining mall packages:** M9 (food court in one QR).
 
 ---
 

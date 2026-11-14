@@ -37,10 +37,16 @@ public class ToLet {
 
     // ---------------- floor map ----------------
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private Floors floorList;
+
     public Map<String, Object> map() {
+        floorList.pickUpTyped();
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("floors", db.list("SELECT DISTINCT coalesce(floor, '') AS floor FROM spaces WHERE active AND kind IN " + PropertyController.UNIT_KINDS
-                + " ORDER BY 1").stream().map(r -> r.get("floor")).toList());
+        // Floors in the building's real order (bottom to top), then any unit with no floor.
+        out.put("floors", db.list("""
+                SELECT x.floor FROM (SELECT DISTINCT coalesce(floor, '') AS floor FROM spaces WHERE active AND kind IN """ + " " + PropertyController.UNIT_KINDS + """
+                ) x LEFT JOIN building_floors f ON f.name = x.floor ORDER BY f.sort NULLS LAST, x.floor""").stream().map(r -> r.get("floor")).toList());
         out.put("plans", db.list("SELECT floor, file_id FROM floor_plans"));
         return out;
     }
@@ -135,7 +141,7 @@ public class ToLet {
                        (SELECT count(*) FROM deals d JOIN pipeline_stages s ON s.id = d.stage_id WHERE d.space_id = sp.id AND NOT s.is_won AND NOT s.is_lost) AS open_leads
                 FROM spaces sp LEFT JOIN leases l ON l.space_id = sp.id AND l.status = 'ACTIVE'
                 WHERE sp.active AND NOT sp.owner_use AND sp.kind IN """ + " " + PropertyController.UNIT_KINDS + """
-                  AND (l.id IS NULL OR l.vacate_on IS NOT NULL)""" + (forPublic ? " AND sp.listed" : "") + " ORDER BY sp.floor NULLS FIRST, sp.sort, sp.name");
+                  AND (l.id IS NULL OR l.vacate_on IS NOT NULL)""" + (forPublic ? " AND sp.listed" : "") + " ORDER BY " + Floors.UNIT_ORDER);
         for (Map<String, Object> u : units) {
             u.put("photos", db.list("SELECT file_id FROM space_photos WHERE space_id = :s ORDER BY sort, created_at", "s", u.get("id"))
                     .stream().map(r -> r.get("fileId").toString()).toList());

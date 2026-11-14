@@ -341,13 +341,63 @@ public class PortalController {
     public ResponseEntity<byte[]> file(@PathVariable UUID fileId) {
         FileService.Stored f = tx.execute(s -> {
             Me me = me();
-            if (!maintenance.photoBelongsToCustomer(fileId, me.customer())) {
+            boolean ownLogo = Boolean.TRUE.equals(db.value("""
+                    SELECT EXISTS (SELECT 1 FROM directory_entries e JOIN leases l ON l.id = e.lease_id
+                                   WHERE l.customer_id = :c AND (e.logo_file_id = :f OR e.draft->>'logoFileId' = cast(:f as text)))""",
+                    Boolean.class, "c", me.customer(), "f", fileId));
+            if (!ownLogo && !maintenance.photoBelongsToCustomer(fileId, me.customer())) {
                 throw ApiException.notFound("Photo");
             }
             return files.load(fileId).orElseThrow(() -> ApiException.notFound("Photo"));
         });
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(f.contentType()))
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate()).body(f.bytes());
+    }
+
+    // ---------------- their shop in the mall directory ----------------
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.property.Directory directory;
+
+    @GetMapping("/api/portal/leases/{id}/shop")
+    public Map<String, Object> shop(@PathVariable UUID id) {
+        return tx.execute(s -> {
+            mine(me(), id);
+            return directory.forLease(id);
+        });
+    }
+
+    @PostMapping("/api/portal/leases/{id}/shop")
+    public Map<String, Object> saveShop(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        return tx.execute(s -> {
+            mine(me(), id);
+            return directory.tenantSave(id, new Body(raw));
+        });
+    }
+
+    @PostMapping("/api/portal/leases/{id}/shop/logo")
+    public Map<String, Object> shopLogo(@PathVariable UUID id, @RequestParam("file") MultipartFile upload) throws IOException {
+        byte[] bytes = upload.getBytes();
+        return tx.execute(s -> {
+            mine(me(), id);
+            return directory.tenantLogo(id, bytes);
+        });
+    }
+
+    @PostMapping("/api/portal/leases/{id}/shop/offers")
+    public Map<String, Object> shopOffer(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        return tx.execute(s -> {
+            mine(me(), id);
+            return directory.tenantOffer(id, new Body(raw));
+        });
+    }
+
+    @PostMapping("/api/portal/leases/{id}/shop/offers/{offerId}/delete")
+    public Map<String, Object> removeShopOffer(@PathVariable UUID id, @PathVariable UUID offerId) {
+        return tx.execute(s -> {
+            mine(me(), id);
+            return directory.tenantRemoveOffer(id, offerId);
+        });
     }
 
     @GetMapping("/api/portal/notices")

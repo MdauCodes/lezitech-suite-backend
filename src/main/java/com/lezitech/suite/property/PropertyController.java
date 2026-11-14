@@ -76,7 +76,7 @@ public class PropertyController {
                 FROM spaces sp
                 LEFT JOIN leases l ON l.space_id = sp.id AND l.status = 'ACTIVE'
                 LEFT JOIN customers c ON c.id = l.customer_id
-                WHERE sp.active AND sp.kind IN """ + " " + UNIT_KINDS + " ORDER BY sp.sort, sp.floor NULLS FIRST, sp.name");
+                WHERE sp.active AND sp.kind IN """ + " " + UNIT_KINDS + " ORDER BY " + Floors.UNIT_ORDER);
     }
 
     @PostMapping("/leases")
