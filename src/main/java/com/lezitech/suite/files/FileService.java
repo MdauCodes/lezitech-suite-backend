@@ -27,7 +27,11 @@ public class FileService {
 
     public enum Purpose {
         ITEM_PHOTO(2 * 1024 * 1024, "image/jpeg", "image/png", "image/webp"),
-        ETR(6 * 1024 * 1024, "image/jpeg", "image/png", "application/pdf");
+        ETR(6 * 1024 * 1024, "image/jpeg", "image/png", "application/pdf"),
+        /** Photos of a problem or a repair (tenant portal, landlord, technician). */
+        REPAIR_PHOTO(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp"),
+        /** A document a landlord shares with a tenant: the signed lease, house rules... */
+        LEASE_DOC(10 * 1024 * 1024, "application/pdf", "image/jpeg", "image/png");
 
         final int maxBytes;
         final java.util.Set<String> types;
@@ -74,6 +78,7 @@ public class FileService {
         String type = sniff(bytes);
         if (type == null || !purpose.types.contains(type)) {
             throw ApiException.bad(purpose == Purpose.ETR ? "Upload the ETR as a photo (JPG or PNG) or a PDF"
+                    : purpose == Purpose.LEASE_DOC ? "Upload the document as a PDF or a photo (JPG or PNG)"
                     : "Upload a photo (JPG, PNG or WebP)");
         }
         UUID tenant = TenantContext.tenantId();

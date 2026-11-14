@@ -28,6 +28,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, JwtService jwt, com.lezitech.suite.auth.TokenVersions versions,
                                     com.lezitech.suite.auth.SupportAccess support,
+                                    com.lezitech.suite.property.portal.RenterSessions renters,
                                     @Value("${suite.cors-origins}") String origins) throws Exception {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).toList());
@@ -51,7 +52,7 @@ public class SecurityConfig {
                                 auth.get() != null && auth.get().isAuthenticated()
                                         && !(auth.get() instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)
                                         && auth.get().getAuthorities().stream().noneMatch(g -> "ROLE_PLATFORM".equals(g.getAuthority())))))
-                .addFilterBefore(new JwtFilter(jwt, versions, support), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtFilter(jwt, versions, support, renters), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

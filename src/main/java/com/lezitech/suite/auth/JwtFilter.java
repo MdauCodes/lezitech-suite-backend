@@ -23,11 +23,13 @@ public class JwtFilter extends OncePerRequestFilter {
     private final JwtService jwt;
     private final TokenVersions versions;
     private final SupportAccess support;
+    private final com.lezitech.suite.property.portal.RenterSessions renters;
 
-    public JwtFilter(JwtService jwt, TokenVersions versions, SupportAccess support) {
+    public JwtFilter(JwtService jwt, TokenVersions versions, SupportAccess support, com.lezitech.suite.property.portal.RenterSessions renters) {
         this.jwt = jwt;
         this.versions = versions;
         this.support = support;
+        this.renters = renters;
     }
 
     @Override
@@ -52,6 +54,14 @@ public class JwtFilter extends OncePerRequestFilter {
                 var auth = new UsernamePasswordAuthenticationToken(caller, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + caller.role())));
                 SecurityContextHolder.getContext().setAuthentication(auth);
+            } else if (sg.isEmpty() && req.getRequestURI().startsWith("/api/portal/")) {
+                // A landlord's tenant, in their portal. Their token works nowhere else (it isn't a staff token).
+                jwt.parseRenter(token).filter(r -> renters.valid(r.accountId(), r.tenantId(), r.tokenVersion())).ifPresent(r -> {
+                    TenantContext.Caller caller = new TenantContext.Caller(r.accountId(), r.tenantId(), "RENTER", r.name());
+                    TenantContext.set(caller);
+                    var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of(new SimpleGrantedAuthority("ROLE_RENTER")));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                });
             } else if (sg.isEmpty()) {
                 jwt.parseAdmin(token).filter(a -> versions.valid(a.id(), true, tv)).ifPresent(admin -> {
                     com.lezitech.suite.admin.AdminContext.set(admin);

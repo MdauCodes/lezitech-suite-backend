@@ -52,7 +52,7 @@ public class LeaseLedger {
         this.activity = activity;
     }
 
-    static LocalDate today() {
+    public static LocalDate today() {
         return LocalDate.now(NAIROBI);
     }
 

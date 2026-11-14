@@ -15,6 +15,35 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M5, the tenant portal, is built, tested and checked in the browser.** Its answers are below, under M2.
+
+What M5 built:
+- **Tenant sign-in** (`property/portal/RenterAuth`):
+  - Accounts are per business (`renter_accounts`), and codes are emailed (`renter_codes`).
+  - The landlord invites the tenant (code valid 3 days), or a tenant on an active lease asks for a code (valid 15 minutes, 4 an hour). Then they set a password.
+  - Tenants get their own token (scope `renter`). It reaches only `/api/portal/*` (JwtFilter), and staff tokens are refused there.
+  - A password change ends older sign-ins.
+- **Tenant's portal** (`PortalController`, web `/t/{slug}`, phone first):
+  - Home shows owed, overdue and due date, the M-Pesa account number, pay by prompt, and the statement.
+  - Repairs and complaints with photos, messages and a rating.
+  - Notices.
+  - Documents.
+  - Notice to vacate.
+- **Landlord** (`PortalAdminController`, web Rent & tenants):
+  - A Repairs tab: give the job to someone, set status and cost, message the tenant or leave a staff-only note, add photos, charge the tenant (a `REPAIR` bill).
+  - A Notices button: to all, a floor, or chosen tenants; emailed too.
+  - In the tenant panel: tenant-page invite and status, and documents.
+  - "Needs you" also shows notices to move out and new problems no one has been given yet.
+- **Caretaker / technician** (new staff job `TECHNICIAN`): a Repair jobs page showing only the jobs given to them (`/api/jobs`). They can mark a job being fixed or done, add a photo and write to the tenant.
+- Migration `V29__tenant_portal.sql`.
+- **Tests:** `TenantPortalTest` (4). Full API suite **145 passing**.
+
+**Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
+
+**Remaining mall packages:** M3 (meters and service charge), M4 (markets and daily collections), M6 (agents and rental tax), M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
+
+---
+
 **2026-11-13: M2 "The lease's life" is built and tested. Next: M5, the tenant portal (moved up at the owner's request).**
 
 "Lease" always means the agreement between a landlord (our client) and their tenant. It never means BizNez's own plans or billing.

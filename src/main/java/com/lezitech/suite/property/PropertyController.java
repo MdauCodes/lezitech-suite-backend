@@ -55,7 +55,11 @@ public class PropertyController {
                 SELECT sp.*, """ + LeaseLedger.CODE_SQL + """
                         AS pay_account, l.id AS lease_id, l.rent AS lease_rent, l.service_charge AS lease_service_charge, l.starts_on, l.ends_on,
                        l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days, l.deposit,
-                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on,
+                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason,
+                       (SELECT CASE WHEN a.password_hash IS NOT NULL THEN 'ACTIVE' WHEN a.invited_at IS NOT NULL THEN 'INVITED' ELSE 'ASKED' END
+                        FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal,
+                       (SELECT a.last_login_at FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal_last_seen,
+                       (SELECT count(*) FROM maintenance_requests m WHERE m.lease_id = l.id AND m.status NOT IN ('DONE','CLOSED','CANCELLED')) AS open_requests,
                        CASE WHEN l.id IS NULL OR l.deposit_settled_on IS NOT NULL THEN 0
                             ELSE l.deposit_before + (SELECT coalesce(sum(o.paid), 0) FROM orders o WHERE o.lease_id = l.id AND o.channel = 'DEPOSIT' AND o.status <> 'VOID') END AS deposit_held,
                        c.id AS occupier_id, c.name AS occupier_name, c.phone AS occupier_phone, c.email AS occupier_email,

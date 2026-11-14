@@ -109,10 +109,43 @@ public class JwtService {
         }
     }
 
+    /** A landlord's tenant signed in to their portal: reaches only /api/portal, never the business's own screens. */
+    public record Renter(UUID accountId, UUID tenantId, String name, int tokenVersion) {
+    }
+
+    public String issueRenter(UUID accountId, UUID tenantId, String name, int tokenVersion) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(accountId.toString())
+                .claim("scope", "renter")
+                .claim("tv", tokenVersion)
+                .claim("tid", tenantId.toString())
+                .claim("name", name)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(7, ChronoUnit.DAYS)))
+                .signWith(key)
+                .compact();
+    }
+
+    public Optional<Renter> parseRenter(String token) {
+        try {
+            Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            if (!"renter".equals(c.get("scope", String.class))) {
+                return Optional.empty();
+            }
+            Integer tv = c.get("tv", Integer.class);
+            return Optional.of(new Renter(UUID.fromString(c.getSubject()), UUID.fromString(c.get("tid", String.class)),
+                    c.get("name", String.class), tv == null ? 0 : tv));
+        } catch (JwtException | IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
     public Optional<TenantContext.Caller> parse(String token) {
         try {
             Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-            if (c.get("tid", String.class) == null) {
+            // Staff tokens only: a tenant's portal token (scope "renter") or a control-panel token is never a workspace sign-in.
+            if (c.get("tid", String.class) == null || c.get("scope", String.class) != null) {
                 return Optional.empty();
             }
             return Optional.of(new TenantContext.Caller(

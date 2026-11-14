@@ -73,7 +73,9 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(WRITES, "/api/spaces(/.*)?", "change rooms or units", "MANAGER"),
             rule(WRITES, "/api/stays(/.*)?", "change room bookings", "MANAGER", "RECEPTION"),
             rule(WRITES, "/api/trips(/.*)?", "change trips", "MANAGER", "SALES"),
-            rule(ANY, "/api/property(/.*)?", "manage rent and tenants", "MANAGER", "ACCOUNTANT"));
+            rule(ANY, "/api/property(/.*)?", "manage rent and tenants", "MANAGER", "ACCOUNTANT"),
+            // Caretakers and technicians: only the repair jobs given to them (checked again in JobsController).
+            rule(ANY, "/api/jobs(/.*)?", "do repair jobs", "MANAGER", "TECHNICIAN"));
 
     private final ObjectMapper json;
     private final AccessPolicy access;
@@ -86,7 +88,7 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(this).addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/**", "/api/public/**", "/api/platform/**", "/api/admin/**");
+                .excludePathPatterns("/api/auth/**", "/api/public/**", "/api/platform/**", "/api/admin/**", "/api/portal/**");
     }
 
     @Override

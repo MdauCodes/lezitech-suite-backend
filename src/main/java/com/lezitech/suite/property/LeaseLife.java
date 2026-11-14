@@ -395,8 +395,13 @@ public class LeaseLife {
         out.put("ending", db.list("""
                 SELECT l.id AS lease_id, l.ends_on, l.rent, sp.name AS unit_name, c.name AS tenant_name, (l.ends_on - cast(:today as date)) AS days_left
                 FROM leases l JOIN spaces sp ON sp.id = l.space_id JOIN customers c ON c.id = l.customer_id
-                WHERE l.status = 'ACTIVE' AND l.ends_on IS NOT NULL AND l.ends_on <= cast(:today as date) + 90
+                WHERE l.status = 'ACTIVE' AND l.ends_on IS NOT NULL AND l.ends_on <= cast(:today as date) + 90 AND l.vacate_on IS NULL
                 ORDER BY l.ends_on""", "today", today));
+        out.put("vacating", db.list("""
+                SELECT l.id AS lease_id, l.vacate_on, l.vacate_reason, l.vacate_given_at, l.rent, sp.name AS unit_name, c.name AS tenant_name
+                FROM leases l JOIN spaces sp ON sp.id = l.space_id JOIN customers c ON c.id = l.customer_id
+                WHERE l.status = 'ACTIVE' AND l.vacate_on IS NOT NULL ORDER BY l.vacate_on"""));
+        out.put("repairs", db.value("SELECT count(*) FROM maintenance_requests WHERE status IN ('NEW')", Long.class));
         return out;
     }
 
