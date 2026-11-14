@@ -15,6 +15,31 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: Waiter end of shift is built, tested and checked in the browser** (the owner's request: in Kenya each
+waiter answers for every bill they served and clears with the cashier when their shift ends).
+
+The owner's decisions:
+- **The waiter hands over the cash they collected.** M-Pesa to the paybill is already in.
+- **Every bill still unpaid at clearing is recorded against the waiter.**
+- **Cash short is recorded against the waiter**, to be paid back or taken from their salary at month end.
+- **The cashier or a manager counts and confirms.** Both names are recorded; a waiter can't clear themselves.
+
+What it built:
+- **API:**
+  - `WaiterClearing` and `/api/waiter-clearing`:
+    - my shift
+    - who is waiting to clear
+    - a waiter's shift: bills since their last clearing (up to 16 hours), M-Pesa, card, the cash they took, unpaid
+    - clear: unpaid bills close as method `WAITER` and become debts; cash short becomes a debt; concerns go to the Activity log
+    - what staff owe (balances, history, recent clearings)
+    - settle: paid back, taken from salary, or written off
+  - `OrderService.settleByServer`.
+  - Migration `V39__waiter_clearing.sql`: `waiter_clearings` and `staff_debts`, a signed ledger.
+- **Web:** an "End of shift" page (cashier, managers, owner) or "My shift" (waiters), with three tabs: Clear a waiter,
+  What staff owe, My shift.
+- **Tests:** `WaiterClearingTest`. Full API suite **165 passing**.
+- **Later, with HR and payroll:** "taken from salary" entries will feed payroll deductions (see the ERP note in memory).
+
 **2026-11-14: R3, waste and bar tots, is built, tested and checked in the browser. R1–R3 (before go-live) are done.**
 
 The owner's decisions:
@@ -41,9 +66,6 @@ What R3 built:
     - a Waste tab
   - Waiters and cashiers get a "Record waste" page.
 - **Tests:** `WasteAndBarTest` (2). Full API suite **164 passing**.
-
-**Owner's note, 2026-11-14:** in Kenya each waiter answers for every bill they served and clears with the cashier when
-their shift ends (hands over the cash, explains any unpaid bills). To be designed with the owner next.
 
 **2026-11-14: R2, recipes and ingredients, is built, tested and checked in the browser.**
 

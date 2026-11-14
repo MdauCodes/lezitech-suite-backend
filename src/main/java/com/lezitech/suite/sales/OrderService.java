@@ -336,6 +336,14 @@ public class OrderService {
         return payInternal(orderId, b);
     }
 
+    /**
+     * A bill closed by the business itself, not money at a till: e.g. a bill still unpaid when a waiter clears, closed as
+     * owed by that waiter (method WAITER). No till needs to be open.
+     */
+    public Map<String, Object> settleByServer(UUID orderId, String method, BigDecimal amount, String reference) {
+        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", method, "amount", amount, "reference", reference)))));
+    }
+
     /** Points used on a bill (checked and recorded by LoyaltyService): a POINTS payment, closing the bill if that settles it. */
     public Map<String, Object> payWithPoints(UUID orderId, BigDecimal value, String reference) {
         return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", "POINTS", "amount", value, "reference", reference)))));
