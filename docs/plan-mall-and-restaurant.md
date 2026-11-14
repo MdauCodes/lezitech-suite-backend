@@ -15,6 +15,33 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M7, floor map and units to let, is built, tested and checked in the browser.**
+
+The owner's answers:
+- **Floor map:** both ways. A grid per floor arranged by the landlord, or their own plan image with units pinned on it.
+- **To-let page:** the rent is shown or "Price on request", per unit. Vacant and leaving-soon units are listed, and any unit can be hidden.
+- **Enquiries** become leads for the unit, with Call and WhatsApp, and "Rent it out to them".
+- **The landlord's own unit:** they choose per unit. Either "Used by me" (occupied, no bills, not listed), or rented to their own business like any tenant (marked "own business").
+- **Running their own shop on BizNez** waits for the multi-business work (see below).
+- **Owner's standing rule:** keep the mall flexible, with Kenyan practice as the default. For example, costs can be included in rent or charged separately (already: service charge three ways, water and power per property or per tenant).
+
+What M7 built:
+- **API:**
+  - `ToLet`: map positions, plan images per floor, listing (shown, price, description, owner use), photos, the public listing, enquiries as `TO_LET` deals with an activity note and an email, and leads.
+  - Lease creation takes `dealId` (wins the lead) and `ownBusiness`.
+  - `ToLetController`, including the public `/api/public/to-let/{slug}`, its photos and enquiries.
+  - Migration `V33__floor_map_and_to_let.sql`.
+- **Web:**
+  - Units has a Boxes or Floor map view: floors, grid or plan, Arrange (tap a unit, then a spot; sizes; pins on the plan), and a colour legend.
+  - A "To let" tab: link, QR, WhatsApp share, enquiries with Call, WhatsApp and Rent it out, each unit's show and price switches, description and photos.
+  - The rent-out window gains "Used by me (no bills)" and "This is my own business".
+  - The public page at `/let/{slug}`, phone-first, with an enquiry form.
+  - The occupancy figure counts the owner's own units.
+  - The tab bar scrolls on narrow screens.
+- **Tests:** `FloorMapAndToLetTest` (3). Full API suite **155 passing**.
+
+**Owner's requests for after the mall and restaurant work** (also in memory): more businesses for one client; and onboarding and first impressions. That means a clear, simple way in, and a way to test first with sample data or with real data.
+
 **2026-11-14: M6, agents and rental tax, is built, tested and checked in the browser.**
 
 The owner's answers:
@@ -122,7 +149,7 @@ What M5 built:
 
 **Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
 
-**Remaining mall packages:** M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
+**Remaining mall packages:** M8 (turnover rent and mall directory), M9 (food court in one QR).
 
 ---
 

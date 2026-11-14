@@ -30,6 +30,8 @@ public class FileService {
         ETR(6 * 1024 * 1024, "image/jpeg", "image/png", "application/pdf"),
         /** Photos of a problem or a repair (tenant portal, landlord, technician). */
         REPAIR_PHOTO(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp"),
+        /** Photos of a unit to let, and floor-plan images. */
+        UNIT_PHOTO(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp"),
         /** A document a landlord shares with a tenant: the signed lease, house rules... */
         LEASE_DOC(10 * 1024 * 1024, "application/pdf", "image/jpeg", "image/png");
 

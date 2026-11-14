@@ -42,6 +42,8 @@ public class PropertyController {
     private final LeaseLife life;
     private final Utilities utilities;
     private final ServiceCharge serviceCharge;
+    @org.springframework.beans.factory.annotation.Autowired
+    private ToLet toLet;
 
     public PropertyController(Db db, OrderService orders, LeaseLedger ledger, LeaseLife life, Utilities utilities, ServiceCharge serviceCharge) {
         this.db = db;
@@ -59,7 +61,7 @@ public class PropertyController {
                 SELECT sp.*, """ + LeaseLedger.CODE_SQL + """
                         AS pay_account, l.id AS lease_id, l.rent AS lease_rent, l.service_charge AS lease_service_charge, l.starts_on, l.ends_on,
                        l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days, l.deposit,
-                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason, l.charge_water, l.charge_power, l.frequency,
+                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason, l.charge_water, l.charge_power, l.frequency, l.own_business,
                        (SELECT ll.name FROM landlords ll WHERE ll.id = sp.landlord_id) AS landlord_name,
                        (SELECT CASE WHEN a.password_hash IS NOT NULL THEN 'ACTIVE' WHEN a.invited_at IS NOT NULL THEN 'INVITED' ELSE 'ASKED' END
                         FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal,
@@ -115,6 +117,12 @@ public class PropertyController {
             } else {
                 life.billDeposit(id);
             }
+        }
+        // The landlord's own business renting the unit (billed like a tenant); and an enquiry that became this lease.
+        db.exec("UPDATE leases SET own_business = :o WHERE id = :id", "id", id, "o", b.bool("ownBusiness", false));
+        db.exec("UPDATE spaces SET owner_use = false WHERE id = :s", "s", spaceId);
+        if (b.has("dealId") && !b.str("dealId", "").isBlank()) {
+            toLet.won(UUID.fromString(b.str("dealId")), customerId);
         }
         if (!"NONE".equalsIgnoreCase(b.str("increaseKind", "NONE"))) {
             life.setIncrease(id, b.str("increaseKind"), b.num("increaseValue", BigDecimal.ZERO), b.integer("increaseEvery", 12));
