@@ -213,7 +213,7 @@ public class Recipes {
         Map<UUID, BigDecimal> costs = unitCosts();
         Map<String, Object> out = new LinkedHashMap<>();
         List<Map<String, Object>> ingredients = db.list("""
-                SELECT i.id, i.name, i.unit, i.buy_unit, i.buy_size, i.buy_price, i.reorder_level, i.active,
+                SELECT i.id, i.name, i.unit, i.buy_unit, i.buy_size, i.buy_price, i.reorder_level, i.active, i.area,
                        coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand,
                        (SELECT count(DISTINCT r.item_id) FROM recipe_lines r WHERE r.ingredient_id = i.id) AS used_in
                 FROM items i WHERE i.kind = 'INGREDIENT' ORDER BY i.active DESC, i.name""");
@@ -222,7 +222,7 @@ public class Recipes {
         }
         out.put("ingredients", ingredients);
         List<Map<String, Object>> batches = db.list("""
-                SELECT i.id, i.name, i.unit, i.batch_yield, i.active,
+                SELECT i.id, i.name, i.unit, i.batch_yield, i.active, i.area,
                        coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand
                 FROM items i WHERE i.kind = 'BATCH' ORDER BY i.active DESC, i.name""");
         for (Map<String, Object> b : batches) {

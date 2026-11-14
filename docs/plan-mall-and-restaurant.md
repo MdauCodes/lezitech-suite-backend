@@ -15,6 +15,36 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: R3, waste and bar tots, is built, tested and checked in the browser. R1–R3 (before go-live) are done.**
+
+The owner's decisions:
+- **A tot is 25 ml by default**, changeable per drink (30 ml premium, 175 ml for wine).
+- **A bar shortfall is shown both ways**: "15 tots short: KES 4,500 in lost sales (KES 1,125 at cost)".
+- **The barman counts full bottles plus the open one in quarters** (none, ¼, ½, ¾ left).
+- **Anyone on the team can record waste by default**; the owner can switch it to managers only.
+
+What R3 built:
+- **API:**
+  - `WasteAndBar`:
+    - waste: a dish takes out its recipe, an ingredient comes out itself
+    - each entry is valued at cost, with reasons, a 7-day report by reason, staff see their own
+    - waste over KES 1,000 goes to the Activity log
+    - the owner's "managers only" switch
+  - "Sell it by the tot, glass or bottle": each serving becomes a bar drink on the menu with its one-line recipe.
+  - Ingredients are kept in the kitchen or the bar (`items.area`).
+  - The count works out servings short and lost sales from the smallest serving's price.
+  - Migration `V38__waste_and_bar.sql`.
+- **Web:**
+  - Recipes page:
+    - "Add a bar drink" (a 750 ml bottle by default), "Sell it", a bar badge
+    - the Count tab split into Kitchen and Bar (bottles plus quarters)
+    - a Waste tab
+  - Waiters and cashiers get a "Record waste" page.
+- **Tests:** `WasteAndBarTest` (2). Full API suite **164 passing**.
+
+**Owner's note, 2026-11-14:** in Kenya each waiter answers for every bill they served and clears with the cashier when
+their shift ends (hands over the cash, explains any unpaid bills). To be designed with the owner next.
+
 **2026-11-14: R2, recipes and ingredients, is built, tested and checked in the browser.**
 
 The owner's decisions:

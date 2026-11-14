@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
@@ -35,12 +36,14 @@ public class RecipeController {
     private final Recipes recipes;
     private final StockService stock;
     private final ActivityLog activity;
+    private final WasteAndBar wasteAndBar;
 
-    public RecipeController(Db db, Recipes recipes, StockService stock, ActivityLog activity) {
+    public RecipeController(Db db, Recipes recipes, StockService stock, ActivityLog activity, WasteAndBar wasteAndBar) {
         this.db = db;
         this.recipes = recipes;
         this.stock = stock;
         this.activity = activity;
+        this.wasteAndBar = wasteAndBar;
     }
 
     @GetMapping
@@ -96,11 +99,12 @@ public class RecipeController {
             throw ApiException.bad("A price can't be below zero");
         }
         BigDecimal per = price == null ? BigDecimal.ZERO : size != null ? price.divide(size, 2, RoundingMode.HALF_UP) : price;
+        String area = "BAR".equalsIgnoreCase(b.str("area", "KITCHEN")) ? "BAR" : "KITCHEN";
         db.exec("""
                 UPDATE items SET unit = :unit, buy_unit = :bu, buy_size = :size, buy_price = :price, cost = :per,
-                       reorder_level = :reorder WHERE id = :id""",
+                       reorder_level = :reorder, area = :area WHERE id = :id""",
                 "id", id, "unit", unit, "bu", buyUnit, "size", buyUnit == null ? null : size, "price", price, "per", per,
-                "reorder", b.num("reorderLevel", BigDecimal.ZERO));
+                "reorder", b.num("reorderLevel", BigDecimal.ZERO), "area", area);
     }
 
     /** A delivery: {buyQty (bags, or cooking units when there's no buying unit), buyPrice (optional, for one)}. */
@@ -190,9 +194,11 @@ public class RecipeController {
             throw ApiException.bad("Count at least one thing");
         }
         Map<UUID, BigDecimal> costs = recipes.unitCosts();
+        Map<UUID, Map<String, Object>> servings = wasteAndBar.servings();
         UUID loc = stock.defaultLocation();
         List<Map<String, Object>> lines = new ArrayList<>();
         BigDecimal missing = BigDecimal.ZERO;
+        BigDecimal lostSales = BigDecimal.ZERO;
         BigDecimal extra = BigDecimal.ZERO;
         StringBuilder worst = new StringBuilder();
         for (Map<String, Object> c : counts) {
@@ -210,12 +216,23 @@ public class RecipeController {
                     BigDecimal.class, "id", id, "loc", loc);
             BigDecimal diff = counted.subtract(expected);
             BigDecimal value = diff.multiply(costs.getOrDefault(id, BigDecimal.ZERO)).setScale(2, RoundingMode.HALF_UP);
+            // R3: sold by the tot or glass? Then a shortfall is also so many tots, and that much in lost sales.
+            Map<String, Object> serving = servings.get(id);
+            BigDecimal servingsShort = null;
+            BigDecimal lost = null;
+            if (serving != null && diff.signum() < 0) {
+                BigDecimal size = (BigDecimal) serving.get("qty");
+                servingsShort = diff.negate().divide(size, 1, RoundingMode.HALF_UP);
+                lost = diff.negate().multiply((BigDecimal) serving.get("price")).divide(size, 2, RoundingMode.HALF_UP);
+                lostSales = lostSales.add(lost);
+            }
             stock.move(id, loc, diff, "ADJUST", "Kitchen count", b.str("note", null), true);
             if (value.signum() < 0) {
                 missing = missing.add(value.negate());
                 if (worst.length() < 200) {
                     worst.append(worst.length() == 0 ? "" : ", ").append(item.get("name")).append(" ")
-                            .append(diff.negate().stripTrailingZeros().toPlainString()).append(" ").append(item.get("unit"));
+                            .append(servingsShort != null ? servingsShort.stripTrailingZeros().toPlainString() + " servings"
+                                    : diff.negate().stripTrailingZeros().toPlainString() + " " + item.get("unit"));
                 }
             } else {
                 extra = extra.add(value);
@@ -228,18 +245,52 @@ public class RecipeController {
             line.put("counted", counted);
             line.put("difference", diff);
             line.put("value", value);
+            line.put("serving", serving == null ? null : serving.get("name"));
+            line.put("servingsShort", servingsShort);
+            line.put("lostSales", lost);
             lines.add(line);
         }
         if (missing.signum() > 0) {
             activity.record("STOCK_COUNT", missing.compareTo(new BigDecimal("500")) >= 0 ? ActivityLog.CONCERN : ActivityLog.NOTICE,
-                    "Kitchen count: missing " + worst + " (worth " + missing.toPlainString() + " at cost)", null, null, missing, null,
+                    "Count: missing " + worst + " (worth " + missing.toPlainString() + " at cost"
+                            + (lostSales.signum() > 0 ? ", " + lostSales.toPlainString() + " in lost sales" : "") + ")", null, null, missing, null,
                     Map.of("note", b.str("note", "")));
         }
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("lines", lines);
         out.put("missingValue", missing);
         out.put("extraValue", extra);
+        out.put("lostSalesValue", lostSales);
         return out;
+    }
+
+    // ---------------- R3: waste, selling by the tot ----------------
+
+    /** {itemId, qty, reason, note}: anyone on the team, unless the owner chose managers only. */
+    @PostMapping("/waste")
+    public Map<String, Object> waste(@RequestBody Map<String, Object> raw) {
+        return wasteAndBar.waste(new Body(raw));
+    }
+
+    @GetMapping("/waste")
+    public Map<String, Object> wasteReport(@RequestParam(required = false) java.time.LocalDate from,
+                                           @RequestParam(required = false) java.time.LocalDate to) {
+        return wasteAndBar.report(from, to);
+    }
+
+    /** The owner decides who may record waste: {managersOnly}. */
+    @PostMapping("/waste/settings")
+    public Map<String, Object> wasteSettings(@RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("OWNER");
+        wasteAndBar.setManagersOnly(new Body(raw).bool("managersOnly", false));
+        return Map.of("managersOnly", wasteAndBar.managersOnly());
+    }
+
+    /** Sell a bottle by the tot, glass or bottle: {servings: [{name, qty, price}], categoryId}. */
+    @PostMapping("/ingredients/{id}/sell-by")
+    public List<Map<String, Object>> sellBy(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        return wasteAndBar.sellBy(id, new Body(raw));
     }
 
     // ---------------- helpers ----------------
