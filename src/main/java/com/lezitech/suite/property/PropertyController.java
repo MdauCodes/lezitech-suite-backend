@@ -40,12 +40,16 @@ public class PropertyController {
     private final OrderService orders;
     private final LeaseLedger ledger;
     private final LeaseLife life;
+    private final Utilities utilities;
+    private final ServiceCharge serviceCharge;
 
-    public PropertyController(Db db, OrderService orders, LeaseLedger ledger, LeaseLife life) {
+    public PropertyController(Db db, OrderService orders, LeaseLedger ledger, LeaseLife life, Utilities utilities, ServiceCharge serviceCharge) {
         this.db = db;
         this.orders = orders;
         this.ledger = ledger;
         this.life = life;
+        this.utilities = utilities;
+        this.serviceCharge = serviceCharge;
     }
 
     /** Every unit with its M-Pesa account number, current lease, occupier and what they owe. */
@@ -55,7 +59,7 @@ public class PropertyController {
                 SELECT sp.*, """ + LeaseLedger.CODE_SQL + """
                         AS pay_account, l.id AS lease_id, l.rent AS lease_rent, l.service_charge AS lease_service_charge, l.starts_on, l.ends_on,
                        l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days, l.deposit,
-                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason,
+                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason, l.charge_water, l.charge_power,
                        (SELECT CASE WHEN a.password_hash IS NOT NULL THEN 'ACTIVE' WHEN a.invited_at IS NOT NULL THEN 'INVITED' ELSE 'ASKED' END
                         FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal,
                        (SELECT a.last_login_at FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal_last_seen,
@@ -139,6 +143,8 @@ public class PropertyController {
      */
     public int raiseInvoices(YearMonth period) {
         int created = 0;
+        Map<String, Object> rentSettings = settings();
+        String serviceMode = (String) rentSettings.get("serviceMode");
         for (Map<String, Object> found : db.list("""
                 SELECT l.id FROM leases l WHERE l.status = 'ACTIVE' AND l.starts_on <= :last""", "last", period.atEndOfMonth())) {
             UUID leaseId = UUID.fromString(found.get("id").toString());
@@ -150,9 +156,16 @@ public class PropertyController {
             Map<String, Object> l = db.one("Lease", "SELECT l.*, sp.name AS unit_name FROM leases l JOIN spaces sp ON sp.id = l.space_id WHERE l.id = :id", "id", leaseId);
             List<Map<String, Object>> lines = new ArrayList<>();
             lines.add(Map.of("name", "Rent · " + l.get("unitName") + " · " + period, "unitPrice", l.get("rent"), "qty", 1, "taxRate", 0));
-            if (((BigDecimal) l.get("serviceCharge")).signum() > 0) {
-                lines.add(Map.of("name", "Service charge · " + period, "unitPrice", l.get("serviceCharge"), "qty", 1, "taxRate", 16));
+            // Service charge: a fixed amount on the lease, the unit's share of the year's budget, or included in the rent.
+            BigDecimal service = "INCLUDED".equals(serviceMode) ? BigDecimal.ZERO
+                    : "BUDGET".equals(serviceMode) ? serviceCharge.monthlyShare(UUID.fromString(l.get("spaceId").toString()), period.getYear())
+                    : (BigDecimal) l.get("serviceCharge");
+            if (service.signum() > 0) {
+                lines.add(Map.of("name", "Service charge · " + period, "unitPrice", service, "qty", 1, "taxRate", 16));
             }
+            // Water and electricity used since the last bill, for the kinds this tenant is charged.
+            Utilities.Billing meters = utilities.billing(l, rentSettings, period.toString());
+            lines.addAll(meters.lines());
             int dueDay = Math.min((Integer) l.get("dueDay"), period.lengthOfMonth());
             Map<String, Object> inv = new HashMap<>();
             inv.put("kind", "INVOICE");
@@ -162,6 +175,7 @@ public class PropertyController {
             inv.put("lines", lines);
             UUID order = orders.createTrusted(new Body(inv));
             db.exec("UPDATE orders SET lease_id = :leaseId, period = :p WHERE id = :order", "leaseId", leaseId, "p", period.toString(), "order", order);
+            utilities.markBilled(meters.readings(), order);
             ledger.useCredit(leaseId);
             created++;
         }
@@ -279,6 +293,63 @@ public class PropertyController {
         db.exec("UPDATE tenants SET settings = jsonb_set(coalesce(settings, '{}'::jsonb), '{rent}', cast(:v as jsonb)) WHERE id = :t",
                 "v", db.toJson(merged));
         return settings();
+    }
+
+    // ---------------- meters and service charge (M3) ----------------
+
+    /** Every unit's last readings, and per lease whether water and electricity are charged. */
+    @GetMapping("/meters")
+    public List<Map<String, Object>> meters() {
+        return utilities.board();
+    }
+
+    @PostMapping("/units/{id}/prices")
+    public Map<String, Object> unitPrices(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Body b = new Body(raw);
+        utilities.setUnitPrices(id, b.has("waterPrice") ? b.num("waterPrice", null) : null, b.has("powerPrice") ? b.num("powerPrice", null) : null);
+        return Map.of("saved", true);
+    }
+
+    /** Per lease: chargeWater / chargePower true, false (included for this tenant) or null (as the property is set). */
+    @PostMapping("/leases/{id}/utilities")
+    public Map<String, Object> leaseUtilities(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        Object w = raw == null ? null : raw.get("chargeWater");
+        Object p = raw == null ? null : raw.get("chargePower");
+        utilities.setLeaseCharges(id, w instanceof Boolean x ? x : null, p instanceof Boolean x ? x : null);
+        life.event(id, "UTILITIES", "Water " + (Boolean.FALSE.equals(w) ? "included" : Boolean.TRUE.equals(w) ? "charged" : "as the property")
+                + ", electricity " + (Boolean.FALSE.equals(p) ? "included" : Boolean.TRUE.equals(p) ? "charged" : "as the property"), Map.of());
+        return Map.of("saved", true);
+    }
+
+    @GetMapping("/service-charge/{year}")
+    public Map<String, Object> serviceChargeYear(@PathVariable int year) {
+        return serviceCharge.summary(year);
+    }
+
+    @PostMapping("/service-charge/{year}/lines")
+    public Map<String, Object> serviceChargeLines(@PathVariable int year, @RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        return serviceCharge.setLines(year, new Body(raw).list("lines"));
+    }
+
+    @PostMapping("/service-charge/{year}/expenses")
+    public Map<String, Object> serviceChargeExpense(@PathVariable int year, @RequestBody Map<String, Object> raw) {
+        return serviceCharge.addExpense(year, new Body(raw));
+    }
+
+    @PostMapping("/service-charge/expenses/{id}/delete")
+    public Map<String, Object> removeExpense(@PathVariable UUID id) {
+        TenantContext.requireRole("MANAGER");
+        serviceCharge.removeExpense(id);
+        return Map.of("removed", true);
+    }
+
+    @PostMapping("/service-charge/{year}/close")
+    public Map<String, Object> closeYear(@PathVariable int year, @RequestBody(required = false) Map<String, Object> raw) {
+        TenantContext.requireRole("MANAGER");
+        return serviceCharge.close(year, new Body(raw).str("note", null));
     }
 
     // ---------------- the lease's life (M2) ----------------

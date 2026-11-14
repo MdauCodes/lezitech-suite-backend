@@ -75,7 +75,8 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(WRITES, "/api/trips(/.*)?", "change trips", "MANAGER", "SALES"),
             rule(ANY, "/api/property(/.*)?", "manage rent and tenants", "MANAGER", "ACCOUNTANT"),
             // Caretakers and technicians: only the repair jobs given to them (checked again in JobsController).
-            rule(ANY, "/api/jobs(/.*)?", "do repair jobs", "MANAGER", "TECHNICIAN"));
+            rule(ANY, "/api/jobs(/.*)?", "do repair jobs", "MANAGER", "TECHNICIAN"),
+            rule(ANY, "/api/meters(/.*)?", "read meters", "MANAGER", "ACCOUNTANT", "TECHNICIAN"));
 
     private final ObjectMapper json;
     private final AccessPolicy access;

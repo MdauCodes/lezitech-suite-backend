@@ -15,6 +15,34 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M3, meters and service charge, is built, tested and checked in the browser.**
+
+The owner's answers:
+- **Meter usage** goes on the next monthly bill. The landlord can charge water, electricity, both or none, and can switch one off for a single tenant.
+- **Prices:** flexible but simple. A price per unit and an optional fixed monthly fee for each kind; a unit can have its own price.
+- **Service charge** has three ways, and the landlord picks one: a fixed amount per lease, a yearly budget shared by floor size, or included in the rent.
+- **Budget year-end:** the difference carries over into next year's budget. Nothing is billed or credited to tenants.
+
+What M3 built:
+- **API:**
+  - `Utilities` (readings, usage, bill lines, per-unit prices, per-lease switches) and `MetersController` (`/api/meters`, for owner, manager, accounts and technician).
+  - `ServiceCharge` (budget lines, each unit's monthly share by floor size, spending, closing the year with the carry-over).
+  - `raiseInvoices` adds the service charge (by the chosen way) and the meter usage.
+  - `settings.rent.utilities` and `serviceMode`.
+  - Migration `V30__meters_and_service_charge.sql`.
+- **Rules:**
+  - A unit's first reading, or one on a new meter, only sets the start.
+  - A reading lower than the last is refused.
+  - A billed reading can't be removed, and only the latest unbilled one can be.
+  - Empty units' share of the budget stays with the landlord.
+- **Web:**
+  - Rent settings gain water and electricity prices and the three service-charge options.
+  - A Meters tab (tap a meter, enter the reading, add a photo, see history).
+  - A service-charge budget window (costs, each unit's monthly share, spending, close the year).
+  - A per-tenant water and electricity switch in the tenant panel.
+  - Caretakers get a "Meter readings" page.
+- **Tests:** `MetersAndServiceChargeTest` (2). Full API suite **147 passing**.
+
 **2026-11-14: M5, the tenant portal, is built, tested and checked in the browser.** Its answers are below, under M2.
 
 What M5 built:
@@ -40,7 +68,7 @@ What M5 built:
 
 **Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
 
-**Remaining mall packages:** M3 (meters and service charge), M4 (markets and daily collections), M6 (agents and rental tax), M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
+**Remaining mall packages:** M4 (markets and daily collections), M6 (agents and rental tax), M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
 
 ---
 
