@@ -15,6 +15,29 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M4, markets, is built, tested and checked in the browser.**
+
+The owner's answers:
+- **How often stalls pay:** the landlord picks per stall. Monthly is the default and the usual in Kenya; daily (county-style market fees) and weekly are options.
+- **Daily stalls** are charged on every day the market opens (the landlord sets the days), whether the trader comes or not. The collector can excuse a day.
+- **Collectors** walk the round on a phone: cash, an M-Pesa prompt, or not paid. The office counts each collector's cash at day's end, and a shortfall shows and is logged.
+- **Casual traders** are usually not charged, so one-off tickets are off by default; the landlord can switch them on.
+
+What M4 built:
+- **API:**
+  - `Market`: daily and weekly charges are one bill per day or week (`orders.charge_day`, channel `STALL`), raised by the daily job and when the round opens.
+  - Also: the round, collecting cash (on the collector's day), excusing a day (the charge is cancelled and never raised again), casual tickets (a `MARKET` sale), the office's count with any difference logged.
+  - `MarketController` (`/api/market`, for owner, manager, accounts and the new `COLLECTOR` job).
+  - `leases.frequency`. Monthly billing skips daily and weekly stalls. Reminders and penalties stay with monthly rent.
+  - Migration `V31__markets.sql`.
+- **Web:**
+  - The lease form gains "They pay" (Monthly, Weekly or Daily) and its fee.
+  - Rent settings gain a Market section (open days, casual tickets and their fee).
+  - A Market tab: the round (still owe or all, cash, M-Pesa, excuse today, casual ticket) and Collectors' cash (count against recorded).
+  - Collectors get a "Collection round" page.
+  - Unit tiles show the fee per day or week.
+- **Tests:** `MarketTest` (3). Full API suite **150 passing**.
+
 **2026-11-14: M3, meters and service charge, is built, tested and checked in the browser.**
 
 The owner's answers:
@@ -68,7 +91,7 @@ What M5 built:
 
 **Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
 
-**Remaining mall packages:** M4 (markets and daily collections), M6 (agents and rental tax), M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
+**Remaining mall packages:** M6 (agents and rental tax), M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
 
 ---
 

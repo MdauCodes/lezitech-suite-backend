@@ -42,6 +42,8 @@ public class RentJobs {
     private final LeaseLedger ledger;
     private final LeaseLife life;
     private final Mailer mailer;
+    @org.springframework.beans.factory.annotation.Autowired
+    private Market market;
 
     public RentJobs(JdbcTemplate jdbc, PlatformTransactionManager txm, PropertyController property, LeaseLedger ledger, LeaseLife life, Mailer mailer) {
         this.jdbc = jdbc;
@@ -91,6 +93,7 @@ public class RentJobs {
                 property.raiseInvoices(YearMonth.from(today));
             }
             ledger.raisePenalties(today);
+            market.raiseStallCharges(today, rs);
             return rs;
         }));
         if (!increases.isEmpty() || !ending.isEmpty()) {

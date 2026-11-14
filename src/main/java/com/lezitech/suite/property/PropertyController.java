@@ -59,7 +59,7 @@ public class PropertyController {
                 SELECT sp.*, """ + LeaseLedger.CODE_SQL + """
                         AS pay_account, l.id AS lease_id, l.rent AS lease_rent, l.service_charge AS lease_service_charge, l.starts_on, l.ends_on,
                        l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days, l.deposit,
-                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason, l.charge_water, l.charge_power,
+                       l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason, l.charge_water, l.charge_power, l.frequency,
                        (SELECT CASE WHEN a.password_hash IS NOT NULL THEN 'ACTIVE' WHEN a.invited_at IS NOT NULL THEN 'INVITED' ELSE 'ASKED' END
                         FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal,
                        (SELECT a.last_login_at FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal_last_seen,
@@ -86,20 +86,24 @@ public class PropertyController {
         }
         Map<String, Object> space = db.one("Unit", "SELECT * FROM spaces WHERE id = :spaceId", "spaceId", spaceId);
         String penaltyKind = penaltyKind(b.str("penaltyKind", "NONE"));
+        String frequency = b.str("frequency", "MONTHLY").toUpperCase();
+        if (!List.of("MONTHLY", "WEEKLY", "DAILY").contains(frequency)) {
+            throw ApiException.bad("Choose how often they pay: monthly, weekly or daily");
+        }
         BigDecimal penaltyValue = b.num("penaltyValue", BigDecimal.ZERO).max(BigDecimal.ZERO);
         UUID customerId = b.has("customerId") ? UUID.fromString(b.str("customerId"))
                 : db.insert("INSERT INTO customers (tenant_id, name, phone, email, company, kind) VALUES (:t, :name, :phone, :email, :name, 'CORPORATE') RETURNING id",
                 "name", b.str("tenantName"), "phone", b.str("phone", null), "email", blankToNull(b.str("email", null)));
         UUID id = db.insert("""
                 INSERT INTO leases (tenant_id, space_id, customer_id, starts_on, ends_on, rent, service_charge, deposit, due_day,
-                                    penalty_kind, penalty_value, penalty_grace_days)
-                VALUES (:t, :spaceId, :customerId, :start, :end, :rent, :svc, :deposit, :due, :pk, :pv, :pg) RETURNING id""",
+                                    penalty_kind, penalty_value, penalty_grace_days, frequency)
+                VALUES (:t, :spaceId, :customerId, :start, :end, :rent, :svc, :deposit, :due, :pk, :pv, :pg, :freq) RETURNING id""",
                 "spaceId", spaceId, "customerId", customerId,
                 "start", b.has("startsOn") ? b.date("startsOn") : today(), "end", b.date("endsOn"),
                 "rent", b.num("rent", (BigDecimal) space.get("rate")), "svc", b.num("serviceCharge", (BigDecimal) space.get("serviceCharge")),
                 "deposit", b.num("deposit", BigDecimal.ZERO), "due", dueDay(b.integer("dueDay", 5)),
                 "pk", penaltyKind, "pv", "NONE".equals(penaltyKind) ? BigDecimal.ZERO : penaltyValue,
-                "pg", graceDays(b.integer("penaltyGraceDays", 5)));
+                "pg", graceDays(b.integer("penaltyGraceDays", 5)), "freq", frequency);
         BigDecimal deposit = b.num("deposit", BigDecimal.ZERO);
         if (deposit.signum() < 0) {
             throw ApiException.bad("The deposit can't be negative");
@@ -146,7 +150,7 @@ public class PropertyController {
         Map<String, Object> rentSettings = settings();
         String serviceMode = (String) rentSettings.get("serviceMode");
         for (Map<String, Object> found : db.list("""
-                SELECT l.id FROM leases l WHERE l.status = 'ACTIVE' AND l.starts_on <= :last""", "last", period.atEndOfMonth())) {
+                SELECT l.id FROM leases l WHERE l.status = 'ACTIVE' AND l.frequency = 'MONTHLY' AND l.starts_on <= :last""", "last", period.atEndOfMonth())) {
             UUID leaseId = UUID.fromString(found.get("id").toString());
             if (db.find("SELECT id FROM orders WHERE lease_id = :leaseId AND period = :p AND status <> 'VOID'",
                     "leaseId", leaseId, "p", period.toString()).isPresent()) {

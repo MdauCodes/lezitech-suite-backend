@@ -25,7 +25,7 @@ import java.util.UUID;
 @Transactional
 public class TeamController {
 
-    public static final Set<String> ROLES = Set.of("OWNER", "MANAGER", "CASHIER", "WAITER", "KITCHEN", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT", "TECHNICIAN");
+    public static final Set<String> ROLES = Set.of("OWNER", "MANAGER", "CASHIER", "WAITER", "KITCHEN", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT", "TECHNICIAN", "COLLECTOR");
 
     private final Db db;
     private final PasswordEncoder encoder;

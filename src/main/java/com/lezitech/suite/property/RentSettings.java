@@ -59,6 +59,12 @@ public final class RentSettings {
         }
         out.put("utilities", utilities);
         out.put("serviceMode", in.get("serviceMode") instanceof String m && MODES.contains(m) ? m : "FIXED");
+        Map<?, ?> mk = in.get("market") instanceof Map<?, ?> m ? m : Map.of();
+        Map<String, Object> market = new LinkedHashMap<>();
+        market.put("openDays", mk.get("openDays") instanceof List<?> l ? l : List.of(1, 2, 3, 4, 5, 6, 7));
+        market.put("casualTickets", mk.get("casualTickets") instanceof Boolean b && b);
+        market.put("ticketFee", mk.get("ticketFee") instanceof Number n ? n : 50);
+        out.put("market", market);
         return out;
     }
 
@@ -127,6 +133,30 @@ public final class RentSettings {
                 utilities.put(kind, c);
             }
             out.put("utilities", utilities);
+        }
+        if (in.get("market") instanceof Map<?, ?> mk) {
+            Map<String, Object> market = new LinkedHashMap<>();
+            TreeSet<Integer> days = new TreeSet<>();
+            if (mk.get("openDays") instanceof List<?> l) {
+                for (Object o : l) {
+                    int d = o instanceof Number n ? n.intValue() : 0;
+                    if (d < 1 || d > 7) {
+                        throw ApiException.bad("Open days are Monday (1) to Sunday (7)");
+                    }
+                    days.add(d);
+                }
+            }
+            if (days.isEmpty()) {
+                throw ApiException.bad("Choose at least one day the market opens");
+            }
+            market.put("openDays", new ArrayList<>(days));
+            market.put("casualTickets", mk.get("casualTickets") instanceof Boolean b && b);
+            double fee = mk.get("ticketFee") instanceof Number n ? n.doubleValue() : 50;
+            if (fee < 0 || fee > 100_000) {
+                throw ApiException.bad("Check the ticket fee");
+            }
+            market.put("ticketFee", fee);
+            out.put("market", market);
         }
         if (in.get("payInstructions") instanceof String s) {
             if (s.length() > 200) {
