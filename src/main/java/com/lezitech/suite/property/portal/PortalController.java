@@ -151,7 +151,9 @@ public class PortalController {
             business.put("brandColor", biz.get("brandColor"));
             business.put("logoUrl", biz.get("logoUrl"));
             out.put("business", business);
-            out.put("payInstructions", RentSettings.withDefaults((String) biz.get("rent")).get("payInstructions"));
+            Map<String, Object> rentSettings = RentSettings.withDefaults((String) biz.get("rent"));
+            out.put("payInstructions", rentSettings.get("payInstructions"));
+            out.put("serviceIncludes", rentSettings.get("serviceIncludes"));
             out.put("me", Map.of("name", me.name(), "email", me.email()));
             out.put("mpesaPrompts", mpesa.publicConfig().get("enabled"));
             out.put("leases", db.list("""

@@ -233,14 +233,14 @@ public class RentJobs {
         String subject;
         String lead;
         if ("BEFORE".equals(r.kind())) {
-            subject = "Rent for " + r.unit() + " is due on " + when;
-            lead = "a friendly reminder that " + amount + " for " + r.unit() + " is due on " + when + ".";
+            subject = "Reminder: please pay rent for " + r.unit() + " by " + when;
+            lead = "a friendly reminder to pay " + amount + " for " + r.unit() + " by " + when + ".";
         } else if ("DUE".equals(r.kind())) {
-            subject = "Rent for " + r.unit() + " is due today";
-            lead = "your payment of " + amount + " for " + r.unit() + " is due today.";
+            subject = "Today is the day to pay rent for " + r.unit();
+            lead = "today is the day to pay " + amount + " for " + r.unit() + ".";
         } else {
-            subject = "Rent for " + r.unit() + " is " + r.daysLate() + " days overdue";
-            lead = "we haven't yet received " + amount + " for " + r.unit() + ", which was due on " + when + ".";
+            subject = "Rent for " + r.unit() + " is " + r.daysLate() + " days late";
+            lead = "we haven't yet received " + amount + " for " + r.unit() + ", which was to be paid by " + when + ".";
         }
         String total = r.balance().compareTo(r.unpaid()) > 0
                 ? " In all, " + "KES " + NumberFormat.getIntegerInstance(Locale.ENGLISH).format(r.balance().setScale(0, java.math.RoundingMode.HALF_UP))

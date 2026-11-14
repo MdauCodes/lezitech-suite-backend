@@ -118,7 +118,8 @@ public class ToLetController {
 
     private Map<String, Object> business(String slug) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT id, name, phone, brand_color, logo_url, status, sector, settings->>'address' AS address FROM tenants WHERE slug = ?""", slug);
+                SELECT id, name, phone, brand_color, logo_url, status, sector, settings->>'address' AS address,
+                       coalesce(settings->'rent', '{}'::jsonb)::text AS rent FROM tenants WHERE slug = ?""", slug);
         if (rows.isEmpty() || "SUSPENDED".equals(rows.get(0).get("status")) || !"property".equals(rows.get(0).get("sector"))) {
             throw ApiException.notFound("Page");
         }
@@ -136,6 +137,7 @@ public class ToLetController {
         biz.put("brandColor", b.get("brand_color"));
         biz.put("logoUrl", b.get("logo_url"));
         out.put("business", biz);
+        out.put("serviceIncludes", RentSettings.withDefaults((String) b.get("rent")).get("serviceIncludes"));
         out.put("units", TenantContext.runAs((UUID) b.get("id"), null, () -> tx.execute(x -> {
             List<Map<String, Object>> units = toLet.listedUnits(true);
             units.forEach(u -> {

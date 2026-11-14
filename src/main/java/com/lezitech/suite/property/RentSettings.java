@@ -68,6 +68,8 @@ public final class RentSettings {
         // Residential rental income tax (MRI): a % of residential rent received, filed monthly by the 20th. Editable;
         // the default is the rate in force at writing (confirm with an accountant).
         out.put("mriRate", in.get("mriRate") instanceof Number n ? n : 7.5);
+        // What the service charge pays for (security, cleaning...), in the landlord's words; tenants see it.
+        out.put("serviceIncludes", in.get("serviceIncludes") instanceof List<?> l ? l : List.of());
         return out;
     }
 
@@ -160,6 +162,23 @@ public final class RentSettings {
             }
             market.put("ticketFee", fee);
             out.put("market", market);
+        }
+        if (in.get("serviceIncludes") instanceof List<?> l) {
+            List<String> items = new ArrayList<>();
+            for (Object o : l) {
+                String s = o == null ? "" : String.valueOf(o).trim();
+                if (s.isEmpty()) {
+                    continue;
+                }
+                if (s.length() > 60) {
+                    throw ApiException.bad("Keep each service to a few words");
+                }
+                items.add(s);
+            }
+            if (items.size() > 15) {
+                throw ApiException.bad("Up to 15 services");
+            }
+            out.put("serviceIncludes", items);
         }
         if (in.containsKey("mriRate")) {
             double r = in.get("mriRate") instanceof Number n ? n.doubleValue() : -1;

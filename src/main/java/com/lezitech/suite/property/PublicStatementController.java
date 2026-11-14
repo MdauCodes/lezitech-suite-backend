@@ -68,7 +68,9 @@ public class PublicStatementController {
         business.put("brandColor", t.get("brand_color"));
         business.put("logoUrl", t.get("logo_url"));
         out.put("business", business);
-        out.put("payInstructions", RentSettings.withDefaults((String) t.get("rent")).get("payInstructions"));
+        Map<String, Object> rentSettings = RentSettings.withDefaults((String) t.get("rent"));
+        out.put("payInstructions", rentSettings.get("payInstructions"));
+        out.put("serviceIncludes", rentSettings.get("serviceIncludes"));
         // Internal ids stay inside the app.
         Map<String, Object> lease = new LinkedHashMap<>((Map<String, Object>) s.get("lease"));
         lease.remove("id");

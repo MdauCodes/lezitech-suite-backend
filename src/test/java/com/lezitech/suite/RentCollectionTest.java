@@ -236,9 +236,9 @@ class RentCollectionTest extends IntegrationTest {
         jobs.forTenant(tenant, ownerId, due.plusDays(4));
         List<EmailSender.Email> mine = log.sent.stream().filter(e -> e.to().equals(email)).toList();
         assertThat(mine).hasSize(3);
-        assertThat(mine.get(0).subject()).contains("is due on");
-        assertThat(mine.get(1).subject()).contains("due today");
-        assertThat(mine.get(2).subject()).contains("3 days overdue");
+        assertThat(mine.get(0).subject()).contains("please pay rent for");
+        assertThat(mine.get(1).subject()).contains("Today is the day to pay");
+        assertThat(mine.get(2).subject()).contains("3 days late");
         assertThat(mine.get(2).text()).contains("Paybill 522522").contains("S03").contains("/statement/");
 
         // Paid: no more reminders.
@@ -253,6 +253,9 @@ class RentCollectionTest extends IntegrationTest {
         assertThat(pub.at("/lease/id").isMissingNode()).isTrue();
         assertThat(pub.at("/balance").decimalValue()).isEqualByComparingTo("0");
         assertThat(pub.at("/payInstructions").asText()).isEqualTo("Paybill 522522");
+        // What the service charge pays for, in the landlord's words, reaches the tenant.
+        post("/property/settings", owner, Map.of("serviceIncludes", List.of("Security guards", " ", "Cleaning of shared areas")));
+        assertThat(get("/public" + link, null).at("/serviceIncludes").toString()).isEqualTo("[\"Security guards\",\"Cleaning of shared areas\"]");
         assertThat(get("/public" + link.substring(0, link.length() - 4) + "0000", null).status()).isEqualTo(404);
         // A new link stops the old one working.
         String fresh = post("/property/leases/" + lease + "/statement/new-link", owner, Map.of()).at("/link").asText();
