@@ -65,6 +65,9 @@ public final class RentSettings {
         market.put("casualTickets", mk.get("casualTickets") instanceof Boolean b && b);
         market.put("ticketFee", mk.get("ticketFee") instanceof Number n ? n : 50);
         out.put("market", market);
+        // Residential rental income tax (MRI): a % of residential rent received, filed monthly by the 20th. Editable;
+        // the default is the rate in force at writing (confirm with an accountant).
+        out.put("mriRate", in.get("mriRate") instanceof Number n ? n : 7.5);
         return out;
     }
 
@@ -157,6 +160,13 @@ public final class RentSettings {
             }
             market.put("ticketFee", fee);
             out.put("market", market);
+        }
+        if (in.containsKey("mriRate")) {
+            double r = in.get("mriRate") instanceof Number n ? n.doubleValue() : -1;
+            if (r < 0 || r > 50) {
+                throw ApiException.bad("Check the rental income tax rate (a percentage)");
+            }
+            out.put("mriRate", r);
         }
         if (in.get("payInstructions") instanceof String s) {
             if (s.length() > 200) {

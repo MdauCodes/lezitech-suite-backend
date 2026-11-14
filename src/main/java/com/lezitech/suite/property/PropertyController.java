@@ -60,6 +60,7 @@ public class PropertyController {
                         AS pay_account, l.id AS lease_id, l.rent AS lease_rent, l.service_charge AS lease_service_charge, l.starts_on, l.ends_on,
                        l.due_day, l.credit, l.penalty_kind, l.penalty_value, l.penalty_grace_days, l.deposit,
                        l.increase_kind, l.increase_value, l.increase_every, l.next_increase_on, l.vacate_on, l.vacate_reason, l.charge_water, l.charge_power, l.frequency,
+                       (SELECT ll.name FROM landlords ll WHERE ll.id = sp.landlord_id) AS landlord_name,
                        (SELECT CASE WHEN a.password_hash IS NOT NULL THEN 'ACTIVE' WHEN a.invited_at IS NOT NULL THEN 'INVITED' ELSE 'ASKED' END
                         FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal,
                        (SELECT a.last_login_at FROM renter_accounts a WHERE a.customer_id = c.id AND a.active ORDER BY a.created_at LIMIT 1) AS portal_last_seen,

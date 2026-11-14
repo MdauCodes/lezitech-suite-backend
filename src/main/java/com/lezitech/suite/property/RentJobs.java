@@ -44,6 +44,8 @@ public class RentJobs {
     private final Mailer mailer;
     @org.springframework.beans.factory.annotation.Autowired
     private Market market;
+    @org.springframework.beans.factory.annotation.Autowired
+    private Landlords landlords;
 
     public RentJobs(JdbcTemplate jdbc, PlatformTransactionManager txm, PropertyController property, LeaseLedger ledger, LeaseLife life, Mailer mailer) {
         this.jdbc = jdbc;
@@ -94,6 +96,10 @@ public class RentJobs {
             }
             ledger.raisePenalties(today);
             market.raiseStallCharges(today, rs);
+            // On the 1st, landlords (for agents) get last month's statement.
+            if (today.getDayOfMonth() == 1) {
+                landlords.sendAll(YearMonth.from(today).minusMonths(1));
+            }
             return rs;
         }));
         if (!increases.isEmpty() || !ending.isEmpty()) {

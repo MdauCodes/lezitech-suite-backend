@@ -245,7 +245,7 @@ public class RenterAuth {
         return name == null || name.isBlank() ? "there" : name.trim().split("\\s+")[0];
     }
 
-    static String branded(String color, String business, String body) {
+    public static String branded(String color, String business, String body) {
         String brand = color == null ? "#101415" : color;
         return "<div style=\"background:#f3f4ef;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#101415\">"
                 + "<div style=\"max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e4e6df\">"
@@ -253,7 +253,7 @@ public class RenterAuth {
                 + "<div style=\"font-size:18px;font-weight:bold;margin-bottom:14px\">" + esc(business) + "</div>" + body + "</div></div></div>";
     }
 
-    static String button(String color, String link, String label) {
+    public static String button(String color, String link, String label) {
         return "<p style=\"margin:20px 0\"><a href=\"" + esc(link) + "\" style=\"background:" + esc(color == null ? "#101415" : color)
                 + ";color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:bold;display:inline-block\">" + esc(label) + "</a></p>";
     }

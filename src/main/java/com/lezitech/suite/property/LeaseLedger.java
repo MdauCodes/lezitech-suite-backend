@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 public class LeaseLedger {
 
     static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
-    static final Set<String> METHODS = Set.of("MPESA", "CASH", "BANK", "CHEQUE");
+    static final Set<String> METHODS = Set.of("MPESA", "CASH", "BANK", "CHEQUE", "WHT");
 
     private final Db db;
     private final OrderService orders;
@@ -95,6 +95,14 @@ public class LeaseLedger {
         Map<String, Object> lease = db.one("Lease", "SELECT * FROM leases WHERE id = :id FOR UPDATE", "id", leaseId);
         if ("MPESA".equals(m) && ref != null && db.find("SELECT id FROM lease_receipts WHERE method = 'MPESA' AND reference = :ref", "ref", ref).isPresent()) {
             throw ApiException.conflict("M-Pesa code " + ref + " is already recorded");
+        }
+        if ("WHT".equals(m)) {
+            if (ref == null) {
+                throw ApiException.bad("Enter the withholding tax certificate number");
+            }
+            if (db.find("SELECT id FROM lease_receipts WHERE method = 'WHT' AND reference = :ref", "ref", ref).isPresent()) {
+                throw ApiException.conflict("Certificate " + ref + " is already recorded");
+            }
         }
         BigDecimal amt = amount.setScale(2, RoundingMode.HALF_UP);
         UUID receipt = db.insert("""
@@ -412,6 +420,7 @@ public class LeaseLedger {
             case "CHEQUE" -> "Cheque";
             case "CARD" -> "Card";
             case "DEPOSIT" -> "Deposit";
+            case "WHT" -> "Withholding tax certificate";
             default -> m;
         };
     }

@@ -15,6 +15,37 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-14: M6, agents and rental tax, is built, tested and checked in the browser.**
+
+The owner's answers:
+- **Commission** is set per landlord: a % of rent collected, a % of rent billed, or a fixed monthly fee.
+- **How landlords see statements:** flexible, the way Kenyan landlords actually work. An email on the 1st, a private link (no password) with any month's statement, printable, and a WhatsApp button for the agent. A full landlord login can come later.
+- **Rental income tax (MRI):** shown on residential rent; the rate is editable (default 7.5%, to confirm with an accountant); nothing is deducted.
+- **WHT certificates:** recorded against the company tenant's bill, counted as paid, and listed per month.
+
+What M6 built:
+- **API:**
+  - `Landlords`: landlords, owning units (`spaces.landlord_id`), commission three ways, expenses, payouts.
+  - The month's statement:
+    - billed: bills of that month, deposits aside
+    - collected: cash applied to bills that month, WHT aside
+    - commission and expenses
+    - net, and what's still owed after payouts
+    - MRI on residential units
+  - Sending keeps the month's figures (`landlord_statements`) and emails the link. The daily job sends last month's statements on the 1st.
+  - Rental tax for the business (residential received, MRI, file by the 20th, by owner, WHT certificates).
+  - WHT as a payment method (certificate number required, once only).
+  - `LandlordsController`, including the public `/api/public/owner/{slug}/{token}`.
+  - `settings.rent.mriRate`.
+  - Migration `V32__agents_and_rental_tax.sql`.
+- **Web:**
+  - A "Landlords & tax" tab: landlords with collected, due and owed; each landlord's statement, units, expenses and payouts; send by email, copy link, WhatsApp, print. Plus a rental tax card.
+  - "Record a WHT certificate" in the tenant panel.
+  - The MRI rate in Rent settings.
+  - The landlord's own page at `/owner/{slug}/{token}`, with a month picker and a phone layout.
+  - Unit tiles show the owner.
+- **Tests:** `AgentsAndTaxTest` (2). Full API suite **152 passing**.
+
 **2026-11-14: M4, markets, is built, tested and checked in the browser.**
 
 The owner's answers:
@@ -91,7 +122,7 @@ What M5 built:
 
 **Owner's request, 2026-11-14, for after all this is done:** a happy client adding more businesses, branches, or businesses in other sectors under one account. Brainstorm it with the owner then; don't build it now.
 
-**Remaining mall packages:** M6 (agents and rental tax), M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
+**Remaining mall packages:** M7 (floor map and units to let), M8 (turnover rent and mall directory), M9 (food court in one QR).
 
 ---
 
