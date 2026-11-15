@@ -15,6 +15,43 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: R8, the owner's night summary, theft alerts and the menu report, is built, tested and checked in the browser.
+With R8 the restaurant packages R1 to R8 are done.**
+
+The owner's decisions:
+- **Email plus a phone alert** every evening (BizNez's own email to the owner).
+- **Sent when the last till closes**, or at the latest time: **9 pm** by default, changeable.
+- **Serious things reach the owner's phone at once** and also go in the evening email. The email is an overview of the
+  day, and each day stays in BizNez as a page with a **downloadable PDF**.
+- **The menu report:** a page for any dates, and a short part in Monday's summary.
+
+What R8 built:
+- **API:**
+  - `NightSummary`: a business day runs 4 am to 4 am. It holds:
+    - sales by payment method, refunds, bills still open
+    - each till's cash expected against counted, and amounts recorded against staff
+    - food cost % (from recipes), waste at cost, counts that came up short
+    - cancelled bills, discounts, items taken off after printing or cooking, refunds
+    - everything marked worth a look, best sellers and dishes that didn't sell
+    - deliveries, delivery apps, table bookings
+    - on Mondays, the past week's menu report
+  - The job every 5 minutes sends it when every till is closed after the earliest time (5 pm), or at the latest time
+    (9 pm), once a day; kept in `night_summaries`. Settings in `tenants.settings.nightSummary` (on, times, emails,
+    alert amounts).
+  - `NightPdf` (PDFBox 3): the day as an A4 PDF.
+  - The menu report: each dish against the middle of the menu on orders and profit per plate: keep, promote, raise the
+    price, think about dropping, with plain advice.
+  - Theft alerts: anything the activity log marks as a concern goes to the owner's and managers' phones at once
+    (cash short only from the owner's amount, KES 200 by default). New concerns: items taken off a bill after it was
+    printed or the kitchen started (`ITEM_REMOVED`), a bill cancelled after printing, discounts at or above the owner's
+    % (20% by default).
+  - `POST /api/orders/{id}/printed` (`orders.bill_printed_at`); `/api/night`, `/api/night/{day}`, `/pdf`, `/send`,
+    `/settings`; `/api/menu-report`.
+  - Migration `V45__night_summary.sql`.
+- **Web:** "Your day" (past days, the summary, PDF, send again, when it's sent and alert amounts), "How each dish is
+  doing", and the till tells BizNez when a bill is printed.
+- **Tests:** `NightSummaryTest`. Full API suite **177 passing**.
+
 **2026-11-15: R7, bakery, cake orders and grill by weight, is built, tested and checked in the browser.**
 
 The owner's decisions:
@@ -47,7 +84,6 @@ What R7 built:
     the menu link offers weights.
 - **Tests:** `BakeryCakesGrillTest` (3). Full API suite **176 passing**.
 
-**Next restaurant package:** R8, the owner's night summary and theft alerts.
 
 **2026-11-15: R6, menu tools, is built, tested and checked in the browser.**
 

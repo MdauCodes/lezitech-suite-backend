@@ -32,6 +32,8 @@ public class OrderController {
     private final Db db;
     private final OrderService orders;
     private final ApprovalService approvals;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
 
     public OrderController(Db db, OrderService orders, ApprovalService approvals) {
         this.db = db;
@@ -94,6 +96,13 @@ public class OrderController {
         return orders.detail(id);
     }
 
+    /** R8: the bill was printed for the customer. */
+    @PostMapping("/{id}/printed")
+    public Map<String, Object> printed(@PathVariable UUID id) {
+        orders.printed(id);
+        return Map.of("ok", true);
+    }
+
     /** Change quantity or remove a line that hasn't gone to the kitchen yet. */
     @PatchMapping("/{id}/lines/{lineId}")
     public Map<String, Object> updateLine(@PathVariable UUID id, @PathVariable UUID lineId, @RequestBody Map<String, Object> raw) {
@@ -115,8 +124,21 @@ public class OrderController {
         if (((BigDecimal) line.get("unitPrice")).multiply(qty).compareTo(newDiscount) < 0) {
             throw com.lezitech.suite.common.ApiException.bad("The discount is bigger than the price");
         }
+        // R8: taking items off after the bill was printed or the kitchen started is a warning sign.
+        BigDecimal before = (BigDecimal) line.get("qty");
+        BigDecimal off = before.subtract(qty.max(BigDecimal.ZERO));
+        Map<String, Object> o = db.one("Order", "SELECT number, bill_printed_at FROM orders WHERE id = :id", "id", id);
+        boolean printed = o.get("billPrintedAt") != null;
+        boolean cooking = !"PENDING".equals(line.get("kitchenStatus"));
+        if (off.signum() > 0 && (printed || cooking) && line.get("parentLineId") == null && line.get("dealId") == null) {
+            BigDecimal value = off.multiply((BigDecimal) line.get("unitPrice"));
+            activity.record("ITEM_REMOVED", com.lezitech.suite.activity.ActivityLog.CONCERN,
+                    "Took " + off.stripTrailingZeros().toPlainString() + " × " + line.get("name") + " off #" + o.get("number")
+                            + (printed ? " after the bill was printed" : " after the kitchen started it") + " (KES " + value.setScale(0, java.math.RoundingMode.HALF_UP) + ")",
+                    id, line.get("itemId") == null ? null : UUID.fromString(line.get("itemId").toString()), value, null, Map.of("qty", off));
+        }
         if (qty.signum() <= 0) {
-            db.exec("DELETE FROM order_lines WHERE id = :lineId", "lineId", lineId);
+            db.exec("DELETE FROM order_lines WHERE id = :lineId OR parent_line_id = :lineId", "lineId", lineId);
         } else {
             db.exec("""
                     UPDATE order_lines SET qty = :qty, note = :note, discount = :discount,

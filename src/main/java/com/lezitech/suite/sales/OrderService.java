@@ -203,7 +203,8 @@ public class OrderService {
                 approvals.checkDiscountLimit(discount, unit.multiply(qty));
                 BigDecimal lowest = item == null ? null : (BigDecimal) item.get("wholesalePrice");
                 boolean underLowest = lowest != null && unit.multiply(qty).subtract(discount).compareTo(lowest.multiply(qty)) < 0;
-                activity.record("DISCOUNT", underLowest ? com.lezitech.suite.activity.ActivityLog.CONCERN : com.lezitech.suite.activity.ActivityLog.NOTICE,
+                activity.record("DISCOUNT", underLowest || bigDiscount(discount, unit.multiply(qty)) ? com.lezitech.suite.activity.ActivityLog.CONCERN
+                                : com.lezitech.suite.activity.ActivityLog.NOTICE,
                         "Discount of " + discount.toPlainString() + " on " + name + (underLowest ? ", taking it below its lowest price" : ""),
                         orderId, item == null ? null : UUID.fromString(item.get("id").toString()), discount, by, Map.of("qty", qty));
             }
@@ -251,6 +252,20 @@ public class OrderService {
                 WHERE o.id = :id""", "id", orderId);
     }
 
+    /** R8: a discount at or above the owner's alert % (20% unless changed) is worth an alert. */
+    private boolean bigDiscount(BigDecimal discount, BigDecimal of) {
+        if (of == null || of.signum() <= 0) {
+            return false;
+        }
+        Integer pct = db.value("SELECT coalesce((settings->'nightSummary'->>'discountAlertPct')::int, 20) FROM tenants WHERE id = :t", Integer.class);
+        return discount.multiply(BigDecimal.valueOf(100)).compareTo(of.multiply(BigDecimal.valueOf(pct == null ? 20 : pct))) >= 0;
+    }
+
+    /** The bill was printed for the customer (from the till): later changes to it are a warning sign. */
+    public void printed(UUID orderId) {
+        db.exec("UPDATE orders SET bill_printed_at = coalesce(bill_printed_at, now()), bill_prints = bill_prints + 1 WHERE id = :id", "id", orderId);
+    }
+
     /** Whole-bill discount: needs a manager (or their PIN), stays within the limit, never makes the bill negative. */
     public void setDiscount(UUID orderId, BigDecimal discount, Body approvalSource) {
         if (discount.signum() < 0) {
@@ -265,7 +280,9 @@ public class OrderService {
             String by = approvals.require(approvalSource, "a discount");
             BigDecimal change = discount.subtract(current == null ? BigDecimal.ZERO : current);
             if (change.signum() > 0) {
-                activity.record("DISCOUNT", com.lezitech.suite.activity.ActivityLog.NOTICE, "Discount of " + discount.toPlainString() + " on the whole bill",
+                activity.record("DISCOUNT", bigDiscount(discount, subtotal) ? com.lezitech.suite.activity.ActivityLog.CONCERN
+                                : com.lezitech.suite.activity.ActivityLog.NOTICE, "Discount of " + discount.toPlainString() + " on the whole bill"
+                                + (subtotal.signum() > 0 ? " (" + discount.multiply(BigDecimal.valueOf(100)).divide(subtotal, 0, RoundingMode.HALF_UP) + "%)" : ""),
                         orderId, null, change, by, Map.of());
             }
             if (discount.compareTo(subtotal) > 0) {
@@ -523,10 +540,11 @@ public class OrderService {
         }
         boolean wentToKitchen = Boolean.TRUE.equals(db.value(
                 "SELECT exists(SELECT 1 FROM order_lines WHERE order_id = :id AND kitchen_status <> 'PENDING')", Boolean.class, "id", orderId));
-        activity.record("VOID", wentToKitchen || ((BigDecimal) o.get("paid")).signum() > 0 ? com.lezitech.suite.activity.ActivityLog.CONCERN
+        boolean printed = o.get("billPrintedAt") != null;
+        activity.record("VOID", wentToKitchen || printed || ((BigDecimal) o.get("paid")).signum() > 0 ? com.lezitech.suite.activity.ActivityLog.CONCERN
                         : com.lezitech.suite.activity.ActivityLog.NOTICE,
                 "Cancelled #" + o.get("number") + " worth " + ((BigDecimal) o.get("total")).toPlainString()
-                        + (wentToKitchen ? " after it went to the kitchen" : "") + ": " + reason,
+                        + (printed ? " after the bill was printed" : wentToKitchen ? " after it went to the kitchen" : "") + ": " + reason,
                 orderId, null, (BigDecimal) o.get("total"), null, Map.of("reason", reason));
         db.exec("UPDATE orders SET status = 'VOID', closed_at = now(), note = concat_ws(' · ', note, :reason) WHERE id = :id",
                 "id", orderId, "reason", "Cancelled: " + reason);

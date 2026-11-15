@@ -21,9 +21,31 @@ public class ActivityLog {
     public static final String CONCERN = "CONCERN";
 
     private final Db db;
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private com.lezitech.suite.notify.WebPush push;
 
     public ActivityLog(Db db) {
         this.db = db;
+    }
+
+    /**
+     * R8, theft alerts: something serious goes to the owner's and managers' phones at once (it's in the night summary
+     * too). Cash short under the owner's amount waits for the summary; the owner isn't alerted about their own actions.
+     */
+    private void alert(TenantContext.Caller c, String kind, String summary, BigDecimal amount) {
+        if (push == null || "OWNER".equals(c.role())) {
+            return;
+        }
+        if (java.util.Set.of("CASH_SHORT", "WAITER_CLEARED", "MARKET_CASH").contains(kind)) {
+            BigDecimal limit = db.value("""
+                    SELECT coalesce((settings->'nightSummary'->>'cashShortAlert')::numeric, 200) FROM tenants WHERE id = :t""", BigDecimal.class);
+            if (amount == null || amount.abs().compareTo(limit == null ? new BigDecimal("200") : limit) < 0) {
+                return;
+            }
+        }
+        String who = c.name() == null ? "" : c.name() + ": ";
+        push.toStaff(java.util.List.of("MANAGER"), "Needs your eye", who + summary, "/activity", "alert-" + kind);
     }
 
     public void record(String kind, String severity, String summary, UUID orderId, UUID itemId, BigDecimal amount, String approvedBy,
@@ -38,6 +60,9 @@ public class ActivityLog {
                 "user", c.userId(), "name", c.name(), "approver", approvedBy, "kind", kind, "sev", severity, "summary", summary,
                 "order", orderId, "item", itemId, "amount", amount == null ? null : amount.setScale(2, java.math.RoundingMode.HALF_UP),
                 "detail", db.toJson(detail == null ? Map.of() : detail));
+        if (CONCERN.equals(severity)) {
+            alert(c, kind, summary, amount);
+        }
     }
 
     public void record(String kind, String severity, String summary) {
