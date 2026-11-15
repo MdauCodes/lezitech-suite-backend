@@ -1124,8 +1124,8 @@
       "customers": "Clients",
       "item": "Service",
       "items": "Services & products",
-      "order": "Ticket",
-      "orders": "Tickets",
+      "order": "Bill",
+      "orders": "Bills",
       "staff": "Stylist",
       "location": "Branch"
     },
