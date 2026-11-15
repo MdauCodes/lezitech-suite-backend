@@ -1,0 +1,797 @@
+{
+ "note": "Starting delivery areas for Nairobi: boda boda fares from the Nairobi CBD, estimates taken from the Trendysh delivery list (Nov 2026). Every business changes them to its own prices.",
+ "areas": [
+  {
+   "name": "Nairobi CBD",
+   "fee": 150,
+   "riderPay": 150,
+   "minutes": 20
+  },
+  {
+   "name": "Community",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Gikomba",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Globe Roundabout",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Kariokor",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Kenyatta Avenue",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Museum Hill",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Muthurwa",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Ngara",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Pangani",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Railway Station",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Starehe",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Ziwani",
+   "fee": 200,
+   "riderPay": 200,
+   "minutes": 20
+  },
+  {
+   "name": "Bahati",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Eastleigh",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Highridge",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Huruma",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Jogoo Road",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Kaloleni",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Kenyatta Hospital (KNH)",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Madaraka",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Makadara",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Maringo",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Mathare",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Mbotela",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Muthaiga",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Nairobi West",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Ngong Road",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Parklands",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Shauri Moyo",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Upper Hill",
+   "fee": 250,
+   "riderPay": 250,
+   "minutes": 20
+  },
+  {
+   "name": "Adams Arcade",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Baba Dogo",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Buruburu",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Dandora",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Hurlingham",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Industrial Area",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Kariobangi",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Kibera",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Kileleshwa",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Kilimani",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Loresho",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Lucky Summer",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Mathare North",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Mountain View",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Ngumba",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "South B",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "South C",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Spring Valley",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Survey",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Thome",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Westlands",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Woodley",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Yaya Centre",
+   "fee": 300,
+   "riderPay": 300,
+   "minutes": 30
+  },
+  {
+   "name": "Bellevue",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Dagoretti Corner",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Donholm",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Fedha",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Garden Estate",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Imara Daima",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Kawangware",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Komarock",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Lavington",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Mirema",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Mombasa Road",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Nyayo Highrise",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Otiende",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Pipeline",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Ridgeways",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Riruta",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Roysambu",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Satellite",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Savannah",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Tassia",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Umoja",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Uthiru",
+   "fee": 350,
+   "riderPay": 350,
+   "minutes": 30
+  },
+  {
+   "name": "Airport (JKIA)",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Bomas",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Clay City",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Dagoretti",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Embakasi",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Galleria",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Gigiri",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Kabete",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Kangemi",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Kasarani",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Kayole",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Kikuyu Road",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Lang'ata",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Mwiki",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Nyari",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Rosslyn",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Saika",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Sunton",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Wangige",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Zimmerman",
+   "fee": 400,
+   "riderPay": 400,
+   "minutes": 40
+  },
+  {
+   "name": "Banana",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Githurai",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Githurai 44",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Githurai 45",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Hardy",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kahawa Sukari",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kahawa Wendani",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kahawa West",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kenyatta University",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kinoo",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kirigiti",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Mihango",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Njiru",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Ruai",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Ruaka",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Runda",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Tatu City",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Thindigua",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Utawala",
+   "fee": 450,
+   "riderPay": 450,
+   "minutes": 40
+  },
+  {
+   "name": "Kamakis",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Kamulu",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Karen",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Karen Plains",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Kiambu",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Membley",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Mlolongo",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Syokimau",
+   "fee": 500,
+   "riderPay": 500,
+   "minutes": 50
+  },
+  {
+   "name": "Ruiru",
+   "fee": 550,
+   "riderPay": 550,
+   "minutes": 50
+  },
+  {
+   "name": "Bulbul",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Joska",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Karuri",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Kikuyu",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Ndenderu",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Ngong",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Rongai",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  },
+  {
+   "name": "Ruiru Kimbo",
+   "fee": 600,
+   "riderPay": 600,
+   "minutes": 50
+  }
+ ]
+}

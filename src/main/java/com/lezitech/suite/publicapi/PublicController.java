@@ -36,6 +36,8 @@ public class PublicController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.TableOrderService tableOrders;
     @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.Delivery delivery;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.KitchenService kitchen;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.TablePayService pay;
@@ -189,6 +191,12 @@ public class PublicController {
             throw new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY",
                     "Lots of orders from here in the last hour. Please ask a waiter to help.");
         }
+        if (raw.get("delivery") instanceof Map<?, ?>) {
+            // R5: a delivery from the menu link.
+            Map<String, Object> d = new LinkedHashMap<>(as(t, () -> delivery.placeOnline(raw)));
+            d.put("trackPath", "/track/" + slug + "/" + d.get("token"));
+            return d;
+        }
         var placed = as(t, () -> tableOrders.place(raw, (String) ordering.get("payWhen")));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("number", placed.number());
@@ -268,6 +276,13 @@ public class PublicController {
     }
 
     /** The restaurant's tables, for choosing the tables of a group order. Only while it takes orders by phone. */
+    /** R5: the delivery areas, fees and ways to pay for the menu link. */
+    @GetMapping("/delivery/{slug}")
+    public Map<String, Object> deliveryInfo(@PathVariable String slug) {
+        Map<String, Object> t = tenant(slug);
+        return as(t, () -> delivery.publicView());
+    }
+
     @GetMapping("/tables/{slug}")
     public Map<String, Object> tables(@PathVariable String slug) {
         Map<String, Object> t = tenant(slug);

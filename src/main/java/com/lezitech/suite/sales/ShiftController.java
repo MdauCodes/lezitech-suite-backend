@@ -227,7 +227,12 @@ public class ShiftController {
         BigDecimal cash = method(byMethod, "CASH");
         BigDecimal mpesa = method(byMethod, "MPESA");
         BigDecimal card = method(byMethod, "CARD");
-        BigDecimal expectedCash = ((BigDecimal) s.get("openingCash")).add(cash);
+        // R5: riders paid in cash from this till (or keeping their pay from the cash they handed in).
+        BigDecimal riderPay = db.value("""
+                SELECT coalesce(sum(rider_pay), 0) FROM deliveries
+                WHERE rider_paid_shift = :id AND rider_paid_how IN ('TILL_CASH', 'FROM_COLLECTED')""", BigDecimal.class, "id", id);
+        s.put("riderPayFromTill", riderPay);
+        BigDecimal expectedCash = ((BigDecimal) s.get("openingCash")).add(cash).subtract(riderPay);
         s.put("open", "OPEN".equals(s.get("status")));
         s.put("byMethod", byMethod);
         s.put("expectedCash", expectedCash);

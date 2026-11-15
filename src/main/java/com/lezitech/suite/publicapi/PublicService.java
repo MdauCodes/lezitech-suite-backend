@@ -80,6 +80,13 @@ public class PublicService {
                 : served ? "DONE" : ready ? "READY" : lines.stream().anyMatch(l -> "PREPARING".equals(l.get("kitchenStatus"))) ? "PREPARING"
                 : sent ? "RECEIVED" : "OPEN";
         o.put("stage", stage);
+        // R5: where the delivery is (no address back to the phone, just the trip).
+        db.find("""
+                SELECT d.status, d.area_name, d.pay_on_delivery, d.picked_at, d.delivered_at, d.failed_reason,
+                       r.name AS rider_name, r.phone AS rider_phone
+                FROM deliveries d LEFT JOIN riders r ON r.id = d.rider_id
+                JOIN orders x ON x.id = d.order_id WHERE x.public_token = :token""", "token", token)
+                .ifPresent(d -> o.put("delivery", d));
         return o;
     }
 

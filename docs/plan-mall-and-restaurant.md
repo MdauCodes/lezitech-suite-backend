@@ -15,6 +15,47 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: R5, delivery, is built, tested and checked in the browser.**
+
+The owner's decisions:
+- **The fee is by area.** Each area has what the customer pays and what the rider gets; the difference is the restaurant's.
+- **The owner chooses how customers pay:** M-Pesa before cooking, at the door (cash or M-Pesa), or both.
+- **Riders are paid per trip, most often right after each trip.** Riders are staff with the new Rider job (their run sheet
+  on a phone) or a hired boda with just a name and phone.
+- **Glovo, Uber Eats and Bolt Food have no way to connect,** so their orders are typed in and recorded with the app's cut.
+- **Starting areas come from Trendysh's delivery list:** about 130 Nairobi places with boda fares from the CBD (all fares
+  up to KES 600), as estimates every business changes.
+
+What R5 built:
+- **API:**
+  - `Delivery`:
+    - rules (online, pay first, pay at the door, free from, smallest order, when riders are paid, apps and their cut)
+    - areas, and the Nairobi starting areas (`delivery-areas-nairobi.json`)
+    - riders (staff riders added automatically)
+    - placing from the menu link (all or nothing) and by phone, with the fee line and saved addresses
+    - the board and the rider's run sheet
+    - give to a rider or take one, picked up, delivered (cash, the M-Pesa prompt, or a typed code the cashier checks), couldn't deliver
+    - hand-in of cash into the till (the rider may keep their pay from it; a staff rider's shortage is recorded like a waiter's)
+    - paying riders from the till or by M-Pesa
+    - app orders, closed with method `APP` and the app's cut
+    - the report: own deliveries, apps, riders, areas
+  - `DeliveryController` (`/api/delivery`), public `/api/public/delivery/{slug}`, and delivery orders through `/api/public/orders/{slug}`.
+  - The till's expected cash takes off rider pay paid from it (`riderPayFromTill`).
+  - End of shift leaves out pay-at-the-door deliveries (that cash is the rider's to hand in).
+  - The tracking page shows the delivery and the rider.
+  - New job `RIDER`.
+  - Migration `V41__delivery.sql`.
+- **Web:**
+  - "Deliveries": today's board, riders (cash with them, pay not given, take in cash, pay), areas, report, delivery rules,
+    new delivery by phone (saved addresses), app order.
+  - "My deliveries" for riders: their trips, ready food to take, call and map, cash with them and their pay.
+  - The menu link: "I'll collect it" or "Deliver it to me", area, address, how the rider finds you, how you'll pay.
+  - The tracking page: where the delivery is, and "Call the rider".
+  - The Rider job under Staff.
+- **Tests:** `DeliveryTest` (2). Full API suite **171 passing**.
+
+**Next restaurant package:** R6, menu tools.
+
 **2026-11-15: R4, table bookings and the waiting list, is built, tested and checked in the browser, with branded emails.**
 
 The owner's decisions:

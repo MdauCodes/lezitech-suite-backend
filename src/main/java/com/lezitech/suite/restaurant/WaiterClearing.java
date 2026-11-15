@@ -59,6 +59,8 @@ public class WaiterClearing {
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id
                 WHERE o.kind = 'SALE' AND o.status NOT IN ('VOID', 'REFUNDED') AND coalesce(o.assigned_to, o.user_id) = :w
                   AND o.created_at >= :since
+                  -- R5: cash from a delivery paid at the door is the rider's to hand in, not this person's.
+                  AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.order_id = o.id AND d.pay_on_delivery)
                 ORDER BY o.created_at""", p);
         BigDecimal sales = BigDecimal.ZERO;
         BigDecimal mpesa = BigDecimal.ZERO;
