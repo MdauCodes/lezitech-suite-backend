@@ -60,6 +60,8 @@ suite:
   # Where the web app lives (links in emails) and LeziTech's WhatsApp number shown to customers.
   app-url: ${APP_URL:http://localhost:5320}
   support-whatsapp: ${SUPPORT_WHATSAPP:}
+  # The number people call (WhatsApp is the line above). Empty: 0794206566.
+  support-call: ${SUPPORT_CALL:}
   # The public marketing site (referral links point here).
   site-url: ${SITE_URL:https://lezitech.site/suite}
   # Meta Conversions API: leads, trials and payments reported to Meta so ads optimise for paying businesses.

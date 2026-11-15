@@ -15,7 +15,8 @@ class ContactTest extends IntegrationTest {
     void anyoneCanReachTheTeam() {
         JsonNode nums = get("/public/contact", null).body();
         assertThat(nums.at("/whatsapp").asText()).isNotBlank();
-        assertThat(nums.at("/display").asText()).isNotBlank();
+        assertThat(nums.at("/display").asText()).isEqualTo("0796 814 154");
+        assertThat(nums.at("/callDisplay").asText()).isEqualTo("0794 206 566");
 
         // A waiter inside BizNez: who and where are filled in.
         JsonNode s = signup("restaurant");

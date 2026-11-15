@@ -41,24 +41,30 @@ public class ContactController {
     private final JdbcTemplate jdbc;
     private final Mailer mailer;
     private final String number;
+    private final String callNumber;
 
-    public ContactController(JdbcTemplate jdbc, Mailer mailer, @Value("${suite.support-whatsapp:}") String support) {
+    public ContactController(JdbcTemplate jdbc, Mailer mailer, @Value("${suite.support-whatsapp:}") String support,
+                             @Value("${suite.support-call:}") String call) {
         this.jdbc = jdbc;
         this.mailer = mailer;
-        // The BizNez team's line (WhatsApp and calls); SUPPORT_WHATSAPP changes it.
-        String digits = support == null ? "" : support.replaceAll("\\D", "");
+        // Two different lines: WhatsApp (SUPPORT_WHATSAPP) and the number to call (SUPPORT_CALL).
+        this.number = intl(support, "254796814154");
+        this.callNumber = intl(call, "254794206566");
+    }
+
+    private static String intl(String raw, String fallback) {
+        String digits = raw == null ? "" : raw.replaceAll("\\D", "");
         if (digits.isEmpty()) {
-            digits = "254796814154";
+            digits = fallback;
         }
         if (digits.startsWith("0") && digits.length() == 10) {
             digits = "254" + digits.substring(1);
         }
-        this.number = digits;
+        return digits;
     }
 
-    private String display() {
-        return number.startsWith("254") && number.length() == 12
-                ? "0" + number.substring(3, 6) + " " + number.substring(6, 9) + " " + number.substring(9) : "+" + number;
+    private static String display(String n) {
+        return n.startsWith("254") && n.length() == 12 ? "0" + n.substring(3, 6) + " " + n.substring(6, 9) + " " + n.substring(9) : "+" + n;
     }
 
     private String wa(String text) {
@@ -70,8 +76,9 @@ public class ContactController {
     public Map<String, Object> numbers() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("whatsapp", number);
-        out.put("call", "+" + number);
-        out.put("display", display());
+        out.put("display", display(number));
+        out.put("call", "+" + callNumber);
+        out.put("callDisplay", display(callNumber));
         return out;
     }
 
