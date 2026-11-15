@@ -30,6 +30,7 @@ class RlsCoverageTest extends IntegrationTest {
             Map.entry("etims_queue", "background retry job works across businesses, then acts as each one"),
             Map.entry("trial_nudges", "trial reminder job and control panel only"),
             Map.entry("setup_requests", "website form and control panel only"),
+            Map.entry("team_messages", "messages to the LeziTech team; the app only adds, the control panel reads"),
             Map.entry("login_codes", "6-digit email codes, used before sign-in"),
             Map.entry("renter_accounts", "a landlord's tenants sign in to their portal by email before a business is known"),
             Map.entry("renter_codes", "6-digit email codes for tenants' portal sign-in, used before sign-in"),
