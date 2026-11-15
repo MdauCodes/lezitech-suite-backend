@@ -87,7 +87,7 @@ public class BusinessesController {
         if (b.has("subSector")) {
             body.put("subSector", b.str("subSector"));
         }
-        body.put("withSamples", b.bool("withSamples", true));
+        body.put("withSamples", b.bool("withSamples", false));
         body.put("phone", b.str("phone", me.get("phone") == null ? null : me.get("phone").toString()));
         if (b.has("brandColor")) {
             body.put("brandColor", b.str("brandColor"));

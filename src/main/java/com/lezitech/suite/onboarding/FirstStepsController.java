@@ -2,6 +2,7 @@ package com.lezitech.suite.onboarding;
 
 import com.lezitech.suite.common.Db;
 import com.lezitech.suite.integrations.IntegrationService;
+import com.lezitech.suite.sector.SectorCatalog;
 import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +23,12 @@ public class FirstStepsController {
 
     private final Db db;
     private final IntegrationService integrations;
+    private final SectorCatalog sectors;
 
-    public FirstStepsController(Db db, IntegrationService integrations) {
+    public FirstStepsController(Db db, IntegrationService integrations, SectorCatalog sectors) {
         this.db = db;
         this.integrations = integrations;
+        this.sectors = sectors;
     }
 
     private boolean yes(String sql, Object... params) {
@@ -46,7 +49,7 @@ public class FirstStepsController {
 
     @GetMapping("/api/first-steps")
     public Map<String, Object> steps() {
-        Map<String, Object> t = db.one("Business", "SELECT sector, logo_url, settings->>'kraPin' AS kra, settings->>'samplesUntil' AS samples_until, settings->>'samplesRemovedAt' AS removed FROM tenants WHERE id = :t");
+        Map<String, Object> t = db.one("Business", "SELECT sector, sub_sector, logo_url, settings->>'kraPin' AS kra, settings->>'samplesUntil' AS samples_until, settings->>'samplesRemovedAt' AS removed FROM tenants WHERE id = :t");
         String sector = (String) t.get("sector");
         String until = (String) t.get("samplesUntil");
         boolean property = "property".equals(sector);
@@ -60,7 +63,17 @@ public class FirstStepsController {
             steps.add(step("tenants", "Add a tenant and their lease", "BizNez then bills their rent every month and reminds them by email.", "/property", "Add a tenant and lease",
                     yes("SELECT exists(SELECT 1 FROM leases WHERE " + own + ")", p)));
         } else {
-            steps.add(step("items", "Add your own products or dishes", "Type them, copy them from Excel, or edit the samples. The till sells what's here.", "/items", "Add my products",
+            // The business's own word for what it sells: Menu, Services & products, Packages & extras...
+            String what = "Products";
+            try {
+                String w = sectors.get(sector, (String) t.get("subSector")).path("terms").path("items").asText("");
+                if (!w.isBlank()) what = w;
+            } catch (RuntimeException ignored) { /* unknown sector: keep "Products" */ }
+            String lower = what.toLowerCase();
+            boolean menu = lower.equals("menu");
+            steps.add(step("items", menu ? "Add your own menu" : "Add your own " + lower,
+                    "Type them one by one or copy them from Excel. The till sells what's here.", "/items",
+                    menu ? "Add my menu" : "Add my " + lower,
                     yes("SELECT exists(SELECT 1 FROM items WHERE kind NOT IN ('INGREDIENT', 'BATCH') AND " + own + ")", p)));
         }
         steps.add(step("details", "Add your logo and KRA PIN", "They appear on receipts, bills and the emails your customers get.", "/settings", "Add my logo and KRA PIN",

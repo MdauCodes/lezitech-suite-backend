@@ -195,7 +195,7 @@ public class AuthController {
                 userId, tenantId, email, name, password == null ? null : encoder.encode(password), owner != null ? owner.personId() : userId);
         jdbc.update("UPDATE tenants SET group_id = ? WHERE id = ?", owner != null ? owner.groupId() : tenantId, tenantId);
 
-        boolean samples = b.bool("withSamples", true);
+        boolean samples = b.bool("withSamples", false);
         TenantContext.runAs(tenantId, userId, () -> {
             seeder.seed(pack, samples, slug);
             if (samples && extras.contains("rooms")) {
