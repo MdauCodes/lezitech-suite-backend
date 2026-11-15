@@ -877,8 +877,11 @@ The owner's decisions:
   - the demo with sample data, made clearer
   - a 7-day trial with the business's own data (clear the samples in one tap, import a list)
   - a guided first day: a checklist that ticks itself
-- **Avatars like Trendysh's,** but jua kali and smart casual for SME people, not suits. Generated one by one from
-  `docs/avatars/biznez-avatar-prompts.pdf` (31 people, every sector and role).
+- **Ushers like Trendysh's:** two illustrated guides, Neema and Baraka, in smart-casual and jua kali dress, not suits. Each
+  has an expression and a gesture that points the user where to look or what to do, and sometimes a prop: welcome,
+  nothing found, checklist, WhatsApp us, celebrate, careful, waiting, and more.
+  - Prompts are in `docs/avatars/biznez-usher-prompts.pdf`: character sheets first, then 21 poses, each tied to a
+    screen. Generated one image at a time with the sheet attached, so it stays the same person.
 - **Features pages live inside BizNez** (e.g. `/for/restaurants`): a day in the life, from morning to closing, in plain
   business words, with "Try the demo" and "Start free".
 

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BizNez usher prompts</title>
+<style>
+  @page { size: A4; margin: 15mm 14mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #161a1b; font-size: 10.3pt; line-height: 1.45; }
+  h1 { font-size: 22pt; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 13.5pt; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #c6f432; break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14px 0 4px; break-after: avoid; }
+  .lead { color: #4a5152; margin: 0 0 12px; }
+  .box { border: 1px solid #d9dcd6; border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: #fbfaf6; }
+  .master { background: #f3f7e6; border-color: #c6f432; }
+  .neg { background: #fdf1f0; border-color: #f2c4bf; }
+  .prompt { font-family: Consolas, "Courier New", monospace; font-size: 9pt; }
+  .card { border: 1px solid #d9dcd6; border-radius: 10px; padding: 8px 11px; margin: 6px 0; break-inside: avoid; }
+  .card .top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .card .file { font-family: Consolas, monospace; font-size: 8.6pt; color: #5b6263; font-weight: 400; }
+  .card .use { font-size: 9pt; color: #5b6263; margin: 2px 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.4pt; }
+  td, th { border: 1px solid #d9dcd6; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #f1f2ee; }
+  .small { font-size: 9pt; color: #5b6263; }
+</style>
+</head>
+<body>
+<h1>BizNez ushers</h1>
+<p class="lead">Two friendly guides who appear across BizNez the way Trendysh's usher does: full body, a clear facial expression, a
+gesture that <strong>points the user where to look or what to do next</strong>, and sometimes a prop (a phone, a checklist, a receipt).
+Same flat, clean illustration style as the Trendysh usher, but dressed smart-casual and jua kali for Kenyan SME owners and their
+staff: no suits. Generate them <strong>one image at a time</strong>.</p>
+
+<h2>1. How to get the same person every time</h2>
+<ol>
+  <li><strong>Make the character sheet first</strong> (section 3) and choose the one you like. That image is the reference.</li>
+  <li>For every pose after that, <strong>attach the chosen character sheet</strong> and paste: the master style, then the character's
+    description, then one pose. Ask: "Same character as the attached image, same face, hair, clothes and colours."</li>
+  <li>One pose per image. Ask for a <strong>transparent background</strong> (PNG); if the tool can't, a plain white background is fine and
+    LeziTech will cut it out.</li>
+  <li>Keep the whole body in the frame with a little space around it; no shadows on the floor, no scenery.</li>
+  <li>Save each with the file name shown. Redo any where the hands, the pointing direction or the face are off.</li>
+</ol>
+
+<h2>2. Master style (paste first, every time)</h2>
+<div class="box master prompt">
+Flat vector illustration of a friendly Kenyan guide character for a business app, full body, standing, clean smooth shapes,
+soft subtle shading, crisp outlines, warm natural skin tones, expressive face with clear emotion, natural hands with five
+fingers, modern app-illustration style (like a friendly onboarding guide), transparent background, no floor, no scenery,
+the character centred with space around, portrait 3:5, high resolution 1200x2000.
+</div>
+
+<h2>3. The two ushers (character sheets)</h2>
+<div class="card">
+  <div class="top"><span>Neema (main usher)</span><span class="file">usher-neema-sheet.png</span></div>
+  <div class="use">She guides owners and managers: welcomes, explains screens, celebrates progress.</div>
+  <div class="prompt">Character sheet of Neema, a Kenyan woman in her early 30s who runs her own small business: warm confident
+  smile, dark brown skin, shoulder-length twists tied half-up, small gold stud earrings; wearing a lime-green fitted shirt with
+  rolled sleeves (#C6F432 accent), a short kitenge-print waistcoat in charcoal and yellow, dark blue jeans and white canvas
+  sneakers; a slim watch. Show her front view, three-quarter view and side view, neutral friendly pose, same outfit in every
+  view.</div>
+</div>
+<div class="card">
+  <div class="top"><span>Baraka (second usher)</span><span class="file">usher-baraka-sheet.png</span></div>
+  <div class="use">He guides staff and the busy parts: the till, the kitchen, deliveries, stock.</div>
+  <div class="prompt">Character sheet of Baraka, a Kenyan man in his late 20s who works hands-on in a busy shop: easy grin, dark
+  skin, short fade haircut with a neat beard; wearing a charcoal polo shirt with a lime-green collar trim, a dark denim work apron
+  with a pen in the pocket, khaki chinos and dark sneakers; a phone in the apron pocket. Show front view, three-quarter view and
+  side view, same outfit in every view.</div>
+</div>
+
+<h2>4. Avoid list (negative prompt)</h2>
+<div class="box neg prompt">
+suit, tie, blazer, high heels, corporate office, photo-realistic, 3D render, anime, chibi, exaggerated cartoon proportions,
+extra fingers, missing fingers, deformed hands, text in the image (except the few words named in a pose), logos, brand names,
+watermark, background scenery, floor shadow, cropped feet, cropped head, different face from the reference, different clothes
+from the reference.
+</div>
+
+<h2>5. Poses</h2>
+<p class="small">"Points right" means toward the right edge of the picture: the content sits on that side in the app. Each pose says where it's used.</p>
+<div id="poses"></div>
+
+<h2>6. Where the ushers appear in BizNez</h2>
+<table>
+  <tr><th>Moment</th><th>Usher and pose</th></tr>
+  <tr><td>Home page, sign-up, "Try the demo"</td><td>Neema welcome, Neema present-steps</td></tr>
+  <tr><td>Nothing found (search, an empty list, a filter with no results)</td><td>Neema shrug-search, Baraka look-around</td></tr>
+  <tr><td>First-day checklist</td><td>Neema checklist, then Neema celebrate when it's all ticked</td></tr>
+  <tr><td>"How this screen works"</td><td>Neema idea (small, beside the tips)</td></tr>
+  <tr><td>Reach-us panel</td><td>Neema whatsapp, Baraka call</td></tr>
+  <tr><td>Till: first sale, a big day, the till closed all there</td><td>Baraka thumbs-up, Neema celebrate</td></tr>
+  <tr><td>M-Pesa set-up and payments</td><td>Baraka mpesa</td></tr>
+  <tr><td>Warnings (cash short, a bill changed after printing)</td><td>Neema careful</td></tr>
+  <tr><td>Errors, no internet</td><td>Baraka sorry, Baraka no-signal</td></tr>
+  <tr><td>Waiting (loading, M-Pesa prompt sent)</td><td>Baraka waiting</td></tr>
+  <tr><td>Deliveries, riders</td><td>Baraka delivery</td></tr>
+  <tr><td>Reports, Your day</td><td>Neema reports</td></tr>
+  <tr><td>Locked or plan pages</td><td>Neema point-right (to the plans)</td></tr>
+</table>
+<p class="small">Made by LeziTech for BizNez, 15 November 2026.</p>
+
+<script>
+const poses = [
+  ["Neema", [
+    ["welcome", "Welcome, pointing right", "Home, sign-up, demo picker, empty dashboards",
+     "Neema standing relaxed, weight on one leg, head slightly tilted, big warm welcoming smile, one arm extended to the right with the palm open and up as if presenting something beside her, other hand resting by her side."],
+    ["point-right", "Points right, encouraging", "Beside a button or a box the user should tap next",
+     "Neema leaning slightly forward, eyebrows raised in encouragement, smiling, pointing with her index finger toward the right edge of the picture, other hand on her hip, energetic 'go on, tap it' feeling."],
+    ["point-left", "Points left", "When the content sits to her left",
+     "Neema standing, friendly smile, pointing with her index finger toward the left edge of the picture, other hand relaxed, body turned slightly left."],
+    ["point-down", "Points down", "Above a form or list below her",
+     "Neema standing, cheerful look toward the viewer, both hands pointing down in front of her toward the bottom of the picture, as if saying 'right here below'."],
+    ["present-steps", "Presents numbered steps", "How it works, sign-up steps, setup",
+     "Neema standing on the left side of the picture, smiling, one arm extended toward a floating vertical list of four rounded cards numbered 1 to 4 on the right (the second card highlighted in lime green), simple grey lines instead of words on the cards."],
+    ["checklist", "Holds a checklist, waving", "First-day checklist, setup tasks",
+     "Neema holding a clipboard against her chest with three ticked boxes in lime green, waving hello with the other hand, bright encouraging smile."],
+    ["shrug-search", "Nothing found, kind shrug", "Search or list with no results",
+     "Neema with a gentle apologetic smile and raised eyebrows, shoulders lifted in a small shrug, holding a magnifying glass in one hand and gesturing with the other open palm toward the right, as if saying 'not here, try this instead'."],
+    ["idea", "Has a tip", "'How this screen works' tips",
+     "Neema smiling knowingly, index finger raised beside her head as if sharing a good tip, a small glowing lime-green lightbulb floating just above her finger."],
+    ["whatsapp", "Phone up: WhatsApp us", "Reach-us panel, help",
+     "Neema holding up a smartphone toward the viewer whose screen shows a green chat-bubble icon and the words 'Message us', small motion lines beside the phone, other arm extended to the right with palm open, inviting smile."],
+    ["celebrate", "Celebrates", "Checklist done, first sale, good day",
+     "Neema jumping slightly with both fists raised in joy, eyes bright, wide happy open-mouth smile, a few lime-green and yellow confetti pieces around her."],
+    ["careful", "Careful, take a look", "Warnings and alerts",
+     "Neema with a serious but kind expression, one hand raised palm-out at chest height in a gentle 'wait, check this' gesture, the other hand pointing to the right, slight frown of concern."],
+    ["reports", "Shows a chart", "Reports, Your day, How each dish is doing",
+     "Neema holding a tablet turned toward the viewer showing a simple rising bar chart in lime green, proud satisfied smile, pointing at the chart with her other hand."],
+  ]],
+  ["Baraka", [
+    ["thumbs-up", "Thumbs up", "Saved, sale done, till all there",
+     "Baraka with a big confident grin, giving a thumbs up with one hand, the other hand in his apron pocket, relaxed stance."],
+    ["look-around", "Looking for it", "Empty lists, nothing found in stock",
+     "Baraka with a puzzled half-smile, one hand shading his eyes as if searching into the distance, leaning slightly to the right, curious look."],
+    ["mpesa", "Shows an M-Pesa payment", "M-Pesa set-up and payments",
+     "Baraka holding a smartphone toward the viewer showing a green screen with a large tick and the words 'Paid', pleased nod, other hand giving a small thumbs up."],
+    ["call", "On a call", "Reach-us panel: call us",
+     "Baraka holding a phone to his ear, friendly attentive smile, other hand gesturing openly to the right as if explaining, as if talking to a customer."],
+    ["waiting", "Waiting patiently", "Loading, M-Pesa prompt sent",
+     "Baraka looking at his wristwatch with a calm patient smile, other hand holding a phone at his side, relaxed posture."],
+    ["sorry", "Sorry, something went wrong", "Errors",
+     "Baraka with an apologetic expression, one hand on the back of his neck, the other hand open toward the viewer, small sheepish smile."],
+    ["no-signal", "No internet", "Offline till",
+     "Baraka holding up a phone showing a crossed-out signal icon, eyebrows raised, reassuring smile, other hand making a calm 'it's okay' downward gesture."],
+    ["delivery", "Ready to deliver", "Deliveries, riders",
+     "Baraka holding a delivery bag by its strap in one hand, a motorbike helmet under the other arm, cheerful 'on my way' smile, body turned slightly right."],
+    ["point-right", "Points right", "Till and kitchen next steps",
+     "Baraka smiling, pointing with his index finger toward the right edge of the picture, other hand holding a pen, helpful look."],
+  ]],
+];
+const box = document.getElementById("poses");
+for (const [who, list] of poses) {
+  const h = document.createElement("h3"); h.textContent = who; box.appendChild(h);
+  for (const [key, title, use, prompt] of list) {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="top"><span>${who}: ${title}</span><span class="file">usher-${who.toLowerCase()}-${key}.png</span></div><div class="use">Used for: ${use}</div><div class="prompt">Same character as the attached ${who} sheet. ${prompt}</div>`;
+    box.appendChild(c);
+  }
+}
+</script>
+</body>
+</html>
