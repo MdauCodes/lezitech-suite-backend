@@ -39,6 +39,8 @@ public class OrderService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.Recipes recipes;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.Deals deals;
 
     public OrderService(Db db, JdbcTemplate jdbc, StockService stock, ApprovalService approvals, com.lezitech.suite.etims.EtimsService etims) {
         this.db = db;
@@ -117,6 +119,7 @@ public class OrderService {
                 continue;
             }
             Map<String, Object> item = null;
+            UUID happyDeal = null;
             String name;
             BigDecimal price;
             BigDecimal tax;
@@ -136,6 +139,14 @@ public class OrderService {
                 }
                 tax = (BigDecimal) item.get("taxRate");
                 station = (String) item.get("station");
+                // R6: happy hour. The price is fixed now, when it's ordered.
+                if (!wholesale) {
+                    var happy = deals.happyPrice(item, java.time.Instant.now());
+                    if (happy != null && happy.price().compareTo(price) < 0) {
+                        price = happy.price();
+                        happyDeal = happy.dealId();
+                    }
+                }
             } else {
                 name = l.str("name");
                 price = l.num("unitPrice");
@@ -176,6 +187,8 @@ public class OrderService {
                 throw ApiException.bad("A price can't be below zero");
             }
             List<Map<String, Object>> options = trusted || item == null ? l.list("options") : checkedOptions(item, l.list("options"));
+            boolean combo = item != null && "COMBO".equals(item.get("kind"));
+            List<UUID> parts = combo ? comboParts(item, options) : List.of();
             BigDecimal optionsTotal = BigDecimal.ZERO;
             for (Map<String, Object> o : options) {
                 optionsTotal = optionsTotal.add(new Body(o).num("price", BigDecimal.ZERO));
@@ -198,21 +211,35 @@ public class OrderService {
             if (lineTotal.signum() < 0) {
                 throw ApiException.bad("The discount on " + name + " is bigger than its price");
             }
-            db.exec("""
+            UUID lineId = db.insert("""
                     INSERT INTO order_lines (tenant_id, order_id, item_id, name, qty, unit_price, tax_rate, discount, line_total,
-                                             options, note, course, station, staff_id)
+                                             options, note, course, station, staff_id, happy_deal_id, kitchen_status)
                     VALUES (:t, :order, :item, :name, :qty, :unit, :tax, :discount, :total, cast(:options as jsonb), :note,
-                            :course, :station, :staff)""",
+                            :course, :station, :staff, :happy, :ks) RETURNING id""",
                     "order", orderId, "item", item == null ? null : UUID.fromString(item.get("id").toString()), "name", name,
                     "qty", qty, "unit", unit, "tax", tax, "discount", discount, "total", lineTotal,
                     "options", db.toJson(options), "note", l.str("note", null), "course", l.integer("course", 1),
-                    "station", station, "staff", l.has("staffId") ? UUID.fromString(l.str("staffId")) : null);
+                    "station", combo ? null : station, "staff", l.has("staffId") ? UUID.fromString(l.str("staffId")) : null,
+                    "happy", happyDeal, "ks", combo ? "SERVED" : "PENDING");
+            // R6: a combo's parts go to the kitchen and bar (and use up stock and recipes) as KES 0 lines under it.
+            for (UUID part : parts) {
+                Map<String, Object> pi = db.one("Item", "SELECT name, station, tax_rate FROM items WHERE id = :id", "id", part);
+                db.exec("""
+                        INSERT INTO order_lines (tenant_id, order_id, item_id, name, qty, unit_price, tax_rate, discount, line_total,
+                                                 options, note, course, station, parent_line_id)
+                        VALUES (:t, :order, :item, :name, :qty, 0, :tax, 0, 0, '[]'::jsonb, :note, :course, :station, :parent)""",
+                        "order", orderId, "item", part, "name", pi.get("name"), "qty", qty, "tax", pi.get("taxRate"),
+                        "note", "Part of " + name + (l.str("note", null) != null ? ". " + l.str("note", null) : ""),
+                        "course", l.integer("course", 1), "station", pi.get("station"), "parent", lineId);
+            }
         }
         recalc(orderId);
     }
 
     /** Prices are VAT-inclusive (the norm on Kenyan shelves); tax is the VAT portion. */
     public void recalc(UUID orderId) {
+        // R6: bundle and buy-one-get-one deals on what's on the bill now.
+        deals.apply(orderId);
         db.exec("""
                 UPDATE orders o SET
                   subtotal = x.subtotal,
@@ -252,6 +279,30 @@ public class OrderService {
     }
 
     /** Add-on prices come from the item's own definition, never from the till. */
+    /** A combo's chosen parts: exactly one choice from each part, mapped to the dish it names. */
+    private List<UUID> comboParts(Map<String, Object> item, List<Map<String, Object>> picked) {
+        com.fasterxml.jackson.databind.JsonNode groups = (com.fasterxml.jackson.databind.JsonNode) item.get("options");
+        List<UUID> out = new ArrayList<>();
+        for (com.fasterxml.jackson.databind.JsonNode g : groups) {
+            String group = g.path("name").asText();
+            List<Map<String, Object>> mine = picked.stream().filter(p -> group.equals(p.get("group"))).toList();
+            if (mine.isEmpty() && g.path("choices").size() == 1) {
+                // A fixed part ("Beef burger"): nothing to choose.
+                out.add(UUID.fromString(g.path("choices").get(0).path("itemId").asText()));
+                continue;
+            }
+            if (mine.size() != 1) {
+                throw ApiException.bad("Choose one " + group.toLowerCase() + " for the " + item.get("name"));
+            }
+            for (com.fasterxml.jackson.databind.JsonNode c : g.path("choices")) {
+                if (c.path("name").asText().equals(mine.get(0).get("name"))) {
+                    out.add(UUID.fromString(c.path("itemId").asText()));
+                }
+            }
+        }
+        return out;
+    }
+
     private List<Map<String, Object>> checkedOptions(Map<String, Object> item, List<Map<String, Object>> picked) {
         if (picked.isEmpty()) {
             return picked;

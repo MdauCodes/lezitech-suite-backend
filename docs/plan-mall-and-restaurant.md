@@ -15,6 +15,39 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: R6, menu tools, is built, tested and checked in the browser.**
+
+The owner's decisions:
+- **Both kinds of combo:** combo dishes listed on the menu (one price, parts, some with a choice), and deals BizNez applies
+  by itself when the dishes happen to be on one bill.
+- **Both kinds of happy hour:** % off or a special price, and buy-some-get-some-free.
+- **Meal times hide nothing.** Someone who wakes up late can still order breakfast; what's being served now comes first.
+- **The price is fixed when ordered** (6:55 pm happy-hour drink paid at 7:20 keeps its price).
+
+What R6 built:
+- **API:**
+  - Combos are items of kind `COMBO`: parts kept as option groups whose choices name the dish; ordering one adds each part
+    as a KES 0 line under it (`parent_line_id`), so the kitchen and bar get them and stock and recipes use them up.
+    A part with one dish is fixed; with several the customer picks one (extras allowed). Combos without a category go
+    under "Combos & meal deals", first on the menu.
+  - `Deals` (table `menu_deals`, by days and hours, running past midnight too):
+    - `PERCENT` and `PRICE` (happy hour) price a dish when it's added to the bill (`happy_deal_id`).
+    - `BUNDLE` and `BOGO` are worked out on the open bill each time it changes, only for dishes ordered inside the deal's
+      hours, each dish counting towards one deal; the saving is a "Deal: ..." line (`deal_id`).
+  - `MenuToolsController` (`/api/menu-tools`): deals, combos, meal times per category.
+  - The menu link and the till's item list carry each dish's happy price; the menu lists the deals on now and orders
+    categories by meal time.
+  - Migration `V43__menu_tools.sql`.
+- **Web:**
+  - "Combos & happy hour" for the owner and managers: deals (4 kinds, days, hours), combos (parts and choices),
+    meal times.
+  - The menu link: deals on now at the top, happy prices struck through, "Now serving" or "Usually 6:00-11:00, you can
+    still order" under each category, combo parts already chosen when there's nothing to choose.
+  - The till shows happy prices.
+- **Tests:** `MenuToolsTest` (2). Full API suite **173 passing**.
+
+**Next restaurant package:** R7, bakery, cake orders and grill by weight.
+
 **2026-11-15: staff never miss an order: the ring for deliveries, and phone and computer notifications.**
 
 - **New online deliveries ring** on the floor team's screens (sound, flashing tab, can't be clicked away) until someone

@@ -81,16 +81,22 @@ public class CatalogController {
 
     // ---------- items ----------
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.Deals deals;
+
     @GetMapping("/items")
     public List<Map<String, Object>> items(@RequestParam(required = false) String q,
                                            @RequestParam(defaultValue = "false") boolean all,
                                            @RequestParam(defaultValue = "false") boolean kitchen) {
-        return db.list("SELECT " + ITEM_COLUMNS + """
+        List<Map<String, Object>> list = db.list("SELECT " + ITEM_COLUMNS + """
                  FROM items i LEFT JOIN categories c ON c.id = i.category_id
                 WHERE (:all OR i.active) AND (:kitchen OR i.kind NOT IN ('INGREDIENT', 'BATCH'))
                   AND (cast(:q as text) IS NULL OR i.name ILIKE '%' || cast(:q as text) || '%'
                        OR i.barcode = cast(:q as text) OR i.sku ILIKE cast(:q as text))
                 ORDER BY c.sort NULLS LAST, i.name""", "q", q == null || q.isBlank() ? null : q.trim(), "all", all, "kitchen", kitchen);
+        // R6: the happy-hour price right now, so the till shows what the bill will charge.
+        deals.markHappy(list);
+        return list;
     }
 
     @GetMapping("/items/barcode/{code}")

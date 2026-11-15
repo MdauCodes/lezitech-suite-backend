@@ -149,14 +149,38 @@ public class PublicService {
                 WHERE o.public_token = :token AND l.id = :line""", UUID.class, "token", token, "line", lineId);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.restaurant.Deals deals;
+
     public Map<String, Object> menu() {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("categories", db.list("SELECT id, name, color FROM categories ORDER BY sort, name"));
-        out.put("items", db.list("""
+        // R6: meal times. Nothing is hidden: what's being served now comes first, the rest stays orderable below.
+        java.time.LocalTime now = java.time.LocalTime.now(java.time.ZoneId.of("Africa/Nairobi"));
+        List<Map<String, Object>> cats = db.list("SELECT id, name, color, serve_from, serve_to, sort FROM categories ORDER BY sort, name");
+        for (Map<String, Object> c : cats) {
+            java.time.LocalTime f = com.lezitech.suite.restaurant.Deals.time(c.get("serveFrom"));
+            java.time.LocalTime t = com.lezitech.suite.restaurant.Deals.time(c.get("serveTo"));
+            boolean timed = f != null && t != null;
+            boolean serving = !timed || (f.isBefore(t) ? !now.isBefore(f) && now.isBefore(t) : !now.isBefore(f) || now.isBefore(t));
+            c.put("timed", timed);
+            c.put("servingNow", serving);
+            c.put("serveFrom", timed ? f.toString() : null);
+            c.put("serveTo", timed ? t.toString() : null);
+        }
+        List<Map<String, Object>> sorted = new java.util.ArrayList<>(cats);
+        // Timed and being served now first, then the always-served ones, then other meal times.
+        sorted.sort(java.util.Comparator.comparingInt((Map<String, Object> c) ->
+                Boolean.TRUE.equals(c.get("timed")) && Boolean.TRUE.equals(c.get("servingNow")) ? 0 : Boolean.TRUE.equals(c.get("timed")) ? 2 : 1));
+        sorted.forEach(c -> c.remove("sort"));
+        out.put("categories", sorted);
+        out.put("deals", deals.onNow());
+        List<Map<String, Object>> items = db.list("""
                 SELECT i.id, i.category_id, i.name, i.price, i.options, i.kind, i.duration_min, i.photo_file_id, i.allergens, i.allergen_note,
                        ((i.track_stock AND coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) <= 0)
                         OR (i.unavailable_until IS NOT NULL AND i.unavailable_until > now())) AS sold_out
-                FROM items i WHERE i.active AND i.kind NOT IN ('SERVICE', 'INGREDIENT', 'BATCH') ORDER BY i.name"""));
+                FROM items i WHERE i.active AND i.kind NOT IN ('SERVICE', 'INGREDIENT', 'BATCH') ORDER BY i.name""");
+        deals.markHappy(items);
+        out.put("items", items);
         return out;
     }
 }
