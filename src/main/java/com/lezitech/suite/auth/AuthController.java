@@ -86,18 +86,32 @@ public class AuthController {
 
     /** Used by signup and by the demo seeder (which passes a fixed slug like demo-restaurant). */
     public Map<String, Object> createWorkspace(Map<String, Object> raw, String fixedSlug) throws Exception {
+        return createWorkspace(raw, fixedSlug, null);
+    }
+
+    /** Who a new business belongs to when an owner adds another one: they keep signing in with their first entry. */
+    public record LinkedOwner(UUID personId, UUID groupId, String name) {
+    }
+
+    /**
+     * As above; with {@code owner} it's another business of an owner already on BizNez: no email or password of its own
+     * (they sign in as before and switch), and it joins their group.
+     */
+    public Map<String, Object> createWorkspace(Map<String, Object> raw, String fixedSlug, LinkedOwner owner) throws Exception {
         Body b = new Body(raw);
-        String email = b.str("email").toLowerCase();
-        if (!EMAIL.matcher(email).matches()) {
-            throw ApiException.bad("Enter a valid email address");
-        }
-        String password = b.str("password");
-        if (password.length() < 8) {
-            throw ApiException.bad("Use a password of at least 8 characters");
-        }
-        Integer taken = jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email);
-        if (taken != null && taken > 0) {
-            throw ApiException.conflict("That email already has a workspace. Sign in instead.");
+        String email = owner != null ? null : b.str("email").toLowerCase();
+        String password = owner != null ? null : b.str("password");
+        if (owner == null) {
+            if (!EMAIL.matcher(email).matches()) {
+                throw ApiException.bad("Enter a valid email address");
+            }
+            if (password.length() < 8) {
+                throw ApiException.bad("Use a password of at least 8 characters");
+            }
+            Integer taken = jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email);
+            if (taken != null && taken > 0) {
+                throw ApiException.conflict("That email already has a workspace. Sign in instead.");
+            }
         }
         String business = b.str("businessName");
         // The pack personalised for the chosen sub-sector (its own wording, features, KPIs and sample items).
@@ -176,9 +190,10 @@ public class AuthController {
                 tenantId, slug, business, pack.get("key").asText(), pack.has("subSector") ? pack.get("subSector").asText() : b.str("subSector", null),
                 "{" + String.join(",", products.stream().filter(p -> List.of("POS", "CRM", "ERP").contains(p)).toList()) + "}",
                 Timestamp.from(trialEnds), color, logo, b.str("phone", null), settings.toString());
-        String name = b.str("name");
-        jdbc.update("INSERT INTO users (id, tenant_id, email, name, password_hash, role) VALUES (?, ?, ?, ?, ?, 'OWNER')",
-                userId, tenantId, email, name, encoder.encode(password));
+        String name = owner != null ? owner.name() : b.str("name");
+        jdbc.update("INSERT INTO users (id, tenant_id, email, name, password_hash, role, person_id) VALUES (?, ?, ?, ?, ?, 'OWNER', ?)",
+                userId, tenantId, email, name, password == null ? null : encoder.encode(password), owner != null ? owner.personId() : userId);
+        jdbc.update("UPDATE tenants SET group_id = ? WHERE id = ?", owner != null ? owner.groupId() : tenantId, tenantId);
 
         boolean samples = b.bool("withSamples", true);
         TenantContext.runAs(tenantId, userId, () -> {
