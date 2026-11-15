@@ -15,6 +15,40 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: R7, bakery, cake orders and grill by weight, is built, tested and checked in the browser.**
+
+The owner's decisions:
+- **The bakery's day:** batches baked, sales off by themselves, and a closing count. What's missing shows in shillings;
+  leftovers go to tomorrow's cheaper shelf, are given away or thrown (both counted as waste), or kept.
+- **Cake orders hold everything:** pickup or delivery day and time; size, flavour, writing and a design photo; a deposit
+  by M-Pesa; a reminder email the day before, and the bake list from two days before.
+- **A 0% deposit is allowed** and is shown to customers as "No deposit needed for now", a chance that can change later.
+- **Grill: both** set portions on the menu and any weight from the scale.
+- **New business types:** Nyama choma & grill, Canteen & caterer, Cloud kitchen.
+
+What R7 built:
+- **API:**
+  - `Bakery`: the day's sheet (baked, sold, on the shelf), batches (`BAKED` stock moves), the closing count (stock set to
+    the count, missing in shillings, leftovers to the "(yesterday's)" twin item or waste), items on the daily list with
+    yesterday's price.
+  - `Cakes`: the bakery's price list (flavours per kg, sizes, writing price, deposit %, notice hours, delivery),
+    online and staff orders, the deposit (`MpesaService.startCakeDeposit`, purpose `CAKE`), baking and ready (email),
+    price changes, collected (the bill opens with the deposit on it; delivery goes to the Deliveries board), cancelling
+    (customers up to a day before), day-before reminders, unpaid deposits lapse after a day, phone notifications to staff.
+  - `CakeController`: `/api/bakery`, `/api/cakes`, public `/api/public/cakes/{slug}` (page, order, photo, pay, cancel).
+  - Grill: `items.sold_by_weight` (unit kg); the menu link takes quarter-kg steps.
+  - New sub-types in `subsectors.json` with their own sample menus; the seeder reads `byWeight` and `bakedDaily`.
+  - Migration `V44__bakery_cakes_grill.sql`.
+- **Web:**
+  - "Daily baking" and "Cake orders" (bakeries and cafes): batches, closing count, yesterday's shelf; orders by day,
+    bake list, design photos, new order by phone, the cake link with QR, prices and deposit.
+  - The customer's cake page `/cakes/{slug}` and their order page `/cakes/{slug}/o/{token}`.
+  - The till asks for the weight from the scale (¼, ½, ¾, 1, 1½, 2 kg or any); items can be "Sold by the kg";
+    the menu link offers weights.
+- **Tests:** `BakeryCakesGrillTest` (3). Full API suite **176 passing**.
+
+**Next restaurant package:** R8, the owner's night summary and theft alerts.
+
 **2026-11-15: R6, menu tools, is built, tested and checked in the browser.**
 
 The owner's decisions:

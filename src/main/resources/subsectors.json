@@ -515,7 +515,9 @@
                 "cost": 42,
                 "station": "Counter",
                 "stock": 60,
-                "reorder": 20
+                "reorder": 20,
+                "bakedDaily": true,
+                "dayOld": 50
               },
               {
                 "name": "Brown bread 400g",
@@ -523,14 +525,18 @@
                 "cost": 45,
                 "station": "Counter",
                 "stock": 40,
-                "reorder": 15
+                "reorder": 15,
+                "bakedDaily": true,
+                "dayOld": 55
               },
               {
                 "name": "Mandazi (4)",
                 "price": 60,
                 "cost": 25,
                 "station": "Counter",
-                "stock": 50
+                "stock": 50,
+                "bakedDaily": true,
+                "dayOld": 40
               }
             ]
           },
@@ -555,7 +561,9 @@
                 "price": 120,
                 "cost": 45,
                 "station": "Counter",
-                "stock": 36
+                "stock": 36,
+                "bakedDaily": true,
+                "dayOld": 70
               }
             ]
           },
@@ -568,14 +576,18 @@
                 "price": 150,
                 "cost": 60,
                 "station": "Counter",
-                "stock": 24
+                "stock": 24,
+                "bakedDaily": true,
+                "dayOld": 90
               },
               {
                 "name": "Sausage roll",
                 "price": 120,
                 "cost": 55,
                 "station": "Counter",
-                "stock": 24
+                "stock": 24,
+                "bakedDaily": true,
+                "dayOld": 70
               }
             ]
           }
@@ -803,6 +815,425 @@
           ]
         }
       ]
+    },
+    {
+      "key": "grill",
+      "name": "Nyama choma & grill",
+      "tagline": "Meat by the kg from the scale, set portions, and the grill's own stock",
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": true,
+        "courses": false,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "open_bills",
+        "avg_ticket",
+        "kitchen_queue"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Nyama choma",
+            "color": "#b91c1c",
+            "items": [
+              {
+                "name": "Goat choma (per kg)",
+                "price": 1400,
+                "cost": 750,
+                "station": "Grill",
+                "byWeight": true
+              },
+              {
+                "name": "Beef choma (per kg)",
+                "price": 1200,
+                "cost": 650,
+                "station": "Grill",
+                "byWeight": true
+              },
+              {
+                "name": "Goat choma ½ kg",
+                "price": 750,
+                "cost": 380,
+                "station": "Grill"
+              },
+              {
+                "name": "Kuku choma (half)",
+                "price": 800,
+                "cost": 420,
+                "station": "Grill"
+              },
+              {
+                "name": "Mutura (piece)",
+                "price": 150,
+                "cost": 60,
+                "station": "Grill"
+              }
+            ]
+          },
+          {
+            "name": "Sides",
+            "color": "#a16207",
+            "items": [
+              {
+                "name": "Ugali",
+                "price": 100,
+                "cost": 25,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Kachumbari",
+                "price": 100,
+                "cost": 30,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Mukimo",
+                "price": 200,
+                "cost": 70,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Chips",
+                "price": 200,
+                "cost": 70,
+                "station": "Kitchen"
+              }
+            ]
+          },
+          {
+            "name": "Drinks",
+            "color": "#0e7490",
+            "items": [
+              {
+                "name": "Tusker 500ml",
+                "price": 300,
+                "cost": 190,
+                "station": "Bar",
+                "stock": 96,
+                "reorder": 24
+              },
+              {
+                "name": "Soda 500ml",
+                "price": 100,
+                "cost": 55,
+                "station": "Bar",
+                "stock": 72,
+                "reorder": 24
+              },
+              {
+                "name": "Water 500ml",
+                "price": 80,
+                "cost": 35,
+                "station": "Bar",
+                "stock": 48,
+                "reorder": 12
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "tables",
+          "label": "How many tables do you have?",
+          "type": "number"
+        },
+        {
+          "key": "byWeight",
+          "label": "Do you weigh meat on a scale before roasting?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Nyama choma POS for Kenya, sold by the kg",
+        "pitch": "Type the weight from the scale and the price works itself out; set portions, sides, the bar and M-Pesa on one bill.",
+        "keywords": [
+          "nyama choma POS Kenya",
+          "butchery grill system Nairobi",
+          "sell meat by kg POS"
+        ]
+      },
+      "examples": {
+        "business": "Kwa Mutua Nyama Choma",
+        "category": "Nyama choma",
+        "item": "Goat choma (per kg)",
+        "optionGroup": "Cut",
+        "optionChoice": "Ribs",
+        "tagline": "Roasted slow, served hot",
+        "note": "well done, extra kachumbari",
+        "importRow": [
+          "Goat choma (per kg)",
+          "Nyama choma",
+          1400,
+          750,
+          0
+        ]
+      }
+    },
+    {
+      "key": "canteen",
+      "name": "Canteen & caterer",
+      "tagline": "Fast lunch-hour service, the day's menu, and catering orders with deposits",
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": false,
+        "deposits": true,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "kitchen_queue"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Lunch",
+            "color": "#15803d",
+            "items": [
+              {
+                "name": "Rice & beans",
+                "price": 150,
+                "cost": 60,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Chapati & ndengu",
+                "price": 150,
+                "cost": 60,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Pilau & kachumbari",
+                "price": 250,
+                "cost": 110,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Githeri",
+                "price": 120,
+                "cost": 45,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Ugali, sukuma & beef",
+                "price": 250,
+                "cost": 120,
+                "station": "Kitchen"
+              }
+            ]
+          },
+          {
+            "name": "Breakfast",
+            "color": "#ca8a04",
+            "items": [
+              {
+                "name": "Tea",
+                "price": 40,
+                "cost": 12,
+                "station": "Counter"
+              },
+              {
+                "name": "Mandazi",
+                "price": 20,
+                "cost": 8,
+                "station": "Counter"
+              },
+              {
+                "name": "Chapati",
+                "price": 30,
+                "cost": 12,
+                "station": "Counter"
+              }
+            ]
+          },
+          {
+            "name": "Catering",
+            "color": "#7c3aed",
+            "items": [
+              {
+                "name": "Catering: buffet per person",
+                "price": 650,
+                "cost": 320,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Catering: tea break per person",
+                "price": 200,
+                "cost": 80,
+                "station": "Kitchen"
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "service",
+          "label": "How do customers order?",
+          "type": "choice",
+          "options": [
+            "Order at the counter",
+            "Waiters take orders",
+            "Both"
+          ]
+        },
+        {
+          "key": "catering",
+          "label": "Do you cater for events and offices?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Canteen and catering POS for Kenya",
+        "pitch": "Serve the lunch-hour queue fast, put up the day's menu, and take catering orders with an M-Pesa deposit.",
+        "keywords": [
+          "canteen POS Kenya",
+          "catering system Nairobi",
+          "school canteen till Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Mama Njeri Canteen",
+        "category": "Lunch",
+        "item": "Pilau & kachumbari",
+        "optionGroup": "Extra",
+        "optionChoice": "Avocado",
+        "tagline": "Home cooking, every lunch time",
+        "note": "no chilli",
+        "importRow": [
+          "Pilau & kachumbari",
+          "Lunch",
+          250,
+          110,
+          0
+        ]
+      }
+    },
+    {
+      "key": "cloud-kitchen",
+      "name": "Cloud kitchen",
+      "tagline": "Delivery-only: your own riders and Glovo, Uber Eats and Bolt Food orders with their cut",
+      "terms": {
+        "order": "Order",
+        "orders": "Orders"
+      },
+      "features": {
+        "tables": false,
+        "loyalty": true
+      },
+      "kpis": [
+        "sales_today",
+        "transactions_today",
+        "avg_ticket",
+        "kitchen_queue"
+      ],
+      "seed": {
+        "categories": [
+          {
+            "name": "Burgers",
+            "color": "#dc2626",
+            "items": [
+              {
+                "name": "Classic beef burger",
+                "price": 650,
+                "cost": 260,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Chicken burger",
+                "price": 600,
+                "cost": 240,
+                "station": "Kitchen"
+              }
+            ]
+          },
+          {
+            "name": "Bowls",
+            "color": "#16a34a",
+            "items": [
+              {
+                "name": "Chicken rice bowl",
+                "price": 700,
+                "cost": 290,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Beef pilau bowl",
+                "price": 650,
+                "cost": 270,
+                "station": "Kitchen"
+              }
+            ]
+          },
+          {
+            "name": "Sides & drinks",
+            "color": "#0891b2",
+            "items": [
+              {
+                "name": "Fries",
+                "price": 250,
+                "cost": 80,
+                "station": "Kitchen"
+              },
+              {
+                "name": "Soda 500ml",
+                "price": 100,
+                "cost": 55,
+                "station": "Counter",
+                "stock": 72,
+                "reorder": 24
+              }
+            ]
+          }
+        ]
+      },
+      "questions": [
+        {
+          "key": "apps",
+          "label": "Do you sell on Glovo, Uber Eats or Bolt Food?",
+          "type": "yesno"
+        },
+        {
+          "key": "riders",
+          "label": "Do you have your own riders?",
+          "type": "yesno"
+        }
+      ],
+      "seo": {
+        "headline": "Cloud kitchen system for Kenya: riders and delivery apps",
+        "pitch": "Delivery orders from your link and by phone, your own riders and their cash, and Glovo, Uber Eats and Bolt Food orders with the app's cut taken off.",
+        "keywords": [
+          "cloud kitchen Kenya",
+          "dark kitchen system Nairobi",
+          "delivery restaurant POS Kenya"
+        ]
+      },
+      "examples": {
+        "business": "Bowl & Bun Kitchen",
+        "category": "Bowls",
+        "item": "Chicken rice bowl",
+        "optionGroup": "Extra",
+        "optionChoice": "Avocado",
+        "tagline": "Hot to your door",
+        "note": "extra sauce",
+        "importRow": [
+          "Chicken rice bowl",
+          "Bowls",
+          700,
+          290,
+          0
+        ]
+      }
     }
   ],
   "hotel": [

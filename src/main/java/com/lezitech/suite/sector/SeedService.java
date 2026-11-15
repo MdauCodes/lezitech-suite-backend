@@ -93,6 +93,14 @@ public class SeedService {
                         "tax", new BigDecimal(i.path("tax").asText("16")),
                         "station", i.path("station").asText(null), "rx", i.path("rx").asBoolean(false),
                         "options", i.has("options") ? i.get("options").toString() : "[]", "color", c.path("color").asText(null));
+                // R7: grill meat priced per kg; bakery items baked fresh daily (with yesterday's price).
+                if (i.path("byWeight").asBoolean(false)) {
+                    db.exec("UPDATE items SET sold_by_weight = true, unit = 'kg' WHERE id = :id", "id", itemId);
+                }
+                if (i.path("bakedDaily").asBoolean(false)) {
+                    db.exec("UPDATE items SET baked_daily = true, track_stock = true, day_old_price = :p WHERE id = :id", "id", itemId,
+                            "p", i.has("dayOld") ? new BigDecimal(i.get("dayOld").asText()) : null);
+                }
                 if (tracks && i.has("stock")) {
                     BigDecimal qty = new BigDecimal(i.get("stock").asText());
                     db.exec("INSERT INTO stock_levels (tenant_id, item_id, location_id, qty) VALUES (:t, :item, :loc, :qty)",

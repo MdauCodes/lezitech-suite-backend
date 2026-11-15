@@ -195,8 +195,11 @@ public class TableOrderService {
             }
             UUID itemId = parse(l.str("itemId"), "That item");
             BigDecimal qty = l.num("qty", BigDecimal.ONE);
-            if (qty.signum() <= 0 || qty.compareTo(BigDecimal.valueOf(MAX_QTY)) > 0 || qty.stripTrailingZeros().scale() > 0) {
-                throw ApiException.bad("Choose between 1 and " + MAX_QTY + " of each item");
+            // R7: meat sold by the kg comes in quarter-kg steps; everything else in whole portions.
+            boolean byKg = Boolean.TRUE.equals(db.value("SELECT sold_by_weight FROM items WHERE id = :id", Boolean.class, "id", itemId));
+            boolean steps = byKg ? qty.multiply(BigDecimal.valueOf(4)).stripTrailingZeros().scale() <= 0 : qty.stripTrailingZeros().scale() <= 0;
+            if (qty.signum() <= 0 || qty.compareTo(BigDecimal.valueOf(MAX_QTY)) > 0 || !steps) {
+                throw ApiException.bad(byKg ? "Choose the weight in quarter kilos (¼, ½, ¾, 1 kg...)" : "Choose between 1 and " + MAX_QTY + " of each item");
             }
             Map<String, Object> item = db.find("""
                     SELECT name, active, kind, (unavailable_until IS NOT NULL AND unavailable_until > now()) AS unavailable,

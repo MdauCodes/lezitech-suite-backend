@@ -32,6 +32,7 @@ public class CatalogController {
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
             i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price,
             (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
+            i.sold_by_weight, i.baked_daily, i.day_old_of,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand""";
 
     private final Db db;
@@ -154,6 +155,11 @@ public class CatalogController {
                 "dur", b.integer("durationMin", null), "station", b.str("station", null),
                 "rx", b.bool("needsPrescription", false), "options", db.toJson(b.raw("options")),
                 "active", b.bool("active", true));
+        // R7: priced per kg and sold by the weight from the scale. Only changed when sent.
+        if (b.has("soldByWeight")) {
+            boolean kg = b.bool("soldByWeight", false);
+            db.exec("UPDATE items SET sold_by_weight = :w, unit = CASE WHEN :w THEN 'kg' ELSE unit END WHERE id = :id", "id", id, "w", kg);
+        }
         // A service's own commission rate (overrides the staff member's); only changed when sent.
         if (b.has("commissionRate")) {
             db.exec("UPDATE items SET commission_rate = :cr WHERE id = :id", "id", id, "cr", rate(b.num("commissionRate", null)));
