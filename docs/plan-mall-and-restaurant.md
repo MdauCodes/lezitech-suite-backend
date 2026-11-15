@@ -15,6 +15,29 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15/16: more businesses, branches, the first-day checklist, ushers, and a clarity pass.**
+
+- **Another business** (own sector, items, staff and reports): one sign-in, a switcher at the top of the menu
+  (`/api/businesses`, `users.person_id`, `tenants.group_id`, migration V47).
+- **Branches** (same items and prices, shared customers, stock per branch, transfers between branches):
+  - Each staff member works at one branch, and their till, stock and sales follow them there.
+  - Owners and managers work in one branch or see all of them.
+  - Sales are shown by branch.
+  - `/api/branches`, `users.location_id`, migration V48.
+- **First-day checklist** (`/api/first-steps`, page `/start`, progress in the menu): it ticks itself and fits the kind
+  of business. Items have a clear "Remove the sample items" strip.
+- **Ushers:** prompts in `docs/avatars/biznez-usher-prompts.pdf`, written after studying how Trendysh uses its usher.
+  The `Usher` component shows `public/ushers/usher-*.png` by itself once each file is added. They appear on empty
+  screens, the checklist, the sign-in pages, the reach-us panel, and the night summary's warnings.
+- **Clarity pass (the owner's rule, saved to memory):**
+  - Every action is a labelled button: a verb plus what it acts on.
+  - Rows and cards are information. No tap-anywhere rows: Items, Customers, Sales, Rooms, Landlords, repair
+    requests, Activity, Staff, tenant requests and end of shift each get a labelled button.
+  - Vague "Go to / Open / Copy / Edit / Change / Map / Call / Send" labels are replaced, and icon buttons get
+    tooltips.
+- **Parked for the owner:** the features pages. The marketing website (businez.com) isn't in this workspace, and the
+  app sends `/for/...` there, so those pages belong in the website's code.
+
 **2026-11-15: "How this screen works" folds away instead of closing.** On every screen it shrinks to a one-line button
 that opens it again (remembered per device); the tables screen's own tips box now uses it too.
 
