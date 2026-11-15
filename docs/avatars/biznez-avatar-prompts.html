@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BizNez avatar prompts</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: #161a1b; font-size: 10.5pt; line-height: 1.45; }
+  h1 { font-size: 22pt; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 13.5pt; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #c6f432; }
+  .lead { color: #4a5152; margin: 0 0 14px; }
+  .box { border: 1px solid #d9dcd6; border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: #fbfaf6; }
+  .master { background: #f3f7e6; border-color: #c6f432; }
+  .neg { background: #fdf1f0; border-color: #f2c4bf; }
+  code, .prompt { font-family: Consolas, "Courier New", monospace; font-size: 9.2pt; }
+  h3 { break-after: avoid; page-break-after: avoid; }
+  .card { border: 1px solid #d9dcd6; border-radius: 10px; padding: 9px 12px; margin: 7px 0; page-break-inside: avoid; }
+  .card .top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+  .card .file { font-family: Consolas, monospace; font-size: 8.8pt; color: #5b6263; font-weight: 400; }
+  .card .use { font-size: 9pt; color: #5b6263; margin: 2px 0 5px; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.5pt; }
+  td, th { border: 1px solid #d9dcd6; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #f1f2ee; }
+  .small { font-size: 9pt; color: #5b6263; }
+</style>
+</head>
+<body>
+<h1>BizNez avatar prompts</h1>
+<p class="lead">For generating the people shown on the BizNez home page, features pages, demo picker, empty screens and tips: one after the other, with any image AI.
+Same family look as the Trendysh avatars (photo-real, waist up, plain white background, holding a tool of their trade), but dressed the way
+Kenyan SME people really dress at work: smart casual, aprons, overalls, kitenge, polo shirts. No suits.</p>
+
+<h2>1. How to use this</h2>
+<ol>
+  <li>Paste the <strong>master style</strong> first, then one <strong>person</strong> prompt below it, as one prompt.</li>
+  <li>Add the <strong>avoid list</strong> as the negative prompt (or as "Avoid: …" at the end if the tool has no negative box).</li>
+  <li>Make 2 to 4 tries and keep the most natural one: relaxed smile, real hands, the object clearly visible.</li>
+  <li>Save it with the file name given, at least 1200 × 1500 px, then let LeziTech cut out the background and make the small sizes.</li>
+  <li>Keep faces different from each other: never reuse a face for two people (Trendysh learned this with Nails and Brows).</li>
+</ol>
+
+<h2>2. Master style (paste first, every time)</h2>
+<div class="box master prompt">
+Photorealistic portrait photograph of a Kenyan small-business person at work, waist-up, facing the camera with a slight turn,
+warm genuine smile, natural relaxed pose, holding a tool of their trade clearly in their hands. Dressed in smart-casual or
+work clothes typical of Nairobi small businesses (not a suit). Real skin texture, natural hair, modest jewellery. Plain pure white
+background, soft even studio light from the front-left, gentle shadow, sharp focus on the face and hands, 85 mm lens, f/4.
+Clean edges suitable for cutting out. Portrait orientation 4:5, the person centred with space above the head.
+</div>
+
+<h2>3. Avoid list (negative prompt)</h2>
+<div class="box neg prompt">
+suit, tie, corporate office, stock-photo pose, exaggerated grin, plastic skin, airbrushed, heavy makeup on men, extra fingers,
+deformed hands, text, logos, brand names, watermark, busy background, props floating, cartoon, illustration, 3D render,
+sunglasses, face cut off, hands cut off, Western-looking setting, snow.
+</div>
+
+<h2>4. The people</h2>
+<p class="small">Mix of ages (20s to 60s), men and women, and communities across Kenya. Names in brackets are only to keep track; don't put names in the prompt.</p>
+
+<div id="people"></div>
+
+<h2>5. Where each one is used</h2>
+<table>
+  <tr><th>Place in BizNez</th><th>Avatars</th></tr>
+  <tr><td>Home page and "Try the demo" picker</td><td>One per sector: the owner of each kind of business</td></tr>
+  <tr><td>Features page for each kind of business</td><td>The owner plus 2 to 3 staff of that business, beside the part of the day they handle</td></tr>
+  <tr><td>Demo role buttons ("Sign in as the waiter")</td><td>The matching role avatar, small and round</td></tr>
+  <tr><td>Empty screens and "How this screen works"</td><td>The person who uses that screen, small</td></tr>
+  <tr><td>Reach-us button panel</td><td>The BizNez team avatar</td></tr>
+</table>
+<p class="small">Made by LeziTech for BizNez, 15 November 2026.</p>
+
+<script>
+const people = [
+  ["Restaurants & cafés", [
+    ["restaurant-owner", "Restaurant owner (Mama Oliech)", "Demo home, restaurant features page",
+     "A Kenyan woman in her late 40s, the owner of a busy family restaurant, wearing a bright kitenge blouse under a dark apron, short natural hair under a matching headwrap, holding a smartphone showing a sales screen in one hand and a printed menu in the other, proud warm smile."],
+    ["restaurant-waiter", "Waiter (Brian)", "Waiter role, tables screen",
+     "A Kenyan man in his early 20s, a restaurant waiter in a black polo shirt and black waist apron with a pen in the pocket, short fade haircut, holding a smartphone in one hand as if taking an order, friendly attentive smile."],
+    ["restaurant-chef", "Cook (Juma)", "Kitchen role, kitchen screen, recipes",
+     "A Kenyan man in his 30s, a local restaurant cook in a white short-sleeved cook's shirt and a stained striped apron, small cap, holding a large aluminium sufuria with a wooden mwiko, confident smile."],
+    ["restaurant-cashier", "Cashier (Mercy)", "Cashier role, till, end of shift",
+     "A Kenyan woman in her late 20s, a restaurant cashier in a neat maroon uniform blouse, braids tied back, holding a smartphone showing an M-Pesa payment message next to a small receipt printer, calm helpful smile."],
+    ["rider", "Delivery rider (Otieno)", "Rider role, deliveries",
+     "A Kenyan man in his 30s, a boda boda delivery rider in a reflective green jacket over a hoodie, helmet tucked under one arm, holding an insulated delivery bag by the strap, easy grin."],
+    ["grill", "Nyama choma grill man (Mutua)", "Grill & nyama choma type",
+     "A Kenyan man in his 50s with a short grey beard, a nyama choma grill master in a checked short-sleeved shirt and a heavy work apron, holding long metal tongs and a wooden board with roasted goat meat, cheerful laugh lines."],
+    ["baker", "Baker (Wanjiru)", "Bakery type, daily baking",
+     "A Kenyan woman in her 30s, a baker in a white baker's tunic dusted with flour and a hairnet over a short natural afro, holding a metal tray of fresh golden mandazi and bread rolls, warm smile."],
+    ["cake-maker", "Cake maker (Faith)", "Cake orders",
+     "A young Kenyan woman in her 20s, a home-cake business owner in a pastel apron over a casual T-shirt, long braids in a high bun, holding a two-tier decorated birthday cake on a stand, delighted smile."],
+    ["bartender", "Bar attendant (Kevo)", "Bar & lounge type, bar tots",
+     "A Kenyan man in his late 20s, a bar attendant in a black shirt with rolled sleeves, short dreadlocks, holding a spirit bottle and a measuring tot in front of him, relaxed confident smile."],
+    ["canteen", "Canteen owner (Mama Njeri)", "Canteen & caterer type",
+     "A Kenyan woman in her 50s, owner of a workers' canteen, in a lesso tied as an apron over a simple dress and a headscarf, holding a plate of chapati and ndengu, motherly smile."],
+  ]],
+  ["Hotels & lodges", [
+    ["hotel-reception", "Front desk (Esther)", "Hotel reception, rooms",
+     "A Kenyan woman in her late 20s, a lodge receptionist in a smart-casual teal blouse with a name badge, neat twists, holding a room key with a wooden tag and a small booking notebook, welcoming smile."],
+    ["hotel-housekeeping", "Housekeeper (Achieng)", "Housekeeping",
+     "A Kenyan woman in her 30s, a housekeeper in a light blue work dress, hair in a neat bun, holding a stack of folded white towels, gentle smile."],
+  ]],
+  ["Shops & minimarts", [
+    ["shop-owner", "Minimart owner (Kiprono)", "Retail type, shop features page",
+     "A Kenyan man in his 40s, owner of a neighbourhood minimart, in a short-sleeved checked shirt and a branded shop dustcoat open over it, holding a loaf of bread and a packet of milk, friendly nod."],
+    ["mama-mboga", "Grocer (Mama Mboga)", "Retail, small sellers",
+     "A Kenyan woman in her 40s, a vegetable seller, in a colourful kitenge top and headwrap, holding a woven basket of sukuma wiki, tomatoes and onions, bright smile."],
+    ["shop-cashier", "Shop cashier (John)", "Cashier role in retail",
+     "A Kenyan man in his early 20s, a supermarket cashier in a green polo shirt with a name badge, holding a handheld barcode scanner, cheerful look."],
+  ]],
+  ["Salons & barbers", [
+    ["barber", "Barber (Sammy)", "Beauty type, bookings",
+     "A Kenyan man in his late 20s, a barber in a black barber's smock, neat beard and sharp line-up, holding electric clippers, confident smile."],
+    ["stylist", "Hair stylist (Achieng)", "Stylist role",
+     "A Kenyan woman in her 30s, a hairdresser in a black salon apron over a casual top, long knotless braids, holding a comb and a pack of braiding hair, warm smile."],
+    ["salon-owner", "Salon owner (Amina)", "Beauty owner, features page",
+     "A Kenyan woman in her 40s of Swahili coast heritage, salon owner in an elegant smart-casual kaftan top and a light headscarf, holding a smartphone with a booking calendar, poised smile."],
+  ]],
+  ["Wholesale & distribution", [
+    ["wholesaler", "Wholesaler (Ali)", "Wholesale type",
+     "A Kenyan man in his 50s, owner of a wholesale store, in a light kanzu-style shirt and kofia, holding a clipboard with an order sheet beside a stacked carton, steady smile."],
+    ["sales-rep", "Sales rep (Kevin)", "Sales role, price quotes",
+     "A Kenyan man in his late 20s, a field sales rep in a fitted polo shirt and a crossbody bag, holding a tablet showing an order, energetic smile."],
+    ["storekeeper", "Storekeeper (Grace)", "Stock, buying",
+     "A Kenyan woman in her 30s, a storekeeper in a navy work overcoat, hair in cornrows, holding a 2 kg packet of maize flour and a pen, practical smile."],
+  ]],
+  ["Service businesses", [
+    ["consultant", "Consultant (Sharon)", "Services type, sales leads",
+     "A Kenyan woman in her 30s, an independent consultant in a smart-casual knit top and wide-leg trousers (no blazer), short curly hair, holding an open laptop, confident friendly look."],
+  ]],
+  ["Safaris & tours", [
+    ["safari-guide", "Safari guide (Sankale)", "Tours type, trips",
+     "A Kenyan Maasai man in his 30s, a safari guide in a khaki field shirt with a beaded bracelet and a shuka over one shoulder, holding binoculars, calm proud smile."],
+    ["travel-consultant", "Travel consultant (Diana)", "Tour bookings",
+     "A Kenyan woman in her late 20s, a travel consultant in a smart-casual printed shirt, holding a smartphone and a small brochure of a safari lodge, welcoming smile."],
+  ]],
+  ["Malls, landlords & property", [
+    ["landlord", "Landlord (Francis)", "Property type, rent",
+     "A Kenyan man in his 60s, a building owner, in a casual collared shirt and a flat cap, reading glasses on a cord, holding a ring of keys and a phone, kind seasoned smile."],
+    ["caretaker", "Caretaker (Moses)", "Technician role, repair jobs, meters",
+     "A Kenyan man in his 40s, a building caretaker in blue work overalls, holding a metal toolbox and an adjustable spanner, reliable smile."],
+    ["market-collector", "Market collector (Halima)", "Collector role, market round",
+     "A Kenyan woman in her 30s, a market fees collector in a reflective vest over a casual top and a headscarf, holding a receipt book and a smartphone, firm friendly smile."],
+    ["tenant-shopkeeper", "Tenant shopkeeper (Wairimu)", "Tenant portal",
+     "A Kenyan woman in her 30s, a boutique owner renting a mall stall, in a stylish casual dress, holding a folded rent receipt and a phone, satisfied smile."],
+  ]],
+  ["The BizNez team", [
+    ["biznez-team", "BizNez support", "Reach-us button, help",
+     "A Kenyan person in their 20s or 30s from the BizNez support team, in a smart-casual lime-green polo shirt (no logo), wearing a phone headset, holding a smartphone, open helpful smile."],
+  ]],
+];
+const box = document.getElementById("people");
+for (const [sector, list] of people) {
+  const h = document.createElement("h3"); h.textContent = sector; h.style.margin = "14px 0 4px"; box.appendChild(h);
+  for (const [file, who, use, prompt] of list) {
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<div class="top"><span>${who}</span><span class="file">avatar-${file}.png</span></div><div class="use">Used for: ${use}</div><div class="prompt">${prompt}</div>`;
+    box.appendChild(c);
+  }
+}
+</script>
+</body>
+</html>

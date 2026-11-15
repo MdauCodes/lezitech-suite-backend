@@ -864,6 +864,24 @@ three or four things no one else offers at any price they can afford.
 
 ---
 
+## Next: more businesses per owner, and the way in (owner, 2026-11-15)
+
+The owner's decisions:
+- **The owner chooses, each time, "Add a branch" or "Add another business".**
+  - A branch shares the menu or products and prices, the customers, and the reports (added up). Stock moves between
+    branches.
+  - Another business has its own sector, items, staff and reports, e.g. a mall owner's supermarket.
+  - Either way: one sign-in, and a switcher at the top to move between them.
+- **Billing waits.** Branches will sit under one plan (premium or the middle one, not decided yet). Product first.
+- **Trying it first, all three:**
+  - the demo with sample data, made clearer
+  - a 7-day trial with the business's own data (clear the samples in one tap, import a list)
+  - a guided first day: a checklist that ticks itself
+- **Avatars like Trendysh's,** but jua kali and smart casual for SME people, not suits. Generated one by one from
+  `docs/avatars/biznez-avatar-prompts.pdf` (31 people, every sector and role).
+- **Features pages live inside BizNez** (e.g. `/for/restaurants`): a day in the life, from morning to closing, in plain
+  business words, with "Try the demo" and "Start free".
+
 ## To do for all LeziTech products (owner, 2026-11-15)
 
 - **"Reach us" in one tap.** A small icon on every screen of every product (BizNez and the others) that opens to:
