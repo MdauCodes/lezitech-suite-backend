@@ -791,6 +791,18 @@ three or four things no one else offers at any price they can afford.
 
 ---
 
+## To do for all LeziTech products (owner, 2026-11-15)
+
+- **"Reach us" in one tap.** A small icon on every screen of every product (BizNez and the others) that opens to:
+  - WhatsApp the team (0796814154, i.e. +254 796 814 154), with the business and screen already in the message
+  - call the team
+  - a quick question or feedback box, and "ask for a feature"
+- Questions, feedback and requests land straight away on the team's WhatsApp and on a list in the LeziTech control panel,
+  so nothing is missed.
+- BizNez already has `CustomRequest` (`/api/custom-requests`, emailed to `TEAM_EMAIL`) and `suite.support-whatsapp`:
+  build on them, with the number from config.
+- Not built yet: after the restaurant packages, or sooner if the owner asks.
+
 ## 5. Build order
 
 Estimates assume one developer (this model) working with tests, as in packages A–I. Each package can be used on its own as
