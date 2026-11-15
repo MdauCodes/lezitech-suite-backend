@@ -62,6 +62,8 @@ public class Reservations {
     private final ObjectMapper json;
     private final OrderService orders;
     private final Mailer mailer;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.notify.WebPush push;
 
     public Reservations(Db db, JdbcTemplate jdbc, ObjectMapper json, OrderService orders, Mailer mailer) {
         this.db = db;
@@ -256,6 +258,12 @@ public class Reservations {
                 "ds", deposit.signum() > 0 ? "WAITING" : "NONE", "held", deposit.signum() > 0, "hold", r.holdMin(), "ack", !online);
         if ("BOOKED".equals(status)) {
             confirmEmail(id);
+        }
+        if (online) {
+            // Phones and computers of the floor team, even with the app closed (the ring also plays on open screens).
+            push.toStaff(List.of("MANAGER", "CASHIER", "WAITER"), "New table booking",
+                    name + " · " + party + (party == 1 ? " person · " : " people · ") + DAY.format(start.atZone(NAIROBI)) + " " + TIME.format(start.atZone(NAIROBI)),
+                    "/table-bookings", "booking-" + id);
         }
         return view(id);
     }

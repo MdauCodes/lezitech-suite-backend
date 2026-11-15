@@ -15,6 +15,20 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: staff never miss an order: the ring for deliveries, and phone and computer notifications.**
+
+- **New online deliveries ring** on the floor team's screens (sound, flashing tab, can't be clicked away) until someone
+  stops it, for everyone. **A trip given to a rider rings on that rider's phone** until they open it. A table-booking ring
+  goes first; the delivery ring waits for it.
+- **Phone and computer notifications (Web Push, as Moments Packaging does it):** each staff member taps "Get alerts on this
+  phone" once per device. Then new online deliveries and table bookings (floor team and owner) and new trips (the rider)
+  pop up even with BizNez closed or the phone locked; tapping one opens the right screen.
+  - `WebPush` makes the key pair once and keeps it (`platform_secrets`, the private half encrypted with `SECRETS_KEY`);
+    `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (as `suite.push.*`) override it. Sent after the change is saved, in the background.
+  - `/api/push` (key and my devices), `/subscribe`, `/unsubscribe`, `/test`. `sw.js` shows them and opens the screen.
+  - iPhones get them only once BizNez is added to the Home Screen (Apple's rule for web apps).
+- Migration `V42__alerts_and_push.sql`.
+
 **2026-11-15: R5, delivery, is built, tested and checked in the browser.**
 
 The owner's decisions:

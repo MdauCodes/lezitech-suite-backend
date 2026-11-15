@@ -57,6 +57,8 @@ public class Delivery {
     private final OrderService orders;
     private final TableOrderService tableOrders;
     private final MpesaService mpesa;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.notify.WebPush push;
 
     public Delivery(Db db, JdbcTemplate jdbc, ObjectMapper json, OrderService orders, TableOrderService tableOrders, MpesaService mpesa) {
         this.db = db;
@@ -335,6 +337,9 @@ public class Delivery {
         TableOrderService.Placed p = tableOrders.place(body, door ? "READY" : "FIRST");
         attach(p.orderId(), w, door);
         Map<String, Object> o = db.one("Order", "SELECT number, total, public_token, held_for_payment FROM orders WHERE id = :id", "id", p.orderId());
+        push.toStaff(List.of("MANAGER", "CASHIER", "WAITER"), "New delivery #" + o.get("number"),
+                w.areaName() + " · KES " + ((BigDecimal) o.get("total")).toBigInteger() + (door ? " · pays at the door" : " · paying by M-Pesa first"),
+                "/deliveries", "delivery-" + p.orderId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("number", o.get("number"));
         out.put("token", o.get("publicToken"));
@@ -490,6 +495,52 @@ public class Delivery {
         return out;
     }
 
+    // ---------------- alerts: the ring ----------------
+
+    /**
+     * What should ring on this person's screen: for the floor team, new online deliveries nobody has seen; for a rider,
+     * trips given to them they haven't opened.
+     */
+    public Map<String, Object> alerts() {
+        boolean riderRole = "RIDER".equals(TenantContext.caller().role());
+        List<Map<String, Object>> items = new ArrayList<>();
+        String kind;
+        if (riderRole) {
+            kind = "TRIPS";
+            UUID me = myRider();
+            if (me != null) {
+                for (Map<String, Object> x : db.list(SELECT + """
+                         WHERE d.rider_id = :r AND d.rider_seen_at IS NULL AND d.status IN ('WAITING', 'ON_THE_WAY') AND o.status <> 'VOID'
+                         ORDER BY d.created_at""", "r", me)) {
+                    items.add(withStage(x));
+                }
+            }
+        } else {
+            kind = "DELIVERIES";
+            for (Map<String, Object> x : db.list(SELECT + """
+                     WHERE d.created_by IS NULL AND d.acknowledged_at IS NULL AND o.status <> 'VOID'
+                       AND d.created_at > now() - interval '12 hours'
+                     ORDER BY d.created_at""", new Object[0])) {
+                items.add(withStage(x));
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("kind", kind);
+        out.put("count", items.size());
+        out.put("upTo", items.isEmpty() ? null : String.valueOf(items.get(items.size() - 1).get("createdAt")));
+        out.put("items", items);
+        return out;
+    }
+
+    /** Someone saw them: stop the ring (for everyone on the floor; for a rider, their own trips). */
+    public int stopAlerts() {
+        if ("RIDER".equals(TenantContext.caller().role())) {
+            UUID me = myRider();
+            return me == null ? 0 : db.exec("UPDATE deliveries SET rider_seen_at = now() WHERE rider_id = :r AND rider_seen_at IS NULL", "r", me);
+        }
+        return db.exec("UPDATE deliveries SET acknowledged_at = now(), acknowledged_by = :u WHERE created_by IS NULL AND acknowledged_at IS NULL");
+    }
+
     // ---------------- moving a delivery along ----------------
 
     private Map<String, Object> lock(UUID id) {
@@ -525,7 +576,18 @@ public class Delivery {
         if (!Boolean.TRUE.equals(r.get("active"))) {
             throw ApiException.bad("That rider is switched off");
         }
-        db.exec("UPDATE deliveries SET rider_id = :r WHERE id = :id", "id", id, "r", rider);
+        boolean self = "RIDER".equals(TenantContext.caller().role()) || riderId == null;
+        boolean changed = d.get("riderId") == null || !d.get("riderId").toString().equals(rider.toString());
+        // A trip a rider takes themselves is already seen; one given to them rings on their phone until they open it.
+        db.exec("UPDATE deliveries SET rider_id = :r, rider_seen_at = CASE WHEN :self THEN now() WHEN :changed THEN NULL ELSE rider_seen_at END WHERE id = :id",
+                "id", id, "r", rider, "self", self, "changed", changed);
+        if (!self && changed) {
+            Map<String, Object> v = view(id);
+            UUID user = db.value("SELECT user_id FROM riders WHERE id = :r", UUID.class, "r", rider);
+            push.toUser(user, "New trip for you: #" + v.get("number"), v.get("areaName") + " · " + v.get("address")
+                    + (((BigDecimal) v.get("toCollect")).signum() > 0 && "OPEN".equals(v.get("orderStatus")) ? " · collect KES " + ((BigDecimal) v.get("toCollect")).toBigInteger() : " · paid"),
+                    "/my-deliveries", "trip-" + id);
+        }
         return view(id);
     }
 

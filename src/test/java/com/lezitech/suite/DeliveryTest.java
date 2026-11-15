@@ -71,6 +71,11 @@ class DeliveryTest extends IntegrationTest {
         int number = placed.at("/number").asInt();
         double total = placed.at("/total").asDouble();
 
+        // It rings on the floor team's screens until someone stops it (for everyone).
+        assertThat(get("/delivery/alerts", cashier).at("/count").asInt()).isEqualTo(1);
+        assertThat(get("/delivery/alerts", cashier).at("/kind").asText()).isEqualTo("DELIVERIES");
+        post("/delivery/alerts/stop", cashier, Map.of());
+        assertThat(get("/delivery/alerts", owner).at("/count").asInt()).isZero();
         assertThat(deliveryOf(owner, number).get("stage").asText()).isEqualTo("COOKING");
         cookAll(owner);
         JsonNode d = deliveryOf(owner, number);
@@ -130,6 +135,22 @@ class DeliveryTest extends IntegrationTest {
         assertThat(h.get("stage").asText()).isEqualTo("WAITING_PAYMENT");
         String juma = post("/delivery/riders", owner, Map.of("name", "Juma (boda)", "phone", "0711222333")).at("/id").asText();
         post("/delivery/" + h.get("id").asText() + "/rider", owner, Map.of("riderId", juma));
+
+        // A staff rider given a trip gets it ringing on their phone until they open it.
+        String rider = staff(owner, "RIDER");
+        String riderEntry = get("/delivery/mine", rider).at("/id").asText();
+        post("/delivery/" + h.get("id").asText() + "/rider", owner, Map.of("riderId", riderEntry));
+        assertThat(get("/delivery/alerts", rider).at("/kind").asText()).isEqualTo("TRIPS");
+        assertThat(get("/delivery/alerts", rider).at("/count").asInt()).isEqualTo(1);
+        post("/delivery/alerts/stop", rider, Map.of());
+        assertThat(get("/delivery/alerts", rider).at("/count").asInt()).isZero();
+        post("/delivery/" + h.get("id").asText() + "/rider", owner, Map.of("riderId", juma));
+
+        // Phone notifications: the device signs up with the key BizNez made.
+        assertThat(get("/push", rider).at("/publicKey").asText()).hasSizeGreaterThan(80);
+        assertThat(post("/push/subscribe", rider, Map.of("endpoint", "https://push.example.invalid/abc", "keys",
+                Map.of("p256dh", "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", "auth", "tBHItJI5svbpez7KI4CCXg"))).at("/devices").asInt()).isEqualTo(1);
+        assertThat(post("/push/subscribe", rider, Map.of("endpoint", "http://not-secure", "keys", Map.of("p256dh", "x", "auth", "y"))).status()).isEqualTo(400);
         assertThat(post("/delivery/" + h.get("id").asText() + "/picked", owner, Map.of()).status()).isEqualTo(400);
 
         // An unknown area is refused, and leaves no order behind.

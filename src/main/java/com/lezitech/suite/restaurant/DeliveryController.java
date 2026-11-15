@@ -51,6 +51,17 @@ public class DeliveryController {
         return delivery.addresses(phone);
     }
 
+    /** What should ring on this screen (new online deliveries, or a rider's new trips). */
+    @GetMapping("/alerts")
+    public Map<String, Object> alerts() {
+        return delivery.alerts();
+    }
+
+    @PostMapping("/alerts/stop")
+    public Map<String, Object> stopAlerts() {
+        return Map.of("stopped", delivery.stopAlerts());
+    }
+
     @GetMapping("/mine")
     public Map<String, Object> mine() {
         return delivery.mine();
