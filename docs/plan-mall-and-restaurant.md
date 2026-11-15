@@ -15,6 +15,9 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
 
 ## Progress (newest first)
 
+**2026-11-15: "How this screen works" folds away instead of closing.** On every screen it shrinks to a one-line button
+that opens it again (remembered per device); the tables screen's own tips box now uses it too.
+
 **2026-11-15: R8, the owner's night summary, theft alerts and the menu report, is built, tested and checked in the browser.
 With R8 the restaurant packages R1 to R8 are done.**
 
@@ -871,7 +874,12 @@ three or four things no one else offers at any price they can afford.
   so nothing is missed.
 - BizNez already has `CustomRequest` (`/api/custom-requests`, emailed to `TEAM_EMAIL`) and `suite.support-whatsapp`:
   build on them, with the number from config.
-- Not built yet: after the restaurant packages, or sooner if the owner asks.
+- **Built for BizNez on 2026-11-15:** a round button on every screen (and the sign-in, sign-up and demo pages) opens to
+  WhatsApp us (the message already says the business, the person and the screen), Call us, and a quick message: a
+  question, something not working, a feature idea, feedback, or "call me back". Messages go to the control panel's new
+  **Messages** list (`team_messages`, `/api/contact`, `/api/public/contact`, `/api/admin/messages`) and the team email.
+  The number comes from `SUPPORT_WHATSAPP` (0796814154 if not set). Still to do: the same button in LeziTech's other
+  products.
 
 ## 5. Build order
 

@@ -29,7 +29,7 @@ public class TrialGuard implements WebMvcConfigurer, HandlerInterceptor {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(this).addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/**", "/api/billing/**", "/api/public/**", "/api/platform/**");
+                .excludePathPatterns("/api/auth/**", "/api/billing/**", "/api/public/**", "/api/platform/**", "/api/contact");
     }
 
     @Override
