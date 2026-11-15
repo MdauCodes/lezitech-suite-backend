@@ -85,7 +85,7 @@ public class ShiftController {
         }
         UUID id = db.insert("""
                 INSERT INTO shifts (tenant_id, user_id, location_id, opening_cash)
-                VALUES (:t, :u, (SELECT id FROM locations WHERE is_default LIMIT 1), :cash) RETURNING id""",
+                VALUES (:t, :u, coalesce((SELECT location_id FROM users WHERE id = :u), (SELECT id FROM locations WHERE is_default LIMIT 1)), :cash) RETURNING id""",
                 "cash", cash);
         return forCaller(full(id));
     }

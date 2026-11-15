@@ -67,8 +67,10 @@ public class TeamController {
     @GetMapping
     public List<Map<String, Object>> list() {
         return db.list("""
-                SELECT id, email, name, role, active, pin_hash IS NOT NULL AS has_pin, commission_rate, created_at
-                FROM users WHERE tenant_id = :t ORDER BY role = 'OWNER' DESC, name""");
+                SELECT u.id, u.email, u.name, u.role, u.active, u.pin_hash IS NOT NULL AS has_pin, u.commission_rate, u.created_at,
+                       u.location_id, l.name AS location_name
+                FROM users u LEFT JOIN locations l ON l.id = u.location_id
+                WHERE u.tenant_id = :t ORDER BY u.role = 'OWNER' DESC, u.name""");
     }
 
     @PostMapping

@@ -114,6 +114,11 @@ public class ReportController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("from", f.toString());
         out.put("to", t.toString());
+        // Branches: each place's share of the sales (one row when there's only the main place).
+        out.put("byBranch", db.list("""
+                SELECT coalesce(l.name, 'Main') AS name, coalesce(sum(o.total), 0) AS sales, count(*) AS orders
+                FROM orders o LEFT JOIN locations l ON l.id = o.location_id WHERE """ + window + " " + """
+                 GROUP BY l.name ORDER BY sum(o.total) DESC""", range));
         out.put("totals", db.one("Totals", """
                 SELECT coalesce(sum(o.total), 0) AS sales, coalesce(sum(o.tax), 0) AS tax, coalesce(sum(o.discount), 0) AS discounts,
                        count(*) AS orders, coalesce(avg(o.total), 0) AS avg_ticket,

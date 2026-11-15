@@ -145,7 +145,21 @@ public class StockService {
         return sectors.get((String) t.get("sector")).path("features").path("allowNegativeStock").asBoolean(false);
     }
 
+    /** Where stock moves for the person doing it: their branch if they work at one, otherwise the main place. */
     public UUID defaultLocation() {
+        com.lezitech.suite.tenant.TenantContext.Caller c = com.lezitech.suite.tenant.TenantContext.callerOrNull();
+        if (c != null && c.userId() != null) {
+            UUID mine = db.value("""
+                    SELECT l.id FROM users u JOIN locations l ON l.id = u.location_id WHERE u.id = :u AND l.active""", UUID.class);
+            if (mine != null) {
+                return mine;
+            }
+        }
+        return mainLocation();
+    }
+
+    /** The business's main place (where stock goes when nobody's branch says otherwise). */
+    public UUID mainLocation() {
         return db.value("SELECT id FROM locations WHERE is_default LIMIT 1", UUID.class);
     }
 }

@@ -33,7 +33,9 @@ public class CatalogController {
             i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price,
             (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
             i.sold_by_weight, i.baked_daily, i.day_old_of,
-            coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id), 0) AS on_hand""";
+            coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id
+                      -- Staff at a branch see that branch's stock; the owner and the main place see it all.
+                      AND s.location_id = coalesce((SELECT location_id FROM users WHERE id = cast(:u as uuid)), s.location_id)), 0) AS on_hand""";
 
     private final Db db;
 
