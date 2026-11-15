@@ -24,7 +24,7 @@ ranks. The features listed below are what each vendor *says* it does. Nobody has
   - Owners and managers work in one branch or see all of them.
   - Sales are shown by branch.
   - `/api/branches`, `users.location_id`, migration V48.
-- **First-day checklist** (`/api/first-steps`, page `/start`, progress in the menu): it ticks itself and fits the kind
+- **First-day checklist** (`/api/first-steps`, page `/getting-started`, progress in the menu): it ticks itself and fits the kind
   of business. Items have a clear "Remove the sample items" strip.
 - **Ushers:** prompts in `docs/avatars/biznez-usher-prompts.pdf`, written after studying how Trendysh uses its usher.
   The `Usher` component shows `public/ushers/usher-*.png` by itself once each file is added. They appear on empty
