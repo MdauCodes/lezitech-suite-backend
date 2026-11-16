@@ -51,6 +51,40 @@ public class AdminController {
     private final com.lezitech.suite.auth.TokenVersions versions;
     private final AdminService admin;
     @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
+
+    /** Free days for new businesses, and the plans' names, prices and limits. */
+    @GetMapping("/platform-settings")
+    public Map<String, Object> platformSettings() {
+        AdminContext.require("read");
+        return Map.of("trialDays", platform.trialDays(), "plans", platform.plans(),
+                "minTrial", com.lezitech.suite.platform.PlatformSettings.MIN_TRIAL, "maxTrial", com.lezitech.suite.platform.PlatformSettings.MAX_TRIAL);
+    }
+
+    @PutMapping("/platform-settings")
+    public Map<String, Object> savePlatformSettings(@RequestBody Map<String, Object> raw) {
+        AdminContext.require("system");
+        String by = AdminContext.admin().name();
+        if (raw.containsKey("trialDays")) {
+            int before = platform.trialDays();
+            int days;
+            try {
+                days = Integer.parseInt(String.valueOf(raw.get("trialDays")).trim());
+            } catch (NumberFormatException e) {
+                throw ApiException.bad("Type the number of free days");
+            }
+            platform.setTrialDays(days, by);
+            admin.audit("platform.trial_days", null, Map.of("from", before, "to", days));
+        }
+        if (raw.get("plans") instanceof List<?> plans) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> p = (List<Map<String, Object>>) plans;
+            platform.setPlans(p, by);
+            admin.audit("platform.plans", null, Map.of("plans", p.toString()));
+        }
+        return platformSettings();
+    }
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.auth.LoginCodes codes;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.notify.Mailer mailer;
@@ -183,8 +217,8 @@ public class AdminController {
         // Monthly recurring revenue from paying workspaces at list price.
         long mrr = 0;
         for (Map<String, Object> r : jdbc.queryForList("SELECT plan, count(*) AS n" + real + "AND status = 'ACTIVE' GROUP BY plan")) {
-            mrr += SettingsController.PLANS.stream().filter(p -> p.get("code").equals(r.get("plan")))
-                    .mapToLong(p -> ((Integer) p.get("monthly")).longValue() * ((Number) r.get("n")).longValue()).sum();
+            mrr += platform.plans().stream().filter(p -> p.get("code").equals(r.get("plan")))
+                    .mapToLong(p -> ((Number) p.get("monthly")).longValue() * ((Number) r.get("n")).longValue()).sum();
         }
         out.put("mrr", mrr);
         out.put("signupsByDay", jdbc.queryForList("""

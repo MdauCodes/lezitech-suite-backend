@@ -44,6 +44,8 @@ public class AuthController {
     private final SeedService seeder;
     private final ObjectMapper json;
     private final int trialDays;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
     private final com.lezitech.suite.growth.Referrals referrals;
     private final com.lezitech.suite.growth.MetaConversions meta;
 
@@ -209,7 +211,7 @@ public class AuthController {
         String slug = fixedSlug != null ? fixedSlug : uniqueSlug(business);
         UUID tenantId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        Instant trialEnds = Instant.now().plus(trialDays, ChronoUnit.DAYS);
+        Instant trialEnds = Instant.now().plus(platform.trialDays(), ChronoUnit.DAYS);
         jdbc.update("""
                 INSERT INTO tenants (id, slug, name, sector, sub_sector, products, trial_ends_at, brand_color, logo_url, phone, settings)
                 VALUES (?, ?, ?, ?, ?, cast(? as text[]), ?, ?, ?, ?, cast(? as jsonb))""",

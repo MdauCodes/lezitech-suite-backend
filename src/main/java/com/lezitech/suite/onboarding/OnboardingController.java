@@ -62,6 +62,8 @@ public class OnboardingController {
     private final SectorCatalog sectors;
     private final ObjectMapper json;
     private final int trialDays;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
     private final MetaConversions meta;
     /** Requests per address in the last hour, to keep bots from filling the list. */
     private final Map<String, Deque<Instant>> recent = new ConcurrentHashMap<>();
@@ -297,7 +299,7 @@ public class OnboardingController {
         }
         jdbc.update("""
                 UPDATE tenants SET in_setup = false, handed_over_at = now(), status = 'TRIAL',
-                       trial_ends_at = now() + make_interval(days => ?) WHERE id = ?""", trialDays, id);
+                       trial_ends_at = now() + make_interval(days => ?) WHERE id = ?""", platform.trialDays(), id);
         jdbc.update("UPDATE setup_requests SET status = 'DONE', updated_at = now() WHERE tenant_id = ?", id);
         Map<String, Object> out = sendWelcome(id, true);
         admin.audit("workspace.handover", id, Map.of("email", out.get("emailStatus")));
@@ -329,18 +331,18 @@ public class OnboardingController {
         String setPassword = mailer.appUrl() + "/reset?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8);
         String signIn = mailer.appUrl() + "/w/" + t.get("slug");
         String subject = first ? "Your BizNez for " + business + " is ready" : "Your BizNez sign-in code";
-        String text = "Hi " + name + ",\n\n" + (first ? "BizNez for " + business + " is set up and ready. Your 7-day free trial starts today.\n\n" : "")
+        String text = "Hi " + name + ",\n\n" + (first ? "BizNez for " + business + " is set up and ready. Your " + platform.trialDays() + "-day free trial starts today.\n\n" : "")
                 + "1. Open " + setPassword + "\n2. Enter the code " + code + " (it works for 3 days) and choose your password.\n"
                 + "3. After that, sign in any time at " + signIn + " with " + email + ".\n\n"
                 + (mailer.support().isBlank() ? "" : "Questions? WhatsApp or call us on " + mailer.support() + ".\n\n") + "Karibu,\nLeziTech";
         String html = "<p>Hi " + Mailer.esc(name) + ",</p>"
-                + (first ? "<p>BizNez for <b>" + Mailer.esc(business) + "</b> is set up and ready. Your 7-day free trial starts today.</p>" : "")
+                + (first ? "<p>BizNez for <b>" + Mailer.esc(business) + "</b> is set up and ready. Your " + platform.trialDays() + "-day free trial starts today.</p>" : "")
                 + "<p>Your code to set your password:</p><p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                 + "<p><a href=\"" + setPassword + "\" style=\"display:inline-block;background:#101415;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none\">Set my password</a></p>"
                 + "<p>The code works for 3 days. After that, sign in any time at <a href=\"" + signIn + "\">" + Mailer.esc(signIn) + "</a> with " + Mailer.esc(email) + ".</p>"
                 + "<p>Karibu,<br>LeziTech</p>";
         String status = mailer.send(email, (String) o.get("name"), subject, text, html);
-        String wa = "Hi " + name + ", this is LeziTech. " + (first ? "BizNez for " + business + " is ready and your 7-day free trial starts today. " : "")
+        String wa = "Hi " + name + ", this is LeziTech. " + (first ? "BizNez for " + business + " is ready and your " + platform.trialDays() + "-day free trial starts today. " : "")
                 + "To set your password, open " + setPassword + " and enter the code " + code + ". Then sign in at " + signIn + ". Any questions, reply here.";
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("emailStatus", status);

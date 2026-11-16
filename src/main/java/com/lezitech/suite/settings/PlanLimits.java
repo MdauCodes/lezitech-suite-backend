@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,13 +29,32 @@ public class PlanLimits {
         }
     }
 
-    public static final Map<String, Limits> BY_PLAN = Map.of(
-            "LITE", new Limits(3, 1, 500),
-            "GROWTH", new Limits(8, 3, 5000),
-            "PRO", new Limits(30, 10, 0));
+    private Limits limitsOf(String code) {
+        Map<String, Object> p = platform.plan(code);
+        if (p == null) {
+            return new Limits(0, 0, 0);
+        }
+        return new Limits(((Number) p.get("users")).intValue(), ((Number) p.get("locations")).intValue(), ((Number) p.get("items")).intValue());
+    }
 
-    private static final Map<String, String> NAME = Map.of("LITE", "Lite", "GROWTH", "Growth", "PRO", "Pro");
-    private static final Map<String, String> NEXT = Map.of("LITE", "GROWTH", "GROWTH", "PRO");
+    private String nameOf(String code) {
+        Map<String, Object> p = platform.plan(code);
+        return p == null ? code : (String) p.get("name");
+    }
+
+    /** The next plan up (by price), or null for the top one. */
+    private String nextOf(String code) {
+        List<Map<String, Object>> plans = platform.plans();
+        for (int i = 0; i < plans.size() - 1; i++) {
+            if (code.equals(plans.get(i).get("code"))) {
+                return (String) plans.get(i + 1).get("code");
+            }
+        }
+        return null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
 
     private final JdbcTemplate jdbc;
 
@@ -46,7 +66,7 @@ public class PlanLimits {
     public String effectivePlan() {
         Map<String, Object> t = jdbc.queryForMap("SELECT plan, status FROM tenants WHERE id = ?", TenantContext.tenantId());
         String plan = (String) t.get("plan");
-        return "ACTIVE".equals(t.get("status")) && BY_PLAN.containsKey(plan) ? plan : "PRO";
+        return "ACTIVE".equals(t.get("status")) && platform.plan(String.valueOf(plan)) != null ? plan : "PRO";
     }
 
     public long users() {
@@ -62,15 +82,15 @@ public class PlanLimits {
     }
 
     public void checkUsers(int adding) {
-        check("people who can sign in", "users", users(), adding, BY_PLAN.get(effectivePlan()).users());
+        check("people who can sign in", "users", users(), adding, limitsOf(effectivePlan()).users());
     }
 
     public void checkLocations(int adding) {
-        check("branches", "locations", locations(), adding, BY_PLAN.get(effectivePlan()).locations());
+        check("branches", "locations", locations(), adding, limitsOf(effectivePlan()).locations());
     }
 
     public void checkItems(long current, int adding) {
-        check("products and services", "items", current, adding, BY_PLAN.get(effectivePlan()).items());
+        check("products and services", "items", current, adding, limitsOf(effectivePlan()).items());
     }
 
     public void checkItems(int adding) {
@@ -82,16 +102,16 @@ public class PlanLimits {
             return;
         }
         String plan = effectivePlan();
-        String next = NEXT.get(plan);
+        String next = nextOf(plan);
         String more = next == null ? " Talk to LeziTech about a bigger package."
-                : " " + NAME.get(next) + " allows " + (BY_PLAN.get(next).get(key) == 0 ? "unlimited " + what : "up to " + BY_PLAN.get(next).get(key) + " " + what)
+                : " " + nameOf(next) + " allows " + (limitsOf(next).get(key) == 0 ? "unlimited " + what : "up to " + limitsOf(next).get(key) + " " + what)
                 + ". The owner can upgrade under Your plan.";
         throw new ApiException(HttpStatus.FORBIDDEN, "PLAN_LIMIT",
-                "Your " + NAME.get(plan) + " plan includes " + limit + " " + what + " and you have " + used + "." + more);
+                "Your " + nameOf(plan) + " plan includes " + limit + " " + what + " and you have " + used + "." + more);
     }
 
     public Map<String, Object> usage() {
-        Limits l = BY_PLAN.get(effectivePlan());
+        Limits l = limitsOf(effectivePlan());
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("plan", effectivePlan());
         m.put("users", Map.of("used", users(), "limit", l.users()));

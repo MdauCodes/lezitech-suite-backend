@@ -21,13 +21,8 @@ import java.util.Map;
 public class SettingsController {
 
     /** Monthly KES prices; annual prepay gets two months free. */
-    public static final List<Map<String, Object>> PLANS = List.of(
-            Map.of("code", "LITE", "name", "Lite", "monthly", 2650, "users", 3, "locations", 1, "items", 500,
-                    "blurb", "Selling with stock counts, or one other part. 1 branch, 3 people signing in"),
-            Map.of("code", "GROWTH", "name", "Growth", "monthly", 4500, "users", 8, "locations", 3, "items", 5000,
-                    "blurb", "Selling plus customers & leads, or plus buying from suppliers. 3 branches, 8 people"),
-            Map.of("code", "PRO", "name", "Pro", "monthly", 9000, "users", 30, "locations", 10, "items", 0,
-                    "blurb", "Everything: selling, customers & leads, and buying from suppliers. 10 branches, 30 people"));
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -124,7 +119,7 @@ public class SettingsController {
     /** The plans and prices, for the sign-up screen ("this fits the Growth plan, KES 4,500 a month after the trial"). */
     @GetMapping("/api/public/plans")
     public Map<String, Object> publicPlans() {
-        return Map.of("plans", PLANS);
+        return Map.of("plans", platform.plans(), "trialDays", platform.trialDays());
     }
 
     @GetMapping("/api/billing/plans")
@@ -132,7 +127,7 @@ public class SettingsController {
     public Map<String, Object> plans() {
         TenantContext.caller();
         java.util.List<String> parts = jdbc.queryForList("SELECT unnest(products) FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
-        return Map.of("plans", PLANS, "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
+        return Map.of("plans", platform.plans(), "trialDays", platform.trialDays(), "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
                 SELECT plan, billing_cycle, amount, status, created_at FROM subscription_requests
                 WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId()));
     }
@@ -147,9 +142,9 @@ public class SettingsController {
         Body b = new Body(raw);
         String plan = b.str("plan").toUpperCase();
         String cycle = b.str("cycle", "MONTHLY").toUpperCase();
-        Map<String, Object> p = PLANS.stream().filter(x -> x.get("code").equals(plan)).findFirst()
+        Map<String, Object> p = platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
                 .orElseThrow(() -> ApiException.bad("Unknown plan"));
-        int monthly = (Integer) p.get("monthly");
+        int monthly = ((Number) p.get("monthly")).intValue();
         BigDecimal amount = BigDecimal.valueOf("ANNUAL".equals(cycle) ? monthly * 10L : monthly);
         java.util.UUID id = jdbc.queryForObject("""
                 INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone) VALUES (?, ?, ?, ?, ?) RETURNING id""",
