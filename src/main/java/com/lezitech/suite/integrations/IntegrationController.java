@@ -4,6 +4,8 @@ import com.lezitech.suite.admin.AdminContext;
 import com.lezitech.suite.admin.AdminService;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.mpesa.MpesaConfig;
+import com.lezitech.suite.mpesa.PayHeroFees;
+import java.math.BigDecimal;
 import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,12 +33,42 @@ public class IntegrationController {
     private final AdminService admin;
     private final MpesaConfig cfg;
     private final JdbcTemplate jdbc;
+    private final PayHeroFees fees;
 
-    public IntegrationController(IntegrationService integrations, AdminService admin, MpesaConfig cfg, JdbcTemplate jdbc) {
+    public IntegrationController(IntegrationService integrations, AdminService admin, MpesaConfig cfg, JdbcTemplate jdbc, PayHeroFees fees) {
         this.integrations = integrations;
         this.admin = admin;
         this.cfg = cfg;
         this.jdbc = jdbc;
+        this.fees = fees;
+    }
+
+    /** How the business treats PayHero's charge: KNOW (just show it) or COST (take it off profit in reports). */
+    public static final List<String> FEE_MODES = List.of("KNOW", "COST");
+
+    /** PayHero's charge per payment, with a few everyday amounts worked out, and how this business treats it. */
+    @GetMapping("/api/settings/payments/payhero-fees")
+    public Map<String, Object> payHeroFees() {
+        Map<String, Object> out = new LinkedHashMap<>(fees.table());
+        List<Map<String, Object>> examples = new java.util.ArrayList<>();
+        for (int a : new int[]{100, 500, 1000, 2500, 5000, 10000, 50000}) {
+            examples.add(Map.of("amount", a, "fee", fees.fee(BigDecimal.valueOf(a))));
+        }
+        out.put("examples", examples);
+        String mode = jdbc.queryForObject("SELECT settings->>'mpesaFeeMode' FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
+        out.put("mode", mode == null ? "KNOW" : mode);
+        return out;
+    }
+
+    @PutMapping("/api/settings/payments/fee-mode")
+    public Map<String, Object> feeMode(@RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("OWNER");
+        String mode = String.valueOf(raw.get("mode")).toUpperCase(Locale.ROOT);
+        if (!FEE_MODES.contains(mode)) {
+            throw ApiException.bad("Choose how to treat PayHero's charge");
+        }
+        jdbc.update("UPDATE tenants SET settings = settings || jsonb_build_object('mpesaFeeMode', ?::text) WHERE id = ?", mode, TenantContext.tenantId());
+        return Map.of("mode", mode);
     }
 
     // ---------- the owner ----------

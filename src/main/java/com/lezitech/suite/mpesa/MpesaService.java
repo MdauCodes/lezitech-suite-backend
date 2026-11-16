@@ -52,6 +52,7 @@ public class MpesaService {
     private final IntegrationService integrations;
     private final DarajaGateway daraja;
     private final PayHeroGateway payHero;
+    private final PayHeroFees payHeroFees;
     private final SimulatedGateway simulator;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
@@ -63,7 +64,7 @@ public class MpesaService {
     }
 
     public MpesaService(MpesaConfig cfg, JdbcTemplate jdbc, OrderService orders, PlanActivation plans, PlatformTransactionManager txm,
-                        IntegrationService integrations, DarajaGateway daraja, PayHeroGateway payHero) {
+                        IntegrationService integrations, DarajaGateway daraja, PayHeroGateway payHero, PayHeroFees payHeroFees) {
         this.cfg = cfg;
         this.jdbc = jdbc;
         this.orders = orders;
@@ -72,6 +73,7 @@ public class MpesaService {
         this.integrations = integrations;
         this.daraja = daraja;
         this.payHero = payHero;
+        this.payHeroFees = payHeroFees;
         this.simulator = new SimulatedGateway(cfg.simulateDelayMs, this::deliverSimulated);
     }
 
@@ -391,7 +393,12 @@ public class MpesaService {
         if (rows.isEmpty()) {
             throw ApiException.notFound("M-Pesa request");
         }
-        return rows.get(0);
+        Map<String, Object> out = new java.util.LinkedHashMap<>(rows.get(0));
+        // PayHero takes its charge from the business's PayHero wallet: the cashier sees what this payment costs.
+        if ("PAYHERO".equals(out.get("provider")) && !"SUBSCRIPTION".equals(out.get("purpose"))) {
+            out.put("providerFee", payHeroFees.fee((BigDecimal) out.get("amount")));
+        }
+        return out;
     }
 
     /** The cashier gave up waiting. A late success is still recorded. */

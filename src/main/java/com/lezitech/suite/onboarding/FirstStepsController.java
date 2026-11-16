@@ -76,8 +76,9 @@ public class FirstStepsController {
                     menu ? "Add my menu" : "Add my " + lower,
                     yes("SELECT exists(SELECT 1 FROM items WHERE kind NOT IN ('INGREDIENT', 'BATCH') AND " + own + ")", p)));
         }
-        steps.add(step("details", "Add your logo and KRA PIN", "They appear on receipts, bills and the emails your customers get.", "/settings", "Add my logo and KRA PIN",
-                t.get("logoUrl") != null || (t.get("kra") != null && !((String) t.get("kra")).isBlank())));
+        // The logo only: a KRA PIN is never required (many small businesses don't have or need one on receipts).
+        steps.add(step("details", "Add your logo", "It appears on receipts, bills and the emails your customers get. Have a KRA PIN? You can add it there too, but you don't need one.", "/settings", "Add my logo",
+                t.get("logoUrl") != null));
         steps.add(step("mpesa", "Connect your M-Pesa till or paybill", "Customers then pay with a prompt on their phone and it's matched to the bill by itself.", "/settings", "Connect my M-Pesa",
                 integrations.tillAccount(TenantContext.tenantId()).isPresent()));
         steps.add(step("staff", "Add your staff and give each a PIN", "Each person signs in with their own PIN, so you see who sold what.", "/team", "Add a staff member",

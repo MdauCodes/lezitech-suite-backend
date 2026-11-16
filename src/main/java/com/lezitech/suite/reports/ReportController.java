@@ -24,9 +24,11 @@ public class ReportController {
     private static final String SOLD = " o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.channel <> 'DEPOSIT'";
 
     private final Db db;
+    private final com.lezitech.suite.mpesa.PayHeroFees payHeroFees;
 
-    public ReportController(Db db) {
+    public ReportController(Db db, com.lezitech.suite.mpesa.PayHeroFees payHeroFees) {
         this.db = db;
+        this.payHeroFees = payHeroFees;
     }
 
     /** Every KPI any sector pack can ask for; the app shows the ones its pack lists. */
@@ -125,6 +127,20 @@ public class ReportController {
                        coalesce((SELECT sum(l.qty * i.cost) FROM order_lines l JOIN orders o2 ON o2.id = l.order_id JOIN items i ON i.id = l.item_id
                                  WHERE o2.status IN ('PAID','CREDIT') AND o2.kind <> 'QUOTE' AND o2.closed_at >= :from AND o2.closed_at < :to), 0) AS cost
                 FROM orders o WHERE """ + window, range));
+        // PayHero's charge on each M-Pesa prompt the customers paid (it comes out of the business's PayHero wallet).
+        java.math.BigDecimal phFees = java.math.BigDecimal.ZERO;
+        int phCount = 0;
+        for (Map<String, Object> m : db.list("""
+                SELECT amount FROM mpesa_requests WHERE provider = 'PAYHERO' AND status = 'PAID' AND purpose <> 'SUBSCRIPTION'
+                AND created_at >= :from AND created_at < :to""", range)) {
+            phFees = phFees.add(payHeroFees.fee(new java.math.BigDecimal(String.valueOf(m.get("amount")))));
+            phCount++;
+        }
+        Map<String, Object> mf = new LinkedHashMap<>();
+        mf.put("amount", phFees);
+        mf.put("payments", phCount);
+        mf.put("mode", db.value("SELECT coalesce(settings->>'mpesaFeeMode', 'KNOW') FROM tenants WHERE id = cast(:t as uuid)", String.class));
+        out.put("mpesaFees", mf);
         out.put("byDay", db.list("""
                 SELECT to_char((o.closed_at AT TIME ZONE 'Africa/Nairobi')::date, 'YYYY-MM-DD') AS day, sum(o.total) AS sales, count(*) AS orders
                 FROM orders o WHERE """ + window + " GROUP BY 1 ORDER BY 1", range));
