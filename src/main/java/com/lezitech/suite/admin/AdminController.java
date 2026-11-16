@@ -50,6 +50,34 @@ public class AdminController {
     private final com.lezitech.suite.auth.LoginThrottle throttle;
     private final com.lezitech.suite.auth.TokenVersions versions;
     private final AdminService admin;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.auth.LoginCodes codes;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.notify.Mailer mailer;
+
+    /** LeziTech sends anyone in a business a code and link to set their password (lost access, new staff). */
+    @PostMapping("/tenants/{id}/users/{userId}/code")
+    public Map<String, Object> sendUserCode(@PathVariable UUID id, @PathVariable UUID userId) {
+        AdminContext.require("setup");
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT u.name, u.email, u.job_title, u.active, t.name AS business, t.slug FROM users u JOIN tenants t ON t.id = u.tenant_id
+                WHERE u.id = ? AND u.tenant_id = ?""", userId, id);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("Person");
+        }
+        Map<String, Object> u = rows.get(0);
+        String email = (String) u.get("email");
+        if (email == null || email.endsWith(".suite.local")) {
+            throw ApiException.bad("This person has no email. The owner can add it under Staff");
+        }
+        if (!Boolean.TRUE.equals(u.get("active"))) {
+            throw ApiException.bad("This person can't sign in (switched off by the business)");
+        }
+        String status = codes.sendInvite(userId, email, (String) u.get("name"), (String) u.get("business"), (String) u.get("slug"),
+                (String) u.get("job_title"), "LeziTech", mailer.appUrl());
+        admin.audit("workspace.user_code", id, Map.of("user", userId.toString(), "email", status));
+        return Map.of("ok", true, "emailStatus", status, "message", "Code and link sent to " + email);
+    }
     private final AdminService.UsageReader usage;
     private final AuthController auth;
     private final DemoService demos;
@@ -220,7 +248,7 @@ public class AdminController {
         t.put("settings", json.readTree((String) rows.get(0).get("settings")));
         t.put("products", List.of((Object[]) ((java.sql.Array) rows.get(0).get("products")).getArray()));
         t.put("users", jdbc.queryForList("""
-                SELECT id, name, email, role, active, last_login_at, created_at FROM users WHERE tenant_id = ? ORDER BY role = 'OWNER' DESC, name""", id)
+                SELECT id, name, email, role, job_title, active, last_login_at, created_at FROM users WHERE tenant_id = ? ORDER BY role = 'OWNER' DESC, name""", id)
                 .stream().map(this::clean).toList());
         // Whether we may sign in as them now (the owner's grant, or a demo / still being set up).
         t.put("supportAccess", supportAccess.forAdmin(id));

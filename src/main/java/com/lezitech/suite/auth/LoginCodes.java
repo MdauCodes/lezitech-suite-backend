@@ -81,6 +81,33 @@ public class LoginCodes {
                         + "<p>It works for 15 minutes. If you didn't ask for this, ignore this email; your " + what + " stays the same.</p>");
     }
 
+    /**
+     * A staff invite (or a fresh sign-in code from the owner or LeziTech): a 3-day code and a link that opens "set my
+     * password" with their email filled in. Returns the email status (SENT, LOGGED, ...). At most 4 an hour.
+     */
+    public String sendInvite(UUID user, String email, String fullName, String business, String slug, String job, String byName, String appUrl) {
+        Integer recent = jdbc.queryForObject(
+                "SELECT count(*) FROM login_codes WHERE user_id = ? AND created_at > now() - interval '1 hour'", Integer.class, user);
+        if (recent != null && recent >= MAX_PER_HOUR) {
+            throw ApiException.bad("We've sent a few codes to " + email + " already. Ask them to check spam, or try again in an hour.");
+        }
+        String code = issue(user, "WELCOME", WELCOME_TTL);
+        String name = first(fullName);
+        String setPassword = appUrl + "/reset?email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8) + "&w=" + slug;
+        String signIn = appUrl + "/w/" + slug;
+        String role = job == null || job.isBlank() ? "" : " as " + job;
+        String text = "Hi " + name + ",\n\n" + byName + " added you to " + business + " on BizNez" + role + ".\n\n"
+                + "1. Open " + setPassword + "\n2. Enter the code " + code + " (it works for 3 days) and choose your password.\n"
+                + "3. After that, sign in any time at " + signIn + " with " + email + ".\n\n" + business;
+        String html = "<p>Hi " + Mailer.esc(name) + ",</p><p>" + Mailer.esc(byName) + " added you to <b>" + Mailer.esc(business) + "</b> on BizNez"
+                + Mailer.esc(role) + ".</p><p>Your code to set your password:</p>"
+                + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
+                + "<p><a href=\"" + setPassword + "\" style=\"display:inline-block;background:#101415;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none\">Set my password</a></p>"
+                + "<p>The code works for 3 days. After that, sign in any time at <a href=\"" + signIn + "\">" + Mailer.esc(signIn) + "</a> with "
+                + Mailer.esc(email) + ".</p><p>" + Mailer.esc(business) + "</p>";
+        return mailer.send(email, fullName, code + " is your code to join " + business + " on BizNez", text, html);
+    }
+
     /** "Confirm your email" from Home: a code to the address on the account. At most 4 an hour. */
     public void sendConfirmCode(UUID user, String email, String fullName) {
         Integer recent = jdbc.queryForObject(

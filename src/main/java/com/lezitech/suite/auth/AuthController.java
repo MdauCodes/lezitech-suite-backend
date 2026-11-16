@@ -327,8 +327,14 @@ public class AuthController {
     public Map<String, Object> session(UUID userId, UUID tenantId, String role, String name) {
         jdbc.update("UPDATE users SET last_login_at = now() WHERE id = ?", userId);
         Map<String, Object> out = profile(userId, tenantId);
-        out.put("token", jwt.issue(userId, tenantId, role, name, versions.current(userId, false)));
+        out.put("token", jwt.issue(userId, tenantId, effectiveRole(userId, role), name, versions.current(userId, false)));
         return out;
+    }
+
+    /** Someone the owner gave owner powers to (e.g. an operations manager) works as an owner. */
+    private String effectiveRole(UUID userId, String role) {
+        Boolean powers = jdbc.queryForObject("SELECT owner_powers FROM users WHERE id = ?", Boolean.class, userId);
+        return Boolean.TRUE.equals(powers) ? "OWNER" : role;
     }
 
     /**
@@ -348,7 +354,13 @@ public class AuthController {
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until,
                        brand_color, logo_url, currency, phone, display_key, is_demo, settings::text AS settings
                 FROM tenants WHERE id = ?""", tenantId);
-        Map<String, Object> u = jdbc.queryForMap("SELECT id, email, name, role, email_confirmed_at IS NOT NULL AS confirmed FROM users WHERE id = ?", userId);
+        Map<String, Object> u = new LinkedHashMap<>(jdbc.queryForMap(
+                "SELECT id, email, name, role, job_title, owner_powers, email_confirmed_at IS NOT NULL AS confirmed FROM users WHERE id = ?", userId));
+        // The screens follow what they may do: owner powers open the owner's screens; their own job stays as baseRole.
+        u.put("base_role", u.get("role"));
+        if (Boolean.TRUE.equals(u.get("owner_powers"))) {
+            u.put("role", "OWNER");
+        }
 
         Timestamp trialEnds = (Timestamp) t.get("trial_ends_at");
         Timestamp paidUntil = (Timestamp) t.get("paid_until");
@@ -387,6 +399,9 @@ public class AuthController {
         user.put("emailConfirmed", Boolean.TRUE.equals(u.get("confirmed")));
         user.put("name", u.get("name"));
         user.put("role", u.get("role"));
+        user.put("baseRole", u.get("base_role"));
+        user.put("jobTitle", u.get("job_title"));
+        user.put("ownerPowers", Boolean.TRUE.equals(u.get("owner_powers")));
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("user", user);

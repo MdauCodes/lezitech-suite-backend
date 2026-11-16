@@ -60,7 +60,7 @@ public class CatalogController {
 
     @PostMapping("/categories")
     public Map<String, Object> createCategory(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         UUID id = db.insert("""
                 INSERT INTO categories (tenant_id, name, color, sort)
@@ -71,7 +71,7 @@ public class CatalogController {
 
     @PutMapping("/categories/{id}")
     public Map<String, Object> updateCategory(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         db.exec("UPDATE categories SET name = :name, color = :color WHERE id = :id",
                 "id", id, "name", b.str("name"), "color", b.str("color", null));
@@ -80,7 +80,7 @@ public class CatalogController {
 
     @DeleteMapping("/categories/{id}")
     public void deleteCategory(@PathVariable UUID id) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         db.exec("DELETE FROM categories WHERE id = :id", "id", id);
     }
 
@@ -114,7 +114,7 @@ public class CatalogController {
 
     @PostMapping("/items")
     public Map<String, Object> createItem(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         limits.checkItems(1);
         UUID id = db.insert("""
                 INSERT INTO items (tenant_id, name, kind) VALUES (:t, :name, :kind) RETURNING id""",
@@ -140,7 +140,7 @@ public class CatalogController {
 
     @PutMapping("/items/{id}")
     public Map<String, Object> updateItem(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         String kind = b.str("kind", "PRODUCT");
         Map<String, Object> before = db.find("SELECT name, price, cost, wholesale_price FROM items WHERE id = :id", "id", id).orElse(null);
@@ -222,7 +222,7 @@ public class CatalogController {
 
     @DeleteMapping("/items/{id}")
     public void archiveItem(@PathVariable UUID id) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         db.exec("UPDATE items SET active = false WHERE id = :id", "id", id);
     }
 
@@ -232,7 +232,7 @@ public class CatalogController {
      */
     @PostMapping("/items/import")
     public Map<String, Object> importItems(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         List<Map<String, Object>> rows = new Body(raw).list("rows");
         if (rows.size() > 5000) {
             throw ApiException.bad("Import up to 5,000 rows at a time");
@@ -322,7 +322,7 @@ public class CatalogController {
 
     @PostMapping("/locations")
     public Map<String, Object> createLocation(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         if (!b.has("parentId")) {
             limits.checkLocations(1); // a store inside a branch doesn't count as another branch

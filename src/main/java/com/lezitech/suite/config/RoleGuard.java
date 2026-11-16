@@ -46,7 +46,7 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             // Reports with profit and totals
             rule(READS, "/api/reports/sales.*", "see sales reports", "MANAGER", "ACCOUNTANT"),
             rule(READS, "/api/reports/tax.*", "see the tax summary", "MANAGER", "ACCOUNTANT"),
-            rule(READS, "/api/reports/back-office.*", "see stock value and money owed", "MANAGER", "ACCOUNTANT"),
+            rule(READS, "/api/reports/back-office.*", "see stock value and money owed", "MANAGER", "ACCOUNTANT", "STOREKEEPER"),
             rule(READS, "/api/activity.*", "see the activity log", "MANAGER", "ACCOUNTANT"),
             rule(ANY, "/api/problems.*", "see or fix system problems", "MANAGER"),
             rule(READS, "/api/reports/customers.*", "see customer and sales-lead reports", "MANAGER", "SALES", "ACCOUNTANT"),
@@ -56,8 +56,9 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(ANY, "/api/(night|menu-report)(/.*)?", "see the night summary", "MANAGER", "ACCOUNTANT"),
             rule(READS, "/api/accounting/.*", "see the accounts", "MANAGER", "ACCOUNTANT"),
             // Catalogue, stock and buying
-            rule(WRITES, "/api/(items|categories|locations|floors|tables|suppliers)(/.*)?", "change items, places or suppliers", "MANAGER"),
-            rule(ANY, "/api/(stock|purchases)(/.*)?", "see or change stock and buying", "MANAGER", "ACCOUNTANT"),
+            rule(WRITES, "/api/(items|categories|suppliers)(/.*)?", "change items or suppliers", "MANAGER", "STOREKEEPER"),
+            rule(WRITES, "/api/(locations|floors|tables)(/.*)?", "change places, floors or tables", "MANAGER"),
+            rule(ANY, "/api/(stock|purchases)(/.*)?", "see or change stock and buying", "MANAGER", "ACCOUNTANT", "STOREKEEPER"),
             // Selling
             rule(WRITES, "/api/kitchen/.*", "update the kitchen screen", "MANAGER", "KITCHEN", "WAITER", "RECEPTION", "CASHIER"),
             rule(WRITES, "/api/orders(/.*)?", "take orders or payments", "MANAGER", "CASHIER", "WAITER", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT"),

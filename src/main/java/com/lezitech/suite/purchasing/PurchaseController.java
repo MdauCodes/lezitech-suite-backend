@@ -66,7 +66,7 @@ public class PurchaseController {
 
     @PostMapping
     public Map<String, Object> create(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         UUID loc = b.has("locationId") ? UUID.fromString(b.str("locationId")) : stock.defaultLocation();
         UUID id = db.insert("""
@@ -93,7 +93,7 @@ public class PurchaseController {
     /** Goods arrived: stock goes up, batches are recorded, item cost updates, and we owe the supplier. */
     @PostMapping("/{id}/receive")
     public Map<String, Object> receive(@PathVariable UUID id) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Map<String, Object> p = db.one("Purchase order", "SELECT * FROM purchase_orders WHERE id = :id", "id", id);
         if ("RECEIVED".equals(p.get("status"))) {
             throw ApiException.conflict("Already received");

@@ -63,7 +63,7 @@ public class StockController {
     /** Stock count: set what was physically counted; the difference is journaled. */
     @PostMapping("/adjust")
     public Map<String, Object> adjust(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         UUID item = UUID.fromString(b.str("itemId"));
         UUID loc = b.has("locationId") ? UUID.fromString(b.str("locationId")) : stock.defaultLocation();
@@ -91,7 +91,7 @@ public class StockController {
     /** Store feeds shop: move stock between locations in one step. */
     @PostMapping("/transfer")
     public Map<String, Object> transfer(@RequestBody Map<String, Object> raw) {
-        TenantContext.requireRole("MANAGER");
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         UUID from = UUID.fromString(b.str("fromId"));
         UUID to = UUID.fromString(b.str("toId"));
