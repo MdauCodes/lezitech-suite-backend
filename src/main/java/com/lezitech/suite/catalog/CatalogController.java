@@ -43,6 +43,8 @@ public class CatalogController {
     private com.lezitech.suite.settings.PlanLimits limits;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.activity.ActivityLog activity;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.files.FileService files;
     public CatalogController(Db db) {
         this.db = db;
     }
@@ -242,6 +244,8 @@ public class CatalogController {
                 cats.put(r.get("name").toString().toLowerCase(), UUID.fromString(r.get("id").toString())));
         int created = 0;
         int updated = 0;
+        int photos = 0;
+        List<String> photoProblems = new java.util.ArrayList<>();
         for (Map<String, Object> r : rows) {
             Body b = new Body(r);
             if (!b.has("name")) {
@@ -288,8 +292,23 @@ public class CatalogController {
                             VALUES (:t, :id, :loc, :delta, 'OPENING', 'Spreadsheet import', :u)""", "id", id, "loc", loc, "delta", delta);
                 }
             }
+            // "Photo link": the item's photo fetched from that web address (a bad link doesn't stop the import).
+            if (b.has("photo") && !b.str("photo").isBlank()) {
+                try {
+                    byte[] img = com.lezitech.suite.files.PhotoLinks.fetch(b.str("photo"), 2 * 1024 * 1024);
+                    UUID file = files.save(com.lezitech.suite.files.FileService.Purpose.ITEM_PHOTO, img);
+                    Object old = db.value("SELECT photo_file_id FROM items WHERE id = :id", Object.class, "id", id);
+                    db.exec("UPDATE items SET photo_file_id = :f WHERE id = :id", "f", file, "id", id);
+                    if (old != null) {
+                        files.remove(UUID.fromString(old.toString()));
+                    }
+                    photos++;
+                } catch (ApiException e) {
+                    photoProblems.add(b.str("name") + ": " + e.getMessage());
+                }
+            }
         }
-        return Map.of("created", created, "updated", updated);
+        return Map.of("created", created, "updated", updated, "photos", photos, "photoProblems", photoProblems.stream().limit(10).toList());
     }
 
     // ---------- locations ----------
