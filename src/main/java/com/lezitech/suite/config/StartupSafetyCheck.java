@@ -23,9 +23,9 @@ public class StartupSafetyCheck {
                               @Value("${suite.secrets-key:}") String secretsKey, @Value("${suite.files.store:disk}") String filesStore) {
         boolean embedded = System.getenv("DATABASE_URL") == null && !"false".equalsIgnoreCase(System.getenv("EMBEDDED_DB"));
         verify(embedded, jwtSecret, operatorKey, secretsKey);
-        // Live businesses' photos and ETRs must survive a redeploy: they go to R2, never the container's disk.
-        if (!embedded && !"r2".equalsIgnoreCase(filesStore)) {
-            throw new IllegalStateException("Refusing to start with unsafe settings: FILES_STORE must be r2 (with R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET)");
+        // Live businesses' photos and ETRs must survive a redeploy: they go to a bucket (R2 or B2), never the container's disk.
+        if (!embedded && !"r2".equalsIgnoreCase(filesStore) && !"b2".equalsIgnoreCase(filesStore)) {
+            throw new IllegalStateException("Refusing to start with unsafe settings: FILES_STORE must be r2 (R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET) or b2 (B2_ENDPOINT, B2_REGION, B2_KEY_ID, B2_APP_KEY, B2_BUCKET)");
         }
     }
 

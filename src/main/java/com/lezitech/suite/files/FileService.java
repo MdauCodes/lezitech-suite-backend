@@ -58,13 +58,23 @@ public class FileService {
                        @Value("${suite.files.r2.account-id:}") String account,
                        @Value("${suite.files.r2.access-key:}") String accessKey,
                        @Value("${suite.files.r2.secret-key:}") String secretKey,
-                       @Value("${suite.files.r2.bucket:}") String bucket) {
+                       @Value("${suite.files.r2.bucket:}") String bucket,
+                       @Value("${suite.files.b2.endpoint:}") String b2Endpoint,
+                       @Value("${suite.files.b2.region:}") String b2Region,
+                       @Value("${suite.files.b2.key-id:}") String b2Key,
+                       @Value("${suite.files.b2.app-key:}") String b2Secret,
+                       @Value("${suite.files.b2.bucket:}") String b2Bucket) {
         this.db = db;
         if ("r2".equalsIgnoreCase(kind)) {
             if (account.isBlank() || accessKey.isBlank() || secretKey.isBlank() || bucket.isBlank()) {
                 throw new IllegalStateException("FILES_STORE=r2 needs R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY and R2_BUCKET");
             }
             this.store = new R2FileStore(account, accessKey, secretKey, bucket);
+        } else if ("b2".equalsIgnoreCase(kind)) {
+            if (b2Endpoint.isBlank() || b2Region.isBlank() || b2Key.isBlank() || b2Secret.isBlank() || b2Bucket.isBlank()) {
+                throw new IllegalStateException("FILES_STORE=b2 needs B2_ENDPOINT, B2_REGION, B2_KEY_ID, B2_APP_KEY and B2_BUCKET");
+            }
+            this.store = new R2FileStore(b2Endpoint, b2Region, b2Key, b2Secret, b2Bucket, "b2");
         } else {
             this.store = new DiskFileStore(Path.of(dir));
         }

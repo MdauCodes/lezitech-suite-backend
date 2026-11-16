@@ -19,7 +19,7 @@ Target: **22 November 2026**. Follow this top to bottom. Each step says what you
 | A **new** Contabo VPS (Cloud VPS 4 or 6 is enough to start), Ubuntu 24.04 | contabo.com | everything |
 | DNS access for `lezitech.site` and `businez.com` | your domain registrar / Cloudflare | HTTPS, email |
 | Brevo account, sending domain verified | brevo.com → Senders, domains | password codes, invites, statements |
-| Cloudflare R2 bucket plus an access key | Cloudflare dashboard → R2 | photos, ETR uploads |
+| Backblaze B2 bucket plus an application key (free to start; R2 later) | backblaze.com | photos, ETR uploads |
 | PayHero account for LeziTech (API username, password, channel id) | app.payhero.co.ke | subscription payments |
 | Off-server backup space (Backblaze B2 or a second R2 bucket) | backblaze.com or Cloudflare | backups surviving a dead server |
 
@@ -96,11 +96,15 @@ The marketing website (`website/`) is deployed separately to `businez.com`; its 
 
 **Businesses' own M-Pesa:** nothing to set here. Each business connects its own PayHero (guided in the app) or asks LeziTech to set up Daraja. Callbacks go to `https://suite-api.lezitech.site/api/public/payhero/<token>` and `/api/public/mpesa/...`, which are already public.
 
-## 8. Files (Cloudflare R2)
+## 8. Files (Backblaze B2 now, Cloudflare R2 later)
 
-1. Cloudflare → R2 → **Create bucket** `biznez-files` (no public access needed; the API serves files).
-2. **Manage R2 API tokens → Create**, "Object Read & Write" on that bucket only. Copy the access key id and secret.
-3. Check: in the app, add a product photo, redeploy the API, and confirm the photo is still there.
+Start on B2 (first 10 GB free), move to R2 when it grows.
+1. backblaze.com → **B2 Cloud Storage → Create a bucket** `biznez-files`, **Private**, in the EU region. Note the bucket's **Endpoint** (e.g. `s3.eu-central-003.backblazeb2.com`); the middle part is the region.
+2. **Application Keys → Add a new key**, access to `biznez-files` only, Read and Write. Copy the keyID and applicationKey (shown once).
+3. Set `FILES_STORE=b2` and the `B2_*` lines.
+4. Check: in the app, add a product photo, redeploy the API, and confirm the photo is still there.
+
+**Moving to R2 later:** create the R2 bucket and token, copy everything across with `rclone sync b2:biznez-files r2:biznez-files`, set `FILES_STORE=r2` and the `R2_*` lines, redeploy. File addresses in the app don't change.
 
 ## 9. Backups
 

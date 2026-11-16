@@ -115,6 +115,13 @@ suite:
       access-key: ${R2_ACCESS_KEY:}
       secret-key: ${R2_SECRET_KEY:}
       bucket: ${R2_BUCKET:}
+    # Backblaze B2 (FILES_STORE=b2): the free start before moving to R2.
+    b2:
+      endpoint: ${B2_ENDPOINT:}
+      region: ${B2_REGION:}
+      key-id: ${B2_KEY_ID:}
+      app-key: ${B2_APP_KEY:}
+      bucket: ${B2_BUCKET:}
   # Local embedded Postgres; ignored when DATABASE_URL points elsewhere.
   embedded-db:
     enabled: ${EMBEDDED_DB:true}
