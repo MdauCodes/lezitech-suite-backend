@@ -57,6 +57,8 @@ public class PlanFeatures {
             new Feature("crm", "Customers & sales leads", "Follow up people who may buy, with reminders, so no sale is forgotten.", "GROWTH",
                     List.of(writes("/api/(pipeline|deals|activities)(/.*)?"))),
             new Feature("quotes", "Quotes and invoices", "Send prices before a sale, then turn the quote into the sale.", "GROWTH", List.of()),
+            new Feature("statements", "Customer statements", "A customer's purchases, payments and balance for any dates, sent on WhatsApp or email.", "GROWTH",
+                    List.of(all("/api/customers/[^/]+/statement(/.*)?"))),
             new Feature("loyalty", "Loyalty points", "Customers earn points as they buy and spend them at the till.", "GROWTH",
                     List.of(writes("/api/customers/[^/]+/loyalty/adjust"), writes("/api/orders/[^/]+/loyalty/redeem"))),
             new Feature("commissions", "Staff commissions", "What each staff member earned, what was paid and what is still owed.", "GROWTH",

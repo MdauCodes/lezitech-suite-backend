@@ -32,12 +32,15 @@ public class CatalogController {
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
             i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price, i.pack_price,
             (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
-            i.sold_by_weight, i.baked_daily, i.day_old_of,
+            i.sold_by_weight, i.baked_daily, i.day_old_of, i.variant_of, i.variant_values, i.variant_axes,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id
                       -- Staff at a branch see that branch's stock; the owner and the main place see it all.
                       AND s.location_id = coalesce((SELECT location_id FROM users WHERE id = cast(:u as uuid)), s.location_id)), 0) AS on_hand""";
 
     private final Db db;
+
+    /** JSON columns come back as Jackson nodes; this turns them into plain lists and maps. */
+    private static final com.fasterxml.jackson.databind.ObjectMapper PLAIN = new com.fasterxml.jackson.databind.ObjectMapper();
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.settings.PlanLimits limits;
@@ -89,16 +92,22 @@ public class CatalogController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.restaurant.Deals deals;
 
+    /**
+     * Products. families=true also lists products with sizes or colours (the "family" rows the till and the products
+     * screen group variants under); other screens (stock, buying, recipes) only get things that are stocked and sold.
+     */
     @GetMapping("/items")
     public List<Map<String, Object>> items(@RequestParam(required = false) String q,
                                            @RequestParam(defaultValue = "false") boolean all,
-                                           @RequestParam(defaultValue = "false") boolean kitchen) {
+                                           @RequestParam(defaultValue = "false") boolean kitchen,
+                                           @RequestParam(defaultValue = "false") boolean families) {
         List<Map<String, Object>> list = db.list("SELECT " + ITEM_COLUMNS + """
                  FROM items i LEFT JOIN categories c ON c.id = i.category_id
                 WHERE (:all OR i.active) AND (:kitchen OR i.kind NOT IN ('INGREDIENT', 'BATCH'))
+                  AND (:families OR i.variant_axes IS NULL)
                   AND (cast(:q as text) IS NULL OR i.name ILIKE '%' || cast(:q as text) || '%'
                        OR i.barcode = cast(:q as text) OR i.sku ILIKE cast(:q as text))
-                ORDER BY c.sort NULLS LAST, i.name""", "q", q == null || q.isBlank() ? null : q.trim(), "all", all, "kitchen", kitchen);
+                ORDER BY c.sort NULLS LAST, i.name""", "q", q == null || q.isBlank() ? null : q.trim(), "all", all, "kitchen", kitchen, "families", families);
         // R6: the happy-hour price right now, so the till shows what the bill will charge.
         deals.markHappy(list);
         return list;
@@ -196,6 +205,7 @@ public class CatalogController {
                         WHERE id = :id""", "id", id, "u", unitName.isEmpty() ? "pack" : unitName.toLowerCase(), "s", size, "bp", buy, "pp", sell);
             }
         }
+        familyFollows(id);
         // R7: priced per kg and sold by the weight from the scale. Only changed when sent.
         if (b.has("soldByWeight")) {
             boolean kg = b.bool("soldByWeight", false);
@@ -244,7 +254,36 @@ public class CatalogController {
     @DeleteMapping("/items/{id}")
     public void archiveItem(@PathVariable UUID id) {
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
-        db.exec("UPDATE items SET active = false WHERE id = :id", "id", id);
+        // Putting a product away puts away its sizes and colours too.
+        db.exec("UPDATE items SET active = false WHERE id = :id OR variant_of = :id", "id", id);
+    }
+
+    /**
+     * A product with sizes or colours isn't stocked itself, and its sizes follow its name, category, kind, unit, tax
+     * and kitchen station ("T-shirt" renamed "Polo" makes "Polo M / Red").
+     */
+    @SuppressWarnings("unchecked")
+    private void familyFollows(UUID id) {
+        Map<String, Object> f = db.find("SELECT * FROM items WHERE id = :id AND variant_axes IS NOT NULL", "id", id).orElse(null);
+        if (f == null) {
+            return;
+        }
+        db.exec("UPDATE items SET track_stock = false WHERE id = :id", "id", id);
+        List<Map<String, Object>> axes = PLAIN.convertValue(f.get("variantAxes"), List.class);
+        for (Map<String, Object> v : db.list("SELECT id, variant_values FROM items WHERE variant_of = :id", "id", id)) {
+            Map<String, Object> vals = v.get("variantValues") == null ? null : PLAIN.convertValue(v.get("variantValues"), Map.class);
+            List<String> parts = new java.util.ArrayList<>();
+            for (Map<String, Object> a : axes) {
+                Object x = vals == null ? null : vals.get(a.get("name"));
+                if (x != null) {
+                    parts.add(x.toString());
+                }
+            }
+            db.exec("""
+                    UPDATE items c SET name = :name, category_id = p.category_id, kind = p.kind, unit = p.unit, tax_rate = p.tax_rate,
+                           station = p.station FROM items p WHERE p.id = :fid AND c.id = :vid""",
+                    "fid", id, "vid", UUID.fromString(v.get("id").toString()), "name", f.get("name") + " " + String.join(" / ", parts));
+        }
     }
 
     /**
@@ -269,7 +308,7 @@ public class CatalogController {
         List<String> photoProblems = new java.util.ArrayList<>();
         for (Map<String, Object> r : rows) {
             Body b = new Body(r);
-            if (!b.has("name")) {
+            if (!b.has("name") && !b.has("group")) {
                 continue;
             }
             UUID catId = null;
@@ -281,7 +320,9 @@ public class CatalogController {
                     cats.put(key, catId);
                 }
             }
-            UUID existing = db.value("SELECT id FROM items WHERE lower(name) = lower(:name) OR (barcode IS NOT NULL AND barcode = :barcode) LIMIT 1",
+            // A size or colour of another product: "Group" names the product, "Size" and/or "Colour" say which one.
+            UUID variant = b.has("group") && (b.has("size") || b.has("colour")) ? variantRow(b, catId) : null;
+            UUID existing = variant != null ? variant : db.value("SELECT id FROM items WHERE lower(name) = lower(:name) OR (barcode IS NOT NULL AND barcode = :barcode) LIMIT 1",
                     UUID.class, "name", b.str("name"), "barcode", b.str("barcode", null));
             UUID id;
             if (existing == null) {
@@ -335,11 +376,67 @@ public class CatalogController {
                     }
                     photos++;
                 } catch (ApiException e) {
-                    photoProblems.add(b.str("name") + ": " + e.getMessage());
+                    photoProblems.add(b.str("name", b.str("group", "")) + ": " + e.getMessage());
                 }
             }
         }
         return Map.of("created", created, "updated", updated, "photos", photos, "photoProblems", photoProblems.stream().limit(10).toList());
+    }
+
+    /**
+     * The item for an import row that is a size or colour of a product: the product (the "family") is found by name or
+     * made, its Size and Colour choices grow to include this row's, and the variant is found or made.
+     */
+    @SuppressWarnings("unchecked")
+    private UUID variantRow(Body b, UUID catId) {
+        String group = b.str("group").trim();
+        UUID fam = db.value("SELECT id FROM items WHERE lower(name) = lower(:g) AND variant_of IS NULL ORDER BY active DESC LIMIT 1",
+                UUID.class, "g", group);
+        if (fam == null) {
+            fam = db.insert("INSERT INTO items (tenant_id, name, kind, category_id, track_stock, variant_axes) VALUES (:t, :g, 'PRODUCT', :cat, false, '[]'::jsonb) RETURNING id",
+                    "g", group, "cat", catId);
+        }
+        Map<String, Object> f = db.one("Product", "SELECT name, variant_axes FROM items WHERE id = :id", "id", fam);
+        List<Map<String, Object>> axes = new java.util.ArrayList<>();
+        if (f.get("variantAxes") != null) {
+            for (Object o : PLAIN.convertValue(f.get("variantAxes"), List.class)) {
+                Map<String, Object> a = new java.util.LinkedHashMap<>((Map<String, Object>) o);
+                a.put("values", new java.util.ArrayList<>((List<String>) a.get("values")));
+                axes.add(a);
+            }
+        }
+        Map<String, String> values = new java.util.LinkedHashMap<>();
+        for (String axis : List.of("Size", "Colour")) {
+            String v = b.str(axis.toLowerCase(), "").trim();
+            if (v.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> a = axes.stream().filter(x -> axis.equalsIgnoreCase((String) x.get("name"))).findFirst().orElse(null);
+            if (a == null) {
+                a = new java.util.LinkedHashMap<>(Map.of("name", axis, "values", new java.util.ArrayList<String>()));
+                axes.add(a);
+            }
+            List<String> vals = (List<String>) a.get("values");
+            String match = vals.stream().filter(x -> x.equalsIgnoreCase(v)).findFirst().orElse(null);
+            if (match == null) {
+                vals.add(v);
+                match = v;
+            }
+            values.put((String) a.get("name"), match);
+        }
+        db.exec("UPDATE items SET variant_axes = cast(:axes as jsonb), track_stock = false, active = true WHERE id = :id",
+                "id", fam, "axes", db.toJson(VariantsController.cleanAxes(axes)));
+        UUID vid = db.value("SELECT id FROM items WHERE variant_of = :f AND variant_values = cast(:v as jsonb) LIMIT 1",
+                UUID.class, "f", fam, "v", db.toJson(values));
+        String name = f.get("name") + " " + VariantsController.label(values);
+        if (vid == null) {
+            vid = db.insert("""
+                    INSERT INTO items (tenant_id, name, kind, category_id, unit, tax_rate, track_stock, variant_of, variant_values)
+                    SELECT tenant_id, :name, kind, coalesce(:cat, category_id), unit, tax_rate, true, id, cast(:v as jsonb) FROM items WHERE id = :f RETURNING id""",
+                    "f", fam, "name", name, "cat", catId, "v", db.toJson(values));
+        }
+        db.exec("UPDATE items SET active = true WHERE id = :id", "id", vid);
+        return vid;
     }
 
     // ---------- locations ----------

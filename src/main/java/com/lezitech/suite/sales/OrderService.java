@@ -137,6 +137,9 @@ public class OrderService {
             if (l.has("itemId")) {
                 item = db.one("Item", "SELECT * FROM items WHERE id = :id", "id", l.str("itemId"));
                 name = (String) item.get("name");
+                if (item.get("variantAxes") != null) {
+                    throw ApiException.bad("Choose which size or colour of " + name + " to sell");
+                }
                 if (com.lezitech.suite.restaurant.Recipes.KITCHEN_KINDS.contains(item.get("kind"))) {
                     throw ApiException.bad(name + " is a kitchen ingredient, not something to sell");
                 }

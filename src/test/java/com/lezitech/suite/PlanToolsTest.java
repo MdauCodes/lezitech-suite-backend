@@ -55,6 +55,11 @@ class PlanToolsTest extends IntegrationTest {
         assertThat(post("/orders", owner, Map.of("kind", "QUOTE")).at("/code").asText()).isEqualTo("PLAN_FEATURE");
         assertThat(get("/reports/sales", owner).body().has("byBranch")).isFalse();
 
+        // Who owes you stays; full statements are a Growth tool.
+        String customer = post("/customers", owner, Map.of("name", "Statement Customer", "phone", "0700000001")).at("/id").asText();
+        assertThat(get("/customers/owing", owner).status()).isEqualTo(200);
+        assertThat(get("/customers/" + customer + "/statement", owner).at("/code").asText()).isEqualTo("PLAN_FEATURE");
+
         // Every plan keeps the till, products and stock counts.
         assertThat(get("/stock", owner).status()).isEqualTo(200);
         assertThat(get("/items", owner).status()).isEqualTo(200);

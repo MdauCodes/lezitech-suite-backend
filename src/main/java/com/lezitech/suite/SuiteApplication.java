@@ -25,7 +25,7 @@ public class SuiteApplication {
     }
 
     /**
-     * Local runs get a real Postgres on port 54329 with data kept in .localdb, so nobody
+     * Local runs get a real Postgres on port 54329 (EMBEDDED_DB_PORT for a second copy) with data kept in .localdb, so nobody
      * needs Docker or a system Postgres password. Production sets DATABASE_URL and
      * EMBEDDED_DB=false and this does nothing.
      */
@@ -36,7 +36,7 @@ public class SuiteApplication {
         }
         String dir = System.getenv().getOrDefault("EMBEDDED_DB_DIR", ".localdb");
         EmbeddedPostgres pg = EmbeddedPostgres.builder()
-                .setPort(54329)
+                .setPort(Integer.parseInt(System.getenv().getOrDefault("EMBEDDED_DB_PORT", "54329")))
                 .setDataDirectory(Path.of(dir).toAbsolutePath())
                 .setCleanDataDirectory(false)
                 .start();
