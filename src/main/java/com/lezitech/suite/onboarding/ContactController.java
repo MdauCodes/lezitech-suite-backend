@@ -33,7 +33,7 @@ import java.util.UUID;
 @RestController
 public class ContactController {
 
-    static final Set<String> KINDS = Set.of("QUESTION", "FEEDBACK", "PROBLEM", "IDEA", "CALLBACK");
+    static final Set<String> KINDS = Set.of("QUESTION", "FEEDBACK", "PROBLEM", "IDEA", "CALLBACK", "SETUP");
     /** From one network when not signed in: 6 an hour. */
     static final RateLimit PUBLIC = new RateLimit(6, 3_600_000);
     static final RateLimit SIGNED_IN = new RateLimit(20, 3_600_000);
