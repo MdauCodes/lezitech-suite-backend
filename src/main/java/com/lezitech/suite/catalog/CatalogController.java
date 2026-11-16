@@ -117,7 +117,23 @@ public class CatalogController {
         UUID id = db.insert("""
                 INSERT INTO items (tenant_id, name, kind) VALUES (:t, :name, :kind) RETURNING id""",
                 "name", new Body(raw).str("name"), "kind", new Body(raw).str("kind", "PRODUCT"));
-        return updateItem(id, raw);
+        Map<String, Object> saved = updateItem(id, raw);
+        // "How many do you have now?" on a new product: its opening stock, at the place the person works.
+        Body b = new Body(raw);
+        BigDecimal opening = b.num("openingStock", null);
+        if (opening != null && opening.signum() > 0 && b.bool("trackStock", false)) {
+            UUID loc = db.value("""
+                    SELECT coalesce((SELECT location_id FROM users WHERE id = cast(:u as uuid)), (SELECT id FROM locations WHERE is_default LIMIT 1))""", UUID.class);
+            if (loc != null) {
+                db.exec("""
+                        INSERT INTO stock_levels (tenant_id, item_id, location_id, qty) VALUES (:t, :id, :loc, :qty)
+                        ON CONFLICT (item_id, location_id) DO UPDATE SET qty = stock_levels.qty + excluded.qty""", "id", id, "loc", loc, "qty", opening);
+                db.exec("""
+                        INSERT INTO stock_moves (tenant_id, item_id, location_id, qty, reason, ref, user_id)
+                        VALUES (:t, :id, :loc, :qty, 'OPENING', 'When added', :u)""", "id", id, "loc", loc, "qty", opening);
+            }
+        }
+        return saved;
     }
 
     @PutMapping("/items/{id}")
