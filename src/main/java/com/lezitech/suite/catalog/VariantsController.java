@@ -95,6 +95,7 @@ public class VariantsController {
 
         Set<String> seen = new HashSet<>();
         Set<UUID> kept = new HashSet<>();
+        boolean usedBarcode = false;
         String familyName = (String) family.get("name");
         for (Map<String, Object> r : rows) {
             Body v = new Body(r);
@@ -133,6 +134,15 @@ public class VariantsController {
                     "vid", vid, "name", familyName + " " + label(values), "vals", db.toJson(values), "price", price, "cost", cost,
                     "sku", blank(v.str("sku", null)), "barcode", barcode, "reorder", v.num("reorderLevel", BigDecimal.ZERO));
             kept.add(vid);
+            if (barcode != null) {
+                usedBarcode = true;
+            }
+        }
+        if (usedBarcode) {
+            // This business uses barcodes: the till and screens offer scanning from now on.
+            db.exec("""
+                    UPDATE tenants SET settings = settings || jsonb_build_object('features', coalesce(settings -> 'features', '{}'::jsonb) || '{"barcode": true}'::jsonb)
+                    WHERE id = :t AND coalesce(settings #>> '{features,barcode}', 'false') <> 'true'""");
         }
         // Put away combinations no longer listed (their history stays).
         for (Map<String, Object> old : db.list("SELECT id FROM items WHERE variant_of = :id AND active", "id", id)) {

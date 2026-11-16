@@ -206,6 +206,9 @@ public class CatalogController {
             }
         }
         familyFollows(id);
+        if (b.str("barcode", null) != null && !b.str("barcode", "").isBlank()) {
+            usesBarcodes();
+        }
         // R7: priced per kg and sold by the weight from the scale. Only changed when sent.
         if (b.has("soldByWeight")) {
             boolean kg = b.bool("soldByWeight", false);
@@ -256,6 +259,13 @@ public class CatalogController {
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
         // Putting a product away puts away its sizes and colours too.
         db.exec("UPDATE items SET active = false WHERE id = :id OR variant_of = :id", "id", id);
+    }
+
+    /** A product was saved with a barcode: this business uses barcodes, so the till and screens offer scanning. */
+    void usesBarcodes() {
+        db.exec("""
+                UPDATE tenants SET settings = settings || jsonb_build_object('features', coalesce(settings -> 'features', '{}'::jsonb) || '{"barcode": true}'::jsonb)
+                WHERE id = :t AND coalesce(settings #>> '{features,barcode}', 'false') <> 'true'""");
     }
 
     /**
@@ -379,6 +389,9 @@ public class CatalogController {
                     photoProblems.add(b.str("name", b.str("group", "")) + ": " + e.getMessage());
                 }
             }
+        }
+        if (rows.stream().anyMatch(r -> r.get("barcode") != null && !String.valueOf(r.get("barcode")).isBlank())) {
+            usesBarcodes();
         }
         return Map.of("created", created, "updated", updated, "photos", photos, "photoProblems", photoProblems.stream().limit(10).toList());
     }

@@ -198,6 +198,11 @@ public class AuthController {
             }
             settings.set("modules", modules);
         }
+        // "Do your products have barcodes printed on them?" Most Kenyan shops' goods don't, so barcode words only show
+        // when the owner says yes (or saves a product with a barcode later).
+        if (raw.containsKey("barcodes")) {
+            features.put("barcode", b.bool("barcodes", false));
+        }
         settings.set("features", features);
         settings.put("receiptFooter", b.str("receiptFooter", "Thank you for your business!"));
         settings.put("storeFeedsShops", pack.path("features").path("storeFeedsShops").asBoolean(false)

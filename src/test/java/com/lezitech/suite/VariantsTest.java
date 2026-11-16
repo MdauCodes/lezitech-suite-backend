@@ -109,4 +109,18 @@ class VariantsTest extends IntegrationTest {
         assertThat(r.status()).isEqualTo(400);
         assertThat(r.at("/message").asText()).contains("stock of its own");
     }
+
+    @Test
+    void barcodeWordsOnlyForBusinessesThatUseThem() {
+        String email = "owner-" + UUID.randomUUID().toString().substring(0, 8) + "@test.local";
+        Res r = post("/auth/signup", null, Map.of("businessName", "No Barcodes Shop", "sector", "retail", "name", "Owner", "email", email,
+                "password", "password123", "withSamples", false, "barcodes", false));
+        assertThat(r.status()).as(r.body().toString()).isEqualTo(200);
+        assertThat(r.at("/tenant/settings/features/barcode").asBoolean()).isFalse();
+        String owner = r.body().get("token").asText();
+        // The first product saved with a barcode switches scanning on.
+        String code = "77" + (System.nanoTime() % 1_000_000_000L);
+        assertThat(post("/items", owner, Map.of("name", "Zz Scanned " + code, "kind", "PRODUCT", "price", 50, "barcode", code)).status()).isEqualTo(200);
+        assertThat(get("/auth/me", owner).at("/tenant/settings/features/barcode").asBoolean()).isTrue();
+    }
 }
