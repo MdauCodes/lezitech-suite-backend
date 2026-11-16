@@ -103,11 +103,12 @@ public class PurchaseController {
             UUID itemId = UUID.fromString(l.get("itemId").toString());
             BigDecimal qty = (BigDecimal) l.get("qty");
             // Record the batch first so the stock move finds batches and counts already in step.
-            if (l.get("batchNo") != null) {
+            if (l.get("batchNo") != null || l.get("expiryDate") != null) {
                 db.exec("""
                         INSERT INTO stock_batches (tenant_id, item_id, location_id, batch_no, expiry_date, qty)
                         VALUES (:t, :itemId, :loc, :batch, cast(:exp as date), :qty)""",
-                        "itemId", itemId, "loc", loc, "batch", l.get("batchNo"), "exp", l.get("expiryDate"), "qty", qty);
+                        "itemId", itemId, "loc", loc, "batch", l.get("batchNo") != null ? l.get("batchNo") : "Received " + java.time.LocalDate.now(java.time.ZoneId.of("Africa/Nairobi")),
+                        "exp", l.get("expiryDate"), "qty", qty);
             }
             // An ingredient bought by the bag: the line is in bags; stock is kept in the cooking unit (g, ml, pc).
             BigDecimal size = db.value("SELECT buy_size FROM items WHERE id = :itemId AND kind = 'INGREDIENT'", BigDecimal.class, "itemId", itemId);

@@ -133,10 +133,12 @@ public class Recipes {
     public void saveRecipe(UUID itemId, Body b) {
         Map<String, Object> item = db.one("Item", "SELECT id, name, kind, options FROM items WHERE id = :id", "id", itemId);
         String kind = (String) item.get("kind");
-        if ("INGREDIENT".equals(kind) || "SERVICE".equals(kind)) {
+        if ("INGREDIENT".equals(kind)) {
             throw ApiException.bad(item.get("name") + " can't have a recipe");
         }
         boolean batch = "BATCH".equals(kind);
+        // A service (a salon's relaxer, a car wash) uses up products it doesn't sell: relaxer, gel, shampoo, wax.
+        boolean service = "SERVICE".equals(kind);
         Set<String> choices = new HashSet<>();
         if (item.get("options") instanceof JsonNode groups) {
             for (JsonNode g : groups) {
@@ -151,7 +153,7 @@ public class Recipes {
         Set<UUID> base = new HashSet<>();
         for (Map<String, Object> raw : lines) {
             Body l = new Body(raw);
-            UUID ing = ingredient(l.str("ingredientId"), itemId, batch);
+            UUID ing = service ? usedProduct(l.str("ingredientId"), itemId) : ingredient(l.str("ingredientId"), itemId, batch);
             base.add(ing);
             db.exec("INSERT INTO recipe_lines (tenant_id, item_id, ingredient_id, qty, sort) VALUES (:t, :item, :ing, :qty, :sort)",
                     "item", itemId, "ing", ing, "qty", positive(l.num("qty", null)), "sort", sort++);
@@ -167,7 +169,7 @@ public class Recipes {
             if (!choices.contains(key(group, choice))) {
                 throw ApiException.bad("\"" + choice + "\" isn't one of the choices on " + item.get("name"));
             }
-            UUID ing = ingredient(l.str("ingredientId"), itemId, false);
+            UUID ing = service ? usedProduct(l.str("ingredientId"), itemId) : ingredient(l.str("ingredientId"), itemId, false);
             UUID replaces = null;
             if (l.has("replacesId") && !l.str("replacesId", "").isBlank()) {
                 replaces = UUID.fromString(l.str("replacesId"));
@@ -182,6 +184,29 @@ public class Recipes {
         }
         // The dish's finished state follows its new recipe.
         stock.syncFinishedDishes(null);
+    }
+
+    /** What a service uses: a product or ingredient whose stock is counted. */
+    private UUID usedProduct(String raw, UUID self) {
+        if (raw == null || raw.isBlank()) {
+            throw ApiException.bad("Choose a product for every line");
+        }
+        UUID id = UUID.fromString(raw);
+        if (id.equals(self)) {
+            throw ApiException.bad("A service can't use itself");
+        }
+        Map<String, Object> p = db.find("SELECT kind, track_stock, name FROM items WHERE id = :id", "id", id).orElseThrow(() -> ApiException.notFound("That product"));
+        if ("SERVICE".equals(p.get("kind")) || !Boolean.TRUE.equals(p.get("trackStock"))) {
+            throw ApiException.bad(p.get("name") + " doesn't count stock, so it can't be used up. Tick Count how many I have on it first");
+        }
+        return id;
+    }
+
+    /** The lines of one item's recipe (a dish's ingredients, a service's products), with names and units. */
+    public List<Map<String, Object>> linesOf(UUID itemId) {
+        return db.list("""
+                SELECT r.ingredient_id, i.name, i.unit, r.qty FROM recipe_lines r JOIN items i ON i.id = r.ingredient_id
+                WHERE r.item_id = :id AND r.option_group IS NULL ORDER BY r.sort""", "id", itemId);
     }
 
     private UUID ingredient(String raw, UUID self, boolean batch) {

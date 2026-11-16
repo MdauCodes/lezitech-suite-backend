@@ -118,7 +118,17 @@ public class RecipeController {
             throw ApiException.bad("Say how much came in");
         }
         BigDecimal size = (BigDecimal) i.get("buySize");
-        stock.move(id, stock.defaultLocation(), size == null ? qty : qty.multiply(size), "RECEIVE", "Delivery", b.str("note", null));
+        BigDecimal units = size == null ? qty : qty.multiply(size);
+        UUID loc = stock.defaultLocation();
+        // A use-by date: this delivery is kept as its own batch, used first, and shows on "Use soon" before it goes off.
+        java.time.LocalDate useBy = b.date("useBy");
+        if (useBy != null) {
+            db.exec("""
+                    INSERT INTO stock_batches (tenant_id, item_id, location_id, batch_no, expiry_date, qty)
+                    VALUES (:t, :id, :loc, :no, :exp, :qty)""", "id", id, "loc", loc,
+                    "no", "Delivery " + java.time.LocalDate.now(java.time.ZoneId.of("Africa/Nairobi")), "exp", useBy, "qty", units);
+        }
+        stock.move(id, loc, units, "RECEIVE", "Delivery", b.str("note", null));
         BigDecimal price = b.num("buyPrice", null);
         if (price != null && price.signum() >= 0) {
             db.exec("UPDATE items SET buy_price = :p, cost = CASE WHEN buy_size IS NULL THEN :p ELSE round(:p / buy_size, 2) END WHERE id = :id",
@@ -172,6 +182,11 @@ public class RecipeController {
     // ---------------- recipes ----------------
 
     /** What a dish or a batch uses: {lines: [{ingredientId, qty}], choices: [{group, choice, ingredientId, qty, replacesId}]}. */
+    @org.springframework.web.bind.annotation.GetMapping("/items/{id}/recipe")
+    public Map<String, Object> recipeOf(@PathVariable UUID id) {
+        return Map.of("lines", recipes.linesOf(id));
+    }
+
     @PostMapping("/items/{id}/recipe")
     public Map<String, Object> saveRecipe(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         TenantContext.requireRole("MANAGER");

@@ -58,6 +58,9 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             // Catalogue, stock and buying
             rule(WRITES, "/api/(items|categories|suppliers)(/.*)?", "change items or suppliers", "MANAGER", "STOREKEEPER"),
             rule(WRITES, "/api/(locations|floors|tables)(/.*)?", "change places, floors or tables", "MANAGER"),
+            rule(WRITES, "/api/stock/use", "record stock used in-house", "MANAGER", "ACCOUNTANT", "STOREKEEPER", "RECEPTION", "STYLIST", "KITCHEN", "WAITER", "CASHIER", "TECHNICIAN"),
+            // Counting on a stock-take: any of these can count lines; starting and finishing is checked in the controller.
+            rule(ANY, "/api/stock/counts(/.*)?", "count stock", "MANAGER", "ACCOUNTANT", "STOREKEEPER", "CASHIER", "KITCHEN", "RECEPTION"),
             rule(ANY, "/api/(stock|purchases)(/.*)?", "see or change stock and buying", "MANAGER", "ACCOUNTANT", "STOREKEEPER"),
             // Selling
             rule(WRITES, "/api/kitchen/.*", "update the kitchen screen", "MANAGER", "KITCHEN", "WAITER", "RECEPTION", "CASHIER"),

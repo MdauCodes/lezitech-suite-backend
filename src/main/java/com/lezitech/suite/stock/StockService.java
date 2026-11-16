@@ -90,7 +90,7 @@ public class StockService {
                                       AND (m.reason IN ('RECEIVE', 'ADJUST', 'OPENING', 'TRANSFER') OR (m.reason = 'BATCH' AND m.qty > 0)))
                           AND coalesce((SELECT sum(s.qty) FROM stock_levels s WHERE s.item_id = r.ingredient_id), 0) <= 0)""";
         db.exec("UPDATE items d SET unavailable_until = 'infinity', finished_by_stock = true"
-                + " WHERE d.kind NOT IN ('INGREDIENT', 'BATCH') AND (d.unavailable_until IS NULL OR d.unavailable_until <= now())"
+                + " WHERE d.kind NOT IN ('INGREDIENT', 'BATCH', 'SERVICE') AND (d.unavailable_until IS NULL OR d.unavailable_until <= now())"
                 + " AND " + uses + " AND " + short_, "ing", ingredient);
         db.exec("UPDATE items d SET unavailable_until = NULL, finished_by_stock = false"
                 + " WHERE d.finished_by_stock AND " + uses + " AND NOT " + short_, "ing", ingredient);
