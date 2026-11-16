@@ -3,6 +3,22 @@
 The owner's answers to open questions, newest first. When a plan document disagrees with this file, this file wins.
 Add new answers at the top with the date; don't rewrite old ones (strike them through if they change).
 
+## 2026-11-11: SEO pages
+
+Context: the SEO plan (`docs/SEO-AEO-GEO-PLAN.md`, section 9) had open questions. These are the owner's answers.
+
+### Domain
+- **Marketing website domain: `businez.com`** (the owner will register it). All canonical URLs, JSON-LD, sitemap and robots.txt use this domain. The app stays on `suite.lezitech.site`.
+
+### AI crawlers
+- **Allow all AI crawlers** in robots.txt: GPTBot, OAI-SearchBot, ChatGPT-User, PerplexityBot, ClaudeBot, Google-Extended, Bingbot.
+
+### Towns
+- **All 10 towns at launch:** Nairobi, Mombasa, Kisumu, Nakuru, Eldoret, Thika, Machakos, Nyeri, Meru, Kakamega.
+
+### Content scope
+- **Full scope before launch:** 20 sub-sectors with full copy, 10 town pages, 5 guides, 3 comparisons. Owner will review all before 22 Nov.
+
 ## 2026-11-11 (later): restaurant QR ordering
 
 - **SEO pages go to the second model** (prompt: `docs/prompt-seo-pages.md`). This session does the restaurant QR
