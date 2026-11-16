@@ -119,6 +119,14 @@
   </ol>
   <div class="box tip small"><strong>Excel import, with or without photos.</strong> The import window asks first: <span class="btn">Without photos (add them later, or never)</span> or <span class="btn">With a photo link for each item</span>. The columns are Name, Category, Barcode, Code, Sold by, Selling price, Buying price, How many you have, Warn when this low, and Photo link. <span class="btn">Download an empty template</span> gives the right headings.</div>
 
+  <h3>Buy by the carton, sell by the piece</h3>
+  <p>On a product, tick <span class="btn">I buy it in packs (cartons, crates, bales, dozens)</span>: the pack's name, pieces in one, its buying price (BizNez works out the price of one piece) and, optionally, the selling price of a whole pack. Stock is always kept in pieces and shown as <em>90 bags (2 pallets + 10)</em>.</p>
+  <ul>
+    <li><strong>At the till:</strong> the product's button sells a piece; the button under it, <span class="btn">+ Sell a carton of 24 · KES 2,800</span>, sells the whole pack as one line and takes 24 off stock.</li>
+    <li><strong>Ordering from a supplier:</strong> each line is counted in cartons or pieces; receiving 2 cartons adds 48 pieces.</li>
+    <li><strong>Excel:</strong> columns Pack, Pieces in a pack, Pack buying price, Pack selling price.</li>
+  </ul>
+
   <h3>Shops, stores and branches</h3>
   <p>Stock is kept <strong>per place</strong>. A business starts with its main shop and a store inside it. A shop with a separate store or warehouse adds it under Stock → <span class="btn">Add shop or store</span>, then uses <span class="btn">Move stock</span> when goods go from the store to the shop. Staff who work at a branch see that branch's stock and sell from it.</p>
 </section>
@@ -165,7 +173,7 @@
   <p>They buy in cartons and sell in pieces, mostly the same day. Fast items (sugar, bread, milk, airtime) run out without warning; slow items sit for months. Losses come from theft, breakage, items given on credit and not recorded, and perishables that go off.</p>
   <h3>What BizNez does for them</h3>
   <ul>
-    <li>Barcode scanning at the till; each sale takes the piece off stock.</li>
+    <li>Barcode scanning at the till; each sale takes the piece off stock. Bought by the carton? Sell a piece or the whole carton (Part 1).</li>
     <li>Orange warning when an item reaches its level, and <span class="btn">Only show items running low</span> to make the shopping list.</li>
     <li><strong>Store feeds shop</strong>: extra stock in the back store, <span class="btn">Move stock</span> to the shop when the shelf is low.</li>
     <li><strong>Buying from suppliers</strong> (Growth): restock suggestions from what's low, an order to the supplier, then <em>receive</em> when the lorry comes: stock goes up, the buying price updates, and what they owe that supplier goes up.</li>
@@ -302,6 +310,7 @@
     <tr><td>"Moving stock / Buying from suppliers is locked"</td><td>Those are Growth tools.</td><td>The note on the screen has <span class="btn">See plans</span>. Records stay readable; only new ones are locked.</td></tr>
     <tr><td>The Excel import added items with no stock</td><td>The <em>How many you have</em> column was missing or named differently.</td><td><span class="btn">Download an empty template</span>, copy the numbers into that column and import again: existing items are updated, not doubled.</td></tr>
     <tr><td>Some photos didn't come in with the Excel import</td><td>The link wasn't a public <em>https</em> photo, or was too big (over 8 MB).</td><td>The import result lists them. Use <span class="btn">Add photos to many items</span> with the photos from the phone instead.</td></tr>
+    <tr><td>"A carton sold but stock only went down by 1"</td><td>The pack wasn't set on the product, or a piece was sold instead of the pack.</td><td>Open the product → <span class="btn">I buy it in packs</span>, set pieces in one. At the till use <span class="btn">+ Sell a carton …</span> under the product's button.</td></tr>
     <tr><td>"Who changed the price / the stock?"</td><td>Something changed and nobody admits it.</td><td>Stock history shows every stock change. The full history of price and staff changes is a Pro tool; the activity log shows warnings on every plan.</td></tr>
   </table>
 </section>
