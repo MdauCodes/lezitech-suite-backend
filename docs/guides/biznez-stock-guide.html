@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>BizNez stock guide: how stock works for each kind of business</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm; }
+  :root { --ink: #101415; --muted: #5b6366; --line: #dfe3dc; --lime: #b8f24a; --soft: #f3f6ec; --red: #b42318; --green: #0f7a43; --amber: #9a6100; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1 { font-size: 26pt; line-height: 1.1; margin: 0 0 8px; letter-spacing: -0.02em; }
+  h2 { font-size: 16pt; margin: 0 0 6px; letter-spacing: -0.01em; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14px 0 4px; page-break-after: avoid; }
+  p { margin: 0 0 7px; }
+  ul, ol { margin: 0 0 8px; padding-left: 18px; }
+  li { margin: 2px 0; }
+  .muted { color: var(--muted); }
+  .page { page-break-before: always; }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .badge { display: inline-block; background: var(--lime); font-weight: 700; font-size: 9pt; padding: 3px 9px; border-radius: 99px; }
+  .logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 15pt; }
+  .logo b { display: grid; place-items: center; width: 34px; height: 34px; background: var(--lime); border-radius: 9px; font-size: 18pt; }
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; page-break-inside: avoid; }
+  .tip { background: var(--soft); border-color: #cfe3a8; }
+  .warn { background: #fff7e6; border-color: #f2d49b; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 9.5pt; page-break-inside: auto; }
+  th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 5px 6px; }
+  th { background: #f6f7f4; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+  tr { page-break-inside: avoid; }
+  .btn { display: inline-block; border: 1px solid #b9c0b6; border-radius: 6px; padding: 0 5px; font-weight: 600; font-size: 9pt; background: #fff; white-space: nowrap; }
+  .k { font-weight: 700; }
+  .flow { margin-top: 18px; }
+  .sector-head { page-break-after: avoid; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid var(--lime); padding-bottom: 4px; margin-bottom: 8px; }
+  .toc li { margin: 4px 0; }
+  .small { font-size: 9pt; }
+  .yes { color: var(--green); font-weight: 700; }
+  .no { color: var(--red); font-weight: 700; }
+  .soon { color: var(--amber); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ======================= COVER ======================= -->
+<section class="cover">
+  <div>
+    <div class="logo"><b>B</b> BizNez</div>
+  </div>
+  <div>
+    <span class="badge">For selling and support</span>
+    <h1 style="margin-top:14px">How stock works,<br>for each kind of business</h1>
+    <p style="font-size:13pt" class="muted">A restaurant counts rice in grams and sells plates. A shop counts packets and sells packets. A salon sells a relaxer and uses 50 ml of it. A mall doesn't own the goods at all. This guide explains how BizNez handles each of them, what to show a business when you sell it, how to set it up on the first day, and how to answer the questions they will ask you.</p>
+  </div>
+  <div class="box tip">
+    <strong>How to use this guide</strong>
+    <ol class="small" style="margin-top:4px">
+      <li>Read <strong>Part 1</strong> once: the basics every business gets, whatever it sells.</li>
+      <li>Before a sales visit, read the page for that kind of business in <strong>Part 2</strong>.</li>
+      <li>When a business calls with a problem, go to <strong>Part 4: Support</strong>. Find what they see on the screen, then what to tell them.</li>
+    </ol>
+    <p class="small muted" style="margin:6px 0 0">Button names in this guide are written <span class="btn">like this</span>, exactly as they appear on the screen, so you can tell a business which button to press.</p>
+  </div>
+</section>
+
+<!-- ======================= CONTENTS ======================= -->
+<section class="page">
+  <h2>Contents</h2>
+  <ol class="toc">
+    <li><strong>Part 1. The basics every business gets</strong>
+      <ul><li>How stock goes up and down</li><li>Setting up stock on the first day</li><li>Shops, stores and branches</li><li>Who can do what with stock</li><li>What each plan adds</li></ul></li>
+    <li><strong>Part 2. Each kind of business</strong>
+      <ul><li>Shops and minimarts</li><li>Wholesalers and distributors</li><li>Restaurants, cafés, bars, bakeries and grills</li><li>Hotels, lodges and guest houses</li><li>Salons, barbers, spas, nail bars and car washes</li><li>Pharmacies (coming soon)</li><li>Services and tour operators</li><li>Malls, markets and landlords</li></ul></li>
+    <li><strong>Part 3. The monthly stock-take, step by step</strong></li>
+    <li><strong>Part 4. Support: what they see, and what to tell them</strong></li>
+    <li><strong>Part 5. Not built yet (be honest about these)</strong></li>
+  </ol>
+
+  <div class="box tip">
+    <strong>The one-sentence pitch</strong>
+    <p style="margin:4px 0 0">"Every sale takes stock off by itself, you see what's running low before it runs out, and once a month you count everything and BizNez tells you, in shillings, what has gone missing."</p>
+  </div>
+  <div class="box">
+    <strong>The three numbers every owner cares about</strong>
+    <ul class="small" style="margin-top:4px">
+      <li><strong>What I have</strong>: Stock → <span class="btn">What you have</span>, per shop and store, with what it's worth at buying price.</li>
+      <li><strong>What's running low</strong>: orange in the same list, and <span class="btn">Only show items running low</span>.</li>
+      <li><strong>What's gone missing</strong>: the result of a stock-take (Part 3), in money, and kept for every month.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= PART 1 ======================= -->
+<section class="page">
+  <span class="badge">Part 1</span>
+  <h2 style="margin-top:6px">The basics every business gets</h2>
+  <p>These are on <strong>every plan</strong> and in <strong>every kind of business</strong>. Stock counting is never optional in BizNez: it comes with selling.</p>
+
+  <h3>How stock goes up and down</h3>
+  <p>Nobody types stock changes by hand day to day. Every one of these moves stock by itself and is written in <span class="btn">Stock history</span> with who did it and when:</p>
+  <table>
+    <tr><th style="width:28%">In Stock history it says</th><th>What happened</th><th style="width:18%">Stock goes</th></tr>
+    <tr><td>sold</td><td>A sale at the till (or a dish's ingredients, or a salon service's products)</td><td>down</td></tr>
+    <tr><td>sale cancelled</td><td>A sale was cancelled or refunded</td><td>back up</td></tr>
+    <tr><td>goods arrived</td><td>A delivery from a supplier was received, or a kitchen delivery was recorded</td><td>up</td></tr>
+    <tr><td>starting stock</td><td>"How many do you have now?" when the product was added, or the Excel list</td><td>set</td></tr>
+    <tr><td>moved</td><td><span class="btn">Move stock</span> from the store to a shop, or between branches</td><td>down here, up there</td></tr>
+    <tr><td>count corrected</td><td><span class="btn">Fix count</span> on one item, or a finished stock-take</td><td>set to what was counted</td></tr>
+    <tr><td>used in-house</td><td><span class="btn">Record stock used in-house</span>: soap for the rooms, cleaning, damaged towels</td><td>down</td></tr>
+    <tr><td>wasted</td><td>Kitchen waste recorded (burnt, spilled, gone off)</td><td>down</td></tr>
+    <tr><td>made in the kitchen</td><td>A batch made (a pot of sauce, chapati dough): ingredients down, the batch up</td><td>both</td></tr>
+  </table>
+
+  <h3>Setting up stock on the first day</h3>
+  <ol>
+    <li><strong>Add the products.</strong> Items → <span class="btn">Add product</span>, or <span class="btn">Add many at once (from Excel)</span> for a long list. For each product tick <span class="btn">Count how many I have</span>.</li>
+    <li><strong>Say how many they have now.</strong> The new-product form asks <em>How many do you have now?</em> In Excel it is the <em>How many you have</em> column. That becomes the starting stock.</li>
+    <li><strong>Set the warning level.</strong> <em>Warn me when only this many are left</em>: when stock reaches it, the item turns orange.</li>
+    <li><strong>Photos and barcodes (optional, but sell them).</strong> A photo shows on the till buttons; <span class="btn">Add photos to many items</span> takes a batch of photos and matches them by file name (call the photo <em>Sugar 2kg.jpg</em>). Barcodes let the till scan.</li>
+  </ol>
+  <div class="box tip small"><strong>Excel import, with or without photos.</strong> The import window asks first: <span class="btn">Without photos (add them later, or never)</span> or <span class="btn">With a photo link for each item</span>. The columns are Name, Category, Barcode, Code, Sold by, Selling price, Buying price, How many you have, Warn when this low, and Photo link. <span class="btn">Download an empty template</span> gives the right headings.</div>
+
+  <h3>Shops, stores and branches</h3>
+  <p>Stock is kept <strong>per place</strong>. A business starts with its main shop and a store inside it. A shop with a separate store or warehouse adds it under Stock → <span class="btn">Add shop or store</span>, then uses <span class="btn">Move stock</span> when goods go from the store to the shop. Staff who work at a branch see that branch's stock and sell from it.</p>
+</section>
+
+<section>
+  <h3>Who can do what with stock</h3>
+  <p>Each business names its own jobs (Staff → <em>Jobs in your business</em>). Each job works like one of these access levels:</p>
+  <table>
+    <tr><th style="width:22%">Works like</th><th>With stock they can</th><th style="width:22%">Usual job titles</th></tr>
+    <tr><td class="k">Owner</td><td>Everything</td><td>Director, Owner</td></tr>
+    <tr><td class="k">Manager</td><td>Everything with stock: products, prices, counts, moves, suppliers, stock-takes, reports</td><td>Operations manager, Pharmacist</td></tr>
+    <tr><td class="k">Store keeper</td><td>Products, stock counts, moving stock, buying from suppliers, starting and finishing stock-takes. No till and no money reports</td><td>Store keeper, Stock clerk</td></tr>
+    <tr><td class="k">Accountant</td><td>Sees stock, stock value and supplier balances; can run stock-takes</td><td>Accountant</td></tr>
+    <tr><td class="k">Cashier</td><td>Sells (stock goes down by itself), counts lines on a stock-take, records stock used in-house</td><td>Cashier, Shop attendant</td></tr>
+    <tr><td class="k">Cook (kitchen)</td><td>Records kitchen deliveries, waste and kitchen counts; counts on a stock-take</td><td>Chef, Cook</td></tr>
+    <tr><td class="k">Front desk, stylist, waiter</td><td>Record stock used in-house (housekeeping supplies, products used)</td><td>Receptionist, Stylist, Waiter</td></tr>
+  </table>
+
+  <h3>What each plan adds for stock</h3>
+  <p class="small muted">Prices and what each plan includes are set by LeziTech in the control panel (Free days &amp; plans). During the free days everything is open. This is how it is set today:</p>
+  <table>
+    <tr><th>Stock feature</th><th style="width:14%">Lite</th><th style="width:14%">Growth</th><th style="width:14%">Pro</th></tr>
+    <tr><td>Stock counts, low-stock warnings, Fix count, stock history</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td>Monthly stock-take with missing and extra in money</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td>Stock used in-house, with the 30-day report</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td>Recipes and ingredients, kitchen counts, waste, bar tots (restaurants)</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td>Products a service uses (salons)</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td>Use-by and expiry dates, <span class="btn">Use soon</span></td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td>Photos, barcodes, Excel import</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td><strong>Buying from suppliers</strong>: orders (LPOs), receiving deliveries, what you owe each supplier, restock suggestions</td><td class="no">no</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td><strong>Moving stock between branches</strong> (store → shop)</td><td class="no">no</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td><strong>Back-office reports</strong>: stock value, profit by category, purchases, written-off stock</td><td class="no">no</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+    <tr><td><strong>Full history of changes</strong>: who changed prices or stock, and when</td><td class="no">no</td><td class="no">no</td><td class="yes">yes</td></tr>
+    <tr><td><strong>All branches side by side</strong>, and the end-of-day summary PDF by email</td><td class="no">no</td><td class="no">no</td><td class="yes">yes</td></tr>
+  </table>
+  <div class="box tip small"><strong>Selling tip.</strong> A one-shop business that buys from a few suppliers is usually happiest on Growth: the supplier balances alone stop arguments with suppliers. A business with a store and two or more shops needs Growth for <em>Move stock</em>; with several branches, Pro shows them side by side.</div>
+</section>
+
+<!-- ======================= PART 2 ======================= -->
+<section class="page">
+  <span class="badge">Part 2</span>
+  <div class="sector-head"><h2>Shops and minimarts</h2><span class="muted small">also: hardware, cosmetics shops, electronics, boutiques, agro-vets</span></div>
+  <h3>How their stock really works</h3>
+  <p>They buy in cartons and sell in pieces, mostly the same day. Fast items (sugar, bread, milk, airtime) run out without warning; slow items sit for months. Losses come from theft, breakage, items given on credit and not recorded, and perishables that go off.</p>
+  <h3>What BizNez does for them</h3>
+  <ul>
+    <li>Barcode scanning at the till; each sale takes the piece off stock.</li>
+    <li>Orange warning when an item reaches its level, and <span class="btn">Only show items running low</span> to make the shopping list.</li>
+    <li><strong>Store feeds shop</strong>: extra stock in the back store, <span class="btn">Move stock</span> to the shop when the shelf is low.</li>
+    <li><strong>Buying from suppliers</strong> (Growth): restock suggestions from what's low, an order to the supplier, then <em>receive</em> when the lorry comes: stock goes up, the buying price updates, and what they owe that supplier goes up.</li>
+    <li><strong>Expiry</strong> on perishables: when receiving, type the expiry date; the oldest is sold first and shows in <span class="btn">Use soon</span>.</li>
+    <li>The till refuses to sell what isn't there ("Not enough Sugar 2kg: only 0 left in Main shop") so the count stays honest. Settings can allow selling at zero for shops that receive goods without recording them (not recommended).</li>
+  </ul>
+  <h3>First day</h3>
+  <p>Excel list with <em>How many you have</em> → photos → warning levels on the fast items → suppliers (Growth) → a first stock-take within the first week to start clean.</p>
+  <h3>Routine to teach them</h3>
+  <p><strong>Daily:</strong> check orange items. <strong>When goods arrive:</strong> receive the order (or <span class="btn">Fix count</span> if they don't use suppliers). <strong>Monthly:</strong> a stock-take, or one category a day for a big shop.</p>
+  <div class="box tip small"><strong>What sells it:</strong> "Last month you lost KES 4,000 of stock and didn't know which items. With BizNez, the stock-take tells you: 2 sugar, 1 cooking oil, worth so much." Show them a finished stock-take.</div>
+
+  <div class="sector-head" style="margin-top:18px"><h2>Wholesalers and distributors</h2><span class="muted small">also: cash &amp; carry, building materials, drinks distributors</span></div>
+  <h3>How their stock really works</h3>
+  <p>Large quantities, prices that drop for bigger orders, goods kept in a warehouse and sent to branches or customers, buyers who ask for a quotation first, and a lot of credit both ways.</p>
+  <h3>What BizNez does for them</h3>
+  <ul>
+    <li><strong>Wholesale price</strong> per product with the quantity it starts from: the till charges it by itself above that quantity.</li>
+    <li><strong>Quotes</strong> (Growth) that turn into the sale with one tap; stock only goes down on the sale.</li>
+    <li>Warehouse → branches with <span class="btn">Move stock</span>; each branch's stock separately.</li>
+    <li>Suppliers, deliveries and balances; customers on credit and who owes what.</li>
+    <li>A <strong>Store keeper</strong> job: receives and moves stock without seeing the till or the money.</li>
+  </ul>
+  <div class="box tip small"><strong>What sells it:</strong> the store keeper can't see the money and the cashier can't change stock; the owner sees both. Every move between the warehouse and a branch has a name and a time.</div>
+</section>
+
+<section class="flow">
+  <div class="sector-head"><h2>Restaurants, cafés, bars, bakeries and grills</h2><span class="muted small">also: fast food, canteens, cloud kitchens, ice cream</span></div>
+  <h3>How their stock really works</h3>
+  <p>This is the most different. They <strong>buy ingredients</strong> (a 2 kg bag of rice, a crate of soda, a bottle of whisky) and <strong>sell plates</strong> and tots. Nobody counts plates in stock: they count rice in grams and whisky in millilitres. Losses come from waste, over-portioning, staff meals and bottles that "evaporate" at the bar.</p>
+  <h3>What BizNez does for them</h3>
+  <ul>
+    <li><strong>Ingredients</strong> (Recipes → <span class="btn">Add an ingredient</span>): kept in a cooking unit (g, ml, pc) and bought in a buying unit with its size (a <em>bag</em> of <em>2000 g</em> at KES 260). BizNez works out the cost per gram.</li>
+    <li><strong>What one plate uses</strong> (<span class="btn">Set what one plate uses</span>): chicken biryani = 200 g rice + 250 g chicken + … Each plate sold takes those off the kitchen stock, and the plate's cost and food cost % show.</li>
+    <li><strong>Choices that change the recipe</strong>: "with chapati instead of rice" swaps the ingredient.</li>
+    <li><strong>Batch recipes</strong>: a pot of stew or a tray of chapati dough is made once (<em>made in the kitchen</em>) and then used by many dishes.</li>
+    <li><strong>Dishes go "finished" by themselves</strong> when an ingredient they always use runs out, and come back when a delivery is recorded. Waiters stop selling what the kitchen can't make.</li>
+    <li><strong>Bar</strong>: a bottle is 750 ml; <span class="btn">Set tot and bottle prices</span> sells by the tot (25 ml), the glass or the bottle. A shortage on a count is shown in tots and in <em>lost sales</em>, not just millilitres.</li>
+    <li><strong>Waste</strong>: the kitchen records burnt, spilled or gone-off food with a reason; the owner can choose that only managers record waste.</li>
+    <li><strong>Kitchen count</strong>: count the ingredients, see what's missing at cost (and in lost sales for the bar).</li>
+    <li><strong>Use-by dates</strong>: when recording a delivery (<span class="btn">Record a delivery</span>), the optional <em>Use by</em> date keeps that delivery as its own batch, used first, shown in <span class="btn">Use soon</span>.</li>
+    <li><strong>Bakeries</strong>: the daily baking list, and a <em>day-old</em> price for yesterday's bread. <strong>Grills</strong>: meat sold by the kg, weighed at the till.</li>
+  </ul>
+  <h3>First day</h3>
+  <p>Menu (dishes) → ingredients with buying units and today's count → what each plate uses, starting with the 10 best sellers → bar bottles with tot prices. Don't try to put recipes on every dish on day one: start with the expensive ingredients (meat, chicken, fish, spirits).</p>
+  <h3>Routine to teach them</h3>
+  <p><strong>Every delivery:</strong> <span class="btn">Record a delivery</span> (with use-by for milk, meat, vegetables). <strong>Every night:</strong> record waste. <strong>Weekly:</strong> a kitchen count of meat and spirits. <strong>Monthly:</strong> the full stock-take.</p>
+  <div class="box tip small"><strong>What sells it:</strong> "Your chicken should give you 40 plates a week. If the count says you used chicken for 48, someone is giving extra or taking it home." Show the food cost % on their best seller and the bar count in lost sales.</div>
+  <div class="box warn small"><strong>Be clear:</strong> restaurants may sell below zero (the kitchen often has more than the records say). Dishes only go "finished" for ingredients they have actually counted or received, so a new restaurant doesn't see its whole menu disappear on day one.</div>
+</section>
+
+<section class="flow">
+  <div class="sector-head"><h2>Hotels, lodges and guest houses</h2><span class="muted small">with a restaurant and bar, or rooms only</span></div>
+  <h3>How their stock really works</h3>
+  <p>Three kinds of stock: the <strong>restaurant and bar</strong> (as above), the <strong>housekeeping supplies</strong> that are used, not sold (soap, toilet paper, cleaning), and <strong>linen and towels</strong> that go round and round and slowly go missing or get damaged. Some have a <strong>minibar</strong>.</p>
+  <h3>What BizNez does for them</h3>
+  <ul>
+    <li>Restaurant and bar: everything in the restaurant page, and bills can be put on the guest's room.</li>
+    <li><strong>Housekeeping supplies</strong>: <span class="btn">Record stock used in-house</span> with a purpose (<em>Housekeeping</em>, <em>Room 12</em>, <em>Laundry</em>). Front desk and housekeeping staff can record it. Stock → <span class="btn">Used in-house</span> adds up the month by purpose, in money.</li>
+    <li><strong>Linen and towels</strong>: keep them as products with a count; record damaged or lost ones as used in-house (<em>Towels and linen damaged</em>); count them on the monthly stock-take.</li>
+    <li><strong>Minibar</strong>: minibar items are products; a minibar sale is sold at the till and put on the room's bill.</li>
+  </ul>
+  <div class="box tip small"><strong>What sells it:</strong> "How much soap and toilet paper does one room-night cost you?" The used-in-house report answers it.</div>
+  <div class="box warn small"><strong>Not built yet:</strong> a linen cycle (clean → in the room → laundry → back) and a minibar check per room at check-out. Say so; they are on the list.</div>
+
+  <div class="sector-head" style="margin-top:18px"><h2>Salons, barbers, spas, nail bars and car washes</h2><span class="muted small">also: gyms with a shop, beauty clinics</span></div>
+  <h3>How their stock really works</h3>
+  <p>Two kinds of stock: <strong>products they sell</strong> to clients (hair oil, lotion) and <strong>products they use up</strong> doing the service (relaxer, gel polish, shampoo, car-wash soap). The second kind is where the money leaks: a tub that should do 20 clients does 12.</p>
+  <h3>What BizNez does for them</h3>
+  <ul>
+    <li>Products for sale: counted like a shop, sold at the till with the service on the same bill.</li>
+    <li><strong>Products a service uses</strong> (open the service → <em>Products this service uses</em> → <span class="btn">Add a product it uses</span>): e.g. 50 ml relaxer per "Relaxer &amp; set". Each service sold takes that off the relaxer's stock.</li>
+    <li>A service is <strong>never hidden</strong> because a product shows zero (the records may be behind); the stock-take shows the truth.</li>
+    <li>Stylists can record products used outside a service (<em>Used on a client</em>).</li>
+    <li>Commissions per stylist (Growth).</li>
+  </ul>
+  <div class="box tip small"><strong>What sells it:</strong> "This tub is 1,000 ml; at 50 ml a client it should do 20 relaxers. The stock-take will tell you if it did 12."</div>
+</section>
+
+<section class="flow">
+  <div class="sector-head"><h2>Pharmacies</h2><span class="soon small">coming soon: not open for sign-up yet</span></div>
+  <p>Built and waiting: <strong>batches with expiry dates</strong> on every delivery, sold <strong>earliest expiry first</strong> by itself, an <span class="btn">Use soon</span> list for the next 120 days, prescription-only items flagged at the till, and the Pharmacist job. Don't sell it yet; take names with <em>Tell me when it's ready</em>.</p>
+
+  <div class="sector-head" style="margin-top:18px"><h2>Services and tour operators</h2><span class="muted small">also: schools, garages, printers, tailors, laundries</span></div>
+  <p>Most of them sell time, not goods, so stock is optional. Where they do keep stock (a garage's spare parts, a printer's paper and ink, a laundry's soap), they use it like a shop, and supplies used on a job are recorded as used in-house with the job as the purpose. Tour operators sell seats on trips, not stock.</p>
+
+  <div class="sector-head" style="margin-top:18px"><h2>Malls, markets and landlords</h2><span class="muted small">also: food courts, plazas, rental flats</span></div>
+  <h3>How it is different</h3>
+  <p>The mall or market <strong>does not own the goods</strong>. Its "stock" is units and stalls. Each stall's own goods belong to that stall.</p>
+  <ul>
+    <li>The landlord side: units and stalls, leases, rent, meters, daily market fees, the food court.</li>
+    <li><strong>Food court</strong>: each food stall's dishes are on one food court menu that customers order from.</li>
+    <li>The mall's own supplies (cleaning, toilet paper for common areas) can be recorded as used in-house.</li>
+    <li><strong>A stall that wants stock control</strong> opens its own BizNez shop. That is the upsell in every mall: one landlord, many tenant shops.</li>
+  </ul>
+  <div class="box warn small"><strong>Not built yet:</strong> a stall's own BizNez shop linked to the mall (the mall seeing its tenants' sales or turnover). It is on the later list.</div>
+</section>
+
+<!-- ======================= PART 3 ======================= -->
+<section class="page">
+  <span class="badge">Part 3</span>
+  <h2 style="margin-top:6px">The monthly stock-take, step by step</h2>
+  <p>This is the feature that pays for BizNez. Teach every business to do it in the first week (to start clean) and then once a month.</p>
+  <ol>
+    <li>Stock → <span class="btn">Stock-take</span> → <span class="btn">Start a stock-take</span>. Only the owner, a manager, a store keeper or the accountant can start one.</li>
+    <li>Choose the place (if they have more than one) and <em>Everything</em> or one category. Big shop: one category a day.</li>
+    <li>Leave <span class="btn">Don't show counters what the records say</span> ticked. Counters then count what's really there instead of copying the number.</li>
+    <li>Counters open <span class="btn">Count and finish</span> on their phones. Several people can count at once. They type the number for each item; it saves when they leave the box. <em>Search or scan</em> finds an item; <em>Only what's not counted yet</em> shows what's left.</li>
+    <li>The owner watches the shortage so far, item by item: "missing 2 (KES 120)".</li>
+    <li>When counting is done: <span class="btn">Finish the stock-take</span> → <span class="btn">Yes, put the counts into my stock</span>.</li>
+  </ol>
+  <div class="grid2">
+    <div class="box small"><strong>What happens when they finish</strong><ul style="margin:4px 0 0"><li>Every counted item becomes the stock.</li><li>Items nobody counted stay as they were.</li><li>Missing and extra are kept, in money at buying price, with the stock-take's number.</li><li>A shortage of KES 500 or more shows as a warning in the activity log.</li></ul></div>
+    <div class="box small"><strong>Advice to give them</strong><ul style="margin:4px 0 0"><li>Count when the shop is closed or quiet: sales during the count blur the result.</li><li>Record all deliveries before counting.</li><li>Extra stock usually means a delivery that wasn't recorded.</li><li>The same item short every month? Look at who sold it and when (Pro: full history).</li></ul></div>
+  </div>
+  <p class="small muted">Restaurants also have the quick <em>kitchen count</em> on the Recipes page for ingredients only; the stock-take covers everything.</p>
+</section>
+
+<!-- ======================= PART 4 ======================= -->
+<section class="page">
+  <span class="badge">Part 4</span>
+  <h2 style="margin-top:6px">Support: what they see, and what to tell them</h2>
+  <table>
+    <tr><th style="width:30%">They say / they see</th><th style="width:30%">Why</th><th>What to tell them</th></tr>
+    <tr><td>"Not enough Sugar 2kg: only 0 left in Main shop" at the till</td><td>The records say none are left in that place. Usually a delivery wasn't recorded, or the stock is in the store.</td><td>If goods came in: receive the order, or Stock → <span class="btn">Fix count</span>. If it's in the store: <span class="btn">Move stock</span> to the shop. They can sell right after.</td></tr>
+    <tr><td>"The stock numbers are wrong"</td><td>Deliveries, breakages or giveaways not recorded since the last count.</td><td>Do a stock-take (Part 3). From then on: record every delivery, and use <span class="btn">Record stock used in-house</span> for anything used or given away.</td></tr>
+    <tr><td>A dish shows <em>finished</em> but the kitchen has it</td><td>An ingredient it always uses shows zero.</td><td>Recipes → <span class="btn">Record a delivery</span> for that ingredient (or a kitchen count). The dish comes back by itself. The Kitchen screen's <span class="btn">Mark a dish as run out</span> is the manual switch.</td></tr>
+    <tr><td>Stock shows a minus number (restaurant)</td><td>Restaurants may sell below zero; the kitchen had more than recorded.</td><td>Normal. A kitchen count or stock-take sets it right.</td></tr>
+    <tr><td>A branch shows 0 but the main shop has plenty</td><td>Stock is kept per place; staff see their own branch.</td><td><span class="btn">Move stock</span> to that branch (Growth). Check the staff member's <em>Works at</em> on Staff.</td></tr>
+    <tr><td>"I can't see Use soon / expiry dates"</td><td>Expiry is on for businesses that signed up after 16 Nov 2026 (shops, wholesale, food, hotels, pharmacies).</td><td>Older businesses: LeziTech switches it on for them in the control panel.</td></tr>
+    <tr><td>Relaxer stock never goes down (salon)</td><td>The service doesn't list the products it uses.</td><td>Open the service → <em>Products this service uses</em> → <span class="btn">Add a product it uses</span> → <span class="btn">Save what this service uses</span>. The product must have <span class="btn">Count how many I have</span> ticked.</td></tr>
+    <tr><td>"A stock-take is already open for this place"</td><td>Only one open stock-take per place.</td><td>Finish it, or <span class="btn">Cancel this stock-take</span> (cancelling changes nothing).</td></tr>
+    <tr><td>The cashier can't see the numbers on the stock-take</td><td>Counters don't see what the records say (on purpose).</td><td>That's the point. The owner sees them. Untick it when starting the next one if they prefer.</td></tr>
+    <tr><td>"Moving stock / Buying from suppliers is locked"</td><td>Those are Growth tools.</td><td>The note on the screen has <span class="btn">See plans</span>. Records stay readable; only new ones are locked.</td></tr>
+    <tr><td>The Excel import added items with no stock</td><td>The <em>How many you have</em> column was missing or named differently.</td><td><span class="btn">Download an empty template</span>, copy the numbers into that column and import again: existing items are updated, not doubled.</td></tr>
+    <tr><td>Some photos didn't come in with the Excel import</td><td>The link wasn't a public <em>https</em> photo, or was too big (over 8 MB).</td><td>The import result lists them. Use <span class="btn">Add photos to many items</span> with the photos from the phone instead.</td></tr>
+    <tr><td>"Who changed the price / the stock?"</td><td>Something changed and nobody admits it.</td><td>Stock history shows every stock change. The full history of price and staff changes is a Pro tool; the activity log shows warnings on every plan.</td></tr>
+  </table>
+</section>
+
+<!-- ======================= PART 5 ======================= -->
+<section class="page">
+  <span class="badge">Part 5</span>
+  <h2 style="margin-top:6px">Not built yet (be honest about these)</h2>
+  <table>
+    <tr><th style="width:32%">What</th><th>For whom</th><th style="width:28%">Until then</th></tr>
+    <tr><td><strong>Variants</strong>: one product in several sizes or colours, each with its own price, barcode and stock</td><td>Boutiques, shoe shops, hardware, cosmetics</td><td>One product per size. Variants are the next piece of work.</td></tr>
+    <tr><td><strong>Linen cycle</strong>: clean → room → laundry → back</td><td>Hotels, lodges</td><td>Count linen on the stock-take; record damage as used in-house.</td></tr>
+    <tr><td><strong>Minibar check per room</strong> at check-out</td><td>Hotels</td><td>Sell minibar items at the till and put them on the room's bill.</td></tr>
+    <tr><td><strong>A stall's shop linked to its mall</strong></td><td>Malls, markets</td><td>Each stall opens its own BizNez shop.</td></tr>
+    <tr><td><strong>Expiry on kitchen counts</strong> (writing off what's past its date in one tap)</td><td>Restaurants</td><td>Record it as waste.</td></tr>
+    <tr><td><strong>Pharmacy</strong> open for sign-up</td><td>Pharmacies</td><td>Take their names; the stock side is built.</td></tr>
+  </table>
+  <div class="box tip" style="margin-top:14px">
+    <strong>When a business asks for something that isn't here</strong>
+    <p class="small" style="margin:4px 0 0">Every screen has the round button at the bottom right (<em>Talk to the BizNez team</em>). Ask them to send the request from there with <em>Ask for a feature</em>: it reaches the team inbox with their business and the page they were on.</p>
+  </div>
+  <p class="small muted" style="margin-top:20px">Prepared by LeziTech for its sales and support team, November 2026. Screens and plans change: when a button name here doesn't match the screen, the screen is right. Tell the team so this guide can be updated.</p>
+</section>
+</body>
+</html>
