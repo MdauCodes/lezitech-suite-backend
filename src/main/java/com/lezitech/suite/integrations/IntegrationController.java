@@ -43,8 +43,11 @@ public class IntegrationController {
         this.fees = fees;
     }
 
-    /** How the business treats PayHero's charge: KNOW (just show it) or COST (take it off profit in reports). */
-    public static final List<String> FEE_MODES = List.of("KNOW", "COST");
+    /**
+     * How the business treats PayHero's charge: KNOW (just show it), COST (take it off profit in reports), or CUSTOMER
+     * (add it to the customer's bill as its own line when the prompt is sent; it comes off again if the prompt fails).
+     */
+    public static final List<String> FEE_MODES = List.of("KNOW", "COST", "CUSTOMER");
 
     /** PayHero's charge per payment, with a few everyday amounts worked out, and how this business treats it. */
     @GetMapping("/api/settings/payments/payhero-fees")

@@ -116,7 +116,13 @@ public class MpesaService {
                     "M-Pesa prompts aren't set up for this business yet. The owner can add the till or paybill under Settings, Payments, "
                             + "or ask LeziTech to do it. For now, take the payment on your phone and type the M-Pesa code.");
         }
+        BigDecimal fee = customerFee(acct.orElse(null), amount);
+        UUID feeLine = fee.signum() > 0 ? addFeeLine(orderId, fee) : null;
+        amount = amount.add(fee);
         UUID id = insertRequest("ORDER", orderId, null, phone, amount);
+        if (feeLine != null) {
+            jdbc.update("UPDATE mpesa_requests SET fee_line_id = ?, customer_fee = ? WHERE id = ?", feeLine, fee, id);
+        }
         return push(id, acct.orElse(null), phone, amount, "Sale " + o.get("number"), "Payment");
     }
 
@@ -158,9 +164,12 @@ public class MpesaService {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
                     "Paying from your phone isn't switched on here yet. Please ask your waiter to help you pay.");
         }
-        BigDecimal amount = part.add(t);
+        BigDecimal fee = batchId == null ? customerFee(acct.orElse(null), part.add(t)) : BigDecimal.ZERO;
+        UUID feeLine = fee.signum() > 0 ? addFeeLine(orderId, fee) : null;
+        BigDecimal amount = part.add(t).add(fee);
         UUID id = insertRequest("ORDER", orderId, null, phone, amount);
-        jdbc.update("UPDATE mpesa_requests SET tip = ?, split_id = ?, batch_id = ? WHERE id = ?", t, splitId, batchId, id);
+        jdbc.update("UPDATE mpesa_requests SET tip = ?, split_id = ?, batch_id = ?, fee_line_id = ?, customer_fee = ? WHERE id = ?",
+                t, splitId, batchId, feeLine, fee, id);
         return push(id, acct.orElse(null), phone, amount, (batchId == null ? "Order " : "Group ") + o.get("number"), "Payment");
     }
 
@@ -366,6 +375,7 @@ public class MpesaService {
                     res.checkoutRequestId(), res.merchantRequestId(), res.providerRef(), id);
         } catch (ApiException e) {
             jdbc.update("UPDATE mpesa_requests SET status = 'FAILED', result_desc = ?, updated_at = now() WHERE id = ?", e.getMessage(), id);
+            dropCustomerFee(id, TenantContext.tenantId(), TenantContext.userId());
             throw e;
         }
         return status(id);
@@ -388,7 +398,7 @@ public class MpesaService {
         }
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT id, purpose, order_id AS "orderId", subscription_request_id AS "subscriptionRequestId", phone, amount, status,
-                       receipt, result_desc AS "message", provider, created_at AS "createdAt"
+                       receipt, result_desc AS "message", provider, created_at AS "createdAt", customer_fee AS "customerFee"
                 FROM mpesa_requests WHERE id = ? AND tenant_id = ?""", id, TenantContext.tenantId());
         if (rows.isEmpty()) {
             throw ApiException.notFound("M-Pesa request");
@@ -401,11 +411,59 @@ public class MpesaService {
         return out;
     }
 
+    public static final String FEE_LINE = "M-Pesa charge (PayHero)";
+
+    /**
+     * PayHero's charge for this payment, when the owner chose to add it to the customer's bill (mode CUSTOMER) and the
+     * prompt goes through PayHero (or the local practice server). Worked out on the bill plus the charge, as sent.
+     */
+    private BigDecimal customerFee(PayAccount acct, BigDecimal amount) {
+        boolean viaPayHero = acct instanceof PayAccount.PayHero || (acct == null && cfg.simulated());
+        if (!viaPayHero) {
+            return BigDecimal.ZERO;
+        }
+        String mode = jdbc.queryForObject("SELECT settings->>'mpesaFeeMode' FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
+        if (!"CUSTOMER".equals(mode)) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal f = payHeroFees.fee(amount);
+        return payHeroFees.fee(amount.add(f));
+    }
+
+    /** Put the charge on the bill as its own line (no VAT; nothing for the kitchen) and return the line. */
+    private UUID addFeeLine(UUID orderId, BigDecimal fee) {
+        orders.addLines(orderId, List.of(Map.of("name", FEE_LINE, "unitPrice", fee, "qty", 1, "taxRate", 0)));
+        UUID line = jdbc.queryForObject("""
+                SELECT id FROM order_lines WHERE order_id = ? AND item_id IS NULL AND name = ? ORDER BY created_at DESC, id LIMIT 1""",
+                UUID.class, orderId, FEE_LINE);
+        jdbc.update("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE id = ?", line);
+        return line;
+    }
+
+    /** The prompt didn't go through: the charge comes off the bill again (only while the bill is still open). */
+    private void dropCustomerFee(UUID requestId, UUID tenant, UUID user) {
+        TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList("SELECT fee_line_id, order_id FROM mpesa_requests WHERE id = ? AND fee_line_id IS NOT NULL", requestId);
+            if (rows.isEmpty()) {
+                return null;
+            }
+            UUID line = (UUID) rows.get(0).get("fee_line_id");
+            UUID order = (UUID) rows.get(0).get("order_id");
+            int gone = jdbc.update("DELETE FROM order_lines l USING orders o WHERE l.id = ? AND o.id = l.order_id AND o.status = 'OPEN'", line);
+            jdbc.update("UPDATE mpesa_requests SET fee_line_id = NULL WHERE id = ?", requestId);
+            if (gone > 0) {
+                orders.recalc(order);
+            }
+            return null;
+        }));
+    }
+
     /** The cashier gave up waiting. A late success is still recorded. */
     public Map<String, Object> cancel(UUID id) {
         jdbc.update("""
                 UPDATE mpesa_requests SET status = 'CANCELLED', result_desc = 'Stopped waiting at the till', updated_at = now()
                 WHERE id = ? AND tenant_id = ? AND status = 'PENDING'""", id, TenantContext.tenantId());
+        dropCustomerFee(id, TenantContext.tenantId(), TenantContext.userId());
         return status(id);
     }
 
@@ -477,6 +535,7 @@ public class MpesaService {
         }
         if (code != 0) {
             jdbc.update("UPDATE mpesa_requests SET status = ? WHERE id = ?", code == 1032 ? "CANCELLED" : "FAILED", id);
+            dropCustomerFee(id, tenant, user);
             announce(r, "FAILED");
             return;
         }

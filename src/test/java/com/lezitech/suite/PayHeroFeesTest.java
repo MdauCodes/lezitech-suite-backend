@@ -38,7 +38,7 @@ class PayHeroFeesTest extends IntegrationTest {
         assertThat(t.at("/examples/1/amount").asInt()).isEqualTo(500);
         assertThat(t.at("/examples/1/fee").decimalValue()).isEqualByComparingTo("10");
 
-        assertThat(call("PUT", "/settings/payments/fee-mode", owner, Map.of("mode", "ADD_TO_BILL")).status()).isEqualTo(400);
+        assertThat(call("PUT", "/settings/payments/fee-mode", owner, Map.of("mode", "SOMETHING")).status()).isEqualTo(400);
         assertThat(call("PUT", "/settings/payments/fee-mode", owner, Map.of("mode", "cost")).status()).isEqualTo(200);
         assertThat(get("/settings/payments/payhero-fees", owner).at("/mode").asText()).isEqualTo("COST");
 
@@ -48,5 +48,61 @@ class PayHeroFeesTest extends IntegrationTest {
         JsonNode rep = get("/reports/sales", owner).body();
         assertThat(rep.at("/mpesaFees/mode").asText()).isEqualTo("COST");
         assertThat(rep.at("/mpesaFees/amount").decimalValue()).isEqualByComparingTo("0");
+    }
+
+    private JsonNode waitFor(String requestId, String token) throws InterruptedException {
+        JsonNode st = null;
+        for (int i = 0; i < 50; i++) {
+            st = get("/mpesa/requests/" + requestId, token).body();
+            if (!"PENDING".equals(st.get("status").asText())) {
+                return st;
+            }
+            Thread.sleep(100);
+        }
+        return st;
+    }
+
+    private boolean hasChargeLine(JsonNode order) {
+        for (JsonNode l : order.at("/lines")) {
+            if ("M-Pesa charge (PayHero)".equals(l.at("/name").asText())) return true;
+        }
+        return false;
+    }
+
+    @Test
+    void customerPaysTheChargeWhenTheOwnerChoseSo() throws Exception {
+        String owner = token(signup("retail"));
+        call("PUT", "/settings/payments/fee-mode", owner, Map.of("mode", "CUSTOMER"));
+        String itemId = item(owner, "Sugar").get("id").asText();
+
+        // Paid: the charge is a line on the bill and the prompt asks for bill plus charge.
+        String order = post("/orders", owner, Map.of("lines", line(itemId, 1))).at("/id").asText();
+        BigDecimal before = get("/orders/" + order, owner).at("/total").decimalValue();
+        Res start = post("/mpesa/stk", owner, Map.of("orderId", order, "phone", "0712 345 678"));
+        assertThat(start.status()).as(start.body().toString()).isEqualTo(200);
+        BigDecimal fee = start.at("/customerFee").decimalValue();
+        assertThat(fee).isEqualByComparingTo(fees.fee(before.add(fees.fee(before))));
+        assertThat(fee.signum()).isPositive();
+        assertThat(start.at("/amount").decimalValue()).isEqualByComparingTo(before.add(fee));
+        assertThat(waitFor(start.at("/id").asText(), owner).get("status").asText()).isEqualTo("PAID");
+        JsonNode paid = get("/orders/" + order, owner).body();
+        assertThat(paid.at("/status").asText()).isEqualTo("PAID");
+        assertThat(paid.at("/total").decimalValue()).isEqualByComparingTo(before.add(fee));
+        assertThat(hasChargeLine(paid)).isTrue();
+
+        // Cancelled by the customer: the charge comes off the bill again.
+        String order2 = post("/orders", owner, Map.of("lines", line(itemId, 1))).at("/id").asText();
+        Res start2 = post("/mpesa/stk", owner, Map.of("orderId", order2, "phone", "0712349999"));
+        assertThat(hasChargeLine(get("/orders/" + order2, owner).body())).isTrue();
+        assertThat(waitFor(start2.at("/id").asText(), owner).get("status").asText()).isEqualTo("CANCELLED");
+        JsonNode open = get("/orders/" + order2, owner).body();
+        assertThat(hasChargeLine(open)).isFalse();
+        assertThat(open.at("/total").decimalValue()).isEqualByComparingTo(before);
+
+        // Other modes leave the bill alone.
+        call("PUT", "/settings/payments/fee-mode", owner, Map.of("mode", "KNOW"));
+        String order3 = post("/orders", owner, Map.of("lines", line(itemId, 1))).at("/id").asText();
+        Res start3 = post("/mpesa/stk", owner, Map.of("orderId", order3, "phone", "0712 345 678"));
+        assertThat(start3.at("/amount").decimalValue()).isEqualByComparingTo(before);
     }
 }
