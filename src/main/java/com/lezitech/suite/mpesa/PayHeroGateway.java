@@ -81,6 +81,53 @@ public class PayHeroGateway {
         };
     }
 
+    /** One of the business's tills or paybills as PayHero knows it (a "payment channel"). */
+    public record Channel(long id, String type, String shortCode, String accountNumber, String description, boolean active) {
+    }
+
+    /** The business's tills and paybills linked in PayHero, so the owner picks one instead of hunting for its number. */
+    public java.util.List<Channel> channels(PayAccount.PayHero a) {
+        JsonNode r = send(a, "GET", "/payment_channels", null);
+        java.util.List<Channel> out = new java.util.ArrayList<>();
+        for (JsonNode c : r.path("payment_channels")) {
+            out.add(new Channel(c.path("id").asLong(), c.path("channel_type").asText(""), c.path("short_code").asText(""),
+                    c.path("account_number").asText(""), c.path("description").asText(""), c.path("is_active").asBoolean(true)));
+        }
+        return out;
+    }
+
+    /** The PayHero service wallet: PayHero takes its charge per payment from here, so it needs topping up. */
+    public record Wallet(long accountId, BigDecimal balance) {
+    }
+
+    public Wallet wallet(PayAccount.PayHero a) {
+        JsonNode r = send(a, "GET", "/wallets?wallet_type=service_wallet", null);
+        return new Wallet(r.path("account_id").asLong(), r.path("available_balance").decimalValue());
+    }
+
+    /** Top up the PayHero wallet: an M-Pesa prompt goes to {@code phone} for the owner's PIN. */
+    public String topUp(PayAccount.PayHero a, long amount, String phone) {
+        JsonNode r = send(a, "POST", "/topup", Map.of("amount", amount, "phone_number", phone));
+        if (!r.path("success").asBoolean(false)) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYHERO_ERROR", "PayHero didn't start the top-up: " + firstText(r, "error_message", "message", "status"));
+        }
+        return r.path("reference").asText("");
+    }
+
+    /** Link a till or paybill to the PayHero account from BizNez (type is "till" or "paybill"). */
+    public Channel addChannel(PayAccount.PayHero a, long accountId, String type, String shortCode, String accountNumber, String description) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("channel_type", type);
+        body.put("account_id", accountId);
+        body.put("short_code", shortCode);
+        body.put("account_number", accountNumber == null ? "" : accountNumber);
+        body.put("description", description);
+        JsonNode c = send(a, "POST", "/payment_channels", body);
+        JsonNode n = c.has("payment_channel") ? c.path("payment_channel") : c;
+        return new Channel(n.path("id").asLong(), n.path("channel_type").asText(type), n.path("short_code").asText(shortCode),
+                n.path("account_number").asText(""), n.path("description").asText(description), n.path("is_active").asBoolean(true));
+    }
+
     /** Checks the API username and password by reading the account's wallet. */
     public void test(PayAccount.PayHero a) {
         send(a, "GET", "/wallets?wallet_type=service_wallet", null);
@@ -102,7 +149,7 @@ public class PayHeroGateway {
             JsonNode node = json.readTree(res.body() == null || res.body().isBlank() ? "{}" : res.body());
             if (res.statusCode() == 401 || res.statusCode() == 403) {
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYHERO_AUTH",
-                        "PayHero refused the API username and password. Copy them again from PayHero, Account, API Keys.");
+                        "PayHero refused the API username and password. Copy them again from API Keys in PayHero (no spaces before or after).");
             }
             if (res.statusCode() >= 300) {
                 log.warn("PayHero {} {} answered {}: {}", method, path, res.statusCode(), res.body());

@@ -105,4 +105,18 @@ class PayHeroFeesTest extends IntegrationTest {
         Res start3 = post("/mpesa/stk", owner, Map.of("orderId", order3, "phone", "0712 345 678"));
         assertThat(start3.at("/amount").decimalValue()).isEqualByComparingTo(before);
     }
+
+    @Test
+    void guidedPayHeroSetupAsksPlainly() {
+        String owner = token(signup("retail"));
+        assertThat(post("/settings/payments/payhero/keys", owner, Map.of("username", " ", "password", "x")).status()).isEqualTo(400);
+        Res noKeys = get("/settings/payments/payhero/account", owner);
+        assertThat(noKeys.status()).isEqualTo(400);
+        assertThat(noKeys.at("/message").asText()).contains("PayHero API username and password");
+        assertThat(post("/settings/payments/payhero/use", owner, Map.of("channelId", "")).status()).isEqualTo(400);
+        assertThat(post("/settings/payments/payhero/add-till", owner, Map.of("type", "bank", "number", "123456")).status()).isEqualTo(400);
+        assertThat(post("/settings/payments/payhero/top-up", owner, Map.of("amount", 5, "phone", "0712345678")).status()).isEqualTo(400);
+        String cashier = staff(owner, "CASHIER");
+        assertThat(get("/settings/payments/payhero/account", cashier).status()).isEqualTo(403);
+    }
 }

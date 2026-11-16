@@ -119,6 +119,15 @@ public class IntegrationService {
         return row(tenant, "PAYHERO").map(r -> (PayAccount.PayHero) account(r));
     }
 
+    /** The saved PayHero username and password, before a till is chosen (channel 0), to list tills and read the wallet. */
+    public PayAccount.PayHero payHeroKeys(UUID tenant) {
+        Map<String, String> k = row(tenant, "PAYHERO").map(this::secretsOf).orElse(Map.of());
+        if (k.get("username") == null || k.get("password") == null) {
+            throw ApiException.bad("Paste your PayHero API username and password first");
+        }
+        return new PayAccount.PayHero(PayHeroGateway.BASE_URL, k.get("username"), k.get("password"), 0);
+    }
+
     /** The business's own WhatsApp Business number, when it is switched on and complete (otherwise the app uses wa.me links). */
     public record WhatsAppAccount(String phoneNumberId, String accessToken, String receiptTemplate, String language) {
     }

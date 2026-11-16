@@ -5,6 +5,7 @@ import com.lezitech.suite.admin.AdminService;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.mpesa.MpesaConfig;
 import com.lezitech.suite.mpesa.PayHeroFees;
+import com.lezitech.suite.mpesa.PayHeroGateway;
 import java.math.BigDecimal;
 import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,13 +35,111 @@ public class IntegrationController {
     private final MpesaConfig cfg;
     private final JdbcTemplate jdbc;
     private final PayHeroFees fees;
+    private final PayHeroGateway payHero;
 
-    public IntegrationController(IntegrationService integrations, AdminService admin, MpesaConfig cfg, JdbcTemplate jdbc, PayHeroFees fees) {
+    public IntegrationController(IntegrationService integrations, AdminService admin, MpesaConfig cfg, JdbcTemplate jdbc, PayHeroFees fees,
+                                 PayHeroGateway payHero) {
+        this.payHero = payHero;
         this.integrations = integrations;
         this.admin = admin;
         this.cfg = cfg;
         this.jdbc = jdbc;
         this.fees = fees;
+    }
+
+    // ---------- PayHero, guided for the owner (no channel numbers to hunt for) ----------
+
+    private static String digits(Object v) {
+        return String.valueOf(v == null ? "" : v).replaceAll("[^0-9]", "");
+    }
+
+    /** Save the two PayHero keys, then show the tills and paybills PayHero has for this account, and the wallet. */
+    @PostMapping("/api/settings/payments/payhero/keys")
+    public Map<String, Object> payHeroKeys(@RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("OWNER");
+        String user = String.valueOf(raw.getOrDefault("username", "")).trim();
+        String pass = String.valueOf(raw.getOrDefault("password", "")).trim();
+        if (user.isEmpty() || pass.isEmpty()) {
+            throw ApiException.bad("Paste both the API username and the API password from PayHero");
+        }
+        integrations.save(TenantContext.tenantId(), "PAYHERO", Map.of("secrets", Map.of("username", user, "password", pass)), TenantContext.caller().name());
+        return payHeroAccount();
+    }
+
+    /** What PayHero has for this business: its tills/paybills and the wallet balance. */
+    @GetMapping("/api/settings/payments/payhero/account")
+    public Map<String, Object> payHeroAccount() {
+        TenantContext.requireRole("OWNER");
+        var keys = integrations.payHeroKeys(TenantContext.tenantId());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("channels", payHero.channels(keys).stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", c.id());
+            m.put("type", c.type());
+            m.put("shortCode", c.shortCode());
+            m.put("accountNumber", c.accountNumber());
+            m.put("description", c.description());
+            m.put("active", c.active());
+            return m;
+        }).toList());
+        var w = payHero.wallet(keys);
+        out.put("walletBalance", w.balance());
+        return out;
+    }
+
+    /** Use this till or paybill for the till's M-Pesa prompts: saved, switched on and tested in one go. */
+    @PostMapping("/api/settings/payments/payhero/use")
+    public Map<String, Object> payHeroUse(@RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("OWNER");
+        String channel = digits(raw.get("channelId"));
+        if (channel.isEmpty()) {
+            throw ApiException.bad("Choose which till or paybill the money goes to");
+        }
+        integrations.save(TenantContext.tenantId(), "PAYHERO", Map.of("settings", Map.of("channelId", channel), "enabled", true), TenantContext.caller().name());
+        return integrations.test(TenantContext.tenantId(), "PAYHERO");
+    }
+
+    /** Add the business's till or paybill to PayHero from here, when it isn't there yet. */
+    @PostMapping("/api/settings/payments/payhero/add-till")
+    public Map<String, Object> payHeroAddTill(@RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("OWNER");
+        String type = String.valueOf(raw.getOrDefault("type", "till")).toLowerCase(Locale.ROOT);
+        if (!List.of("till", "paybill").contains(type)) {
+            throw ApiException.bad("Choose till or paybill");
+        }
+        String number = digits(raw.get("number"));
+        if (number.length() < 5) {
+            throw ApiException.bad("Type the " + type + " number customers pay to");
+        }
+        String account = String.valueOf(raw.getOrDefault("accountNumber", "")).trim();
+        String name = jdbc.queryForObject("SELECT name FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
+        var keys = integrations.payHeroKeys(TenantContext.tenantId());
+        var c = payHero.addChannel(keys, payHero.wallet(keys).accountId(), type, number, account, name + " (BizNez)");
+        return Map.of("id", c.id(), "shortCode", c.shortCode());
+    }
+
+    /** Top up the PayHero wallet: an M-Pesa prompt goes to the owner's phone. */
+    @PostMapping("/api/settings/payments/payhero/top-up")
+    public Map<String, Object> payHeroTopUp(@RequestBody Map<String, Object> raw) {
+        TenantContext.requireRole("OWNER");
+        long amount;
+        try {
+            amount = new BigDecimal(String.valueOf(raw.get("amount"))).longValue();
+        } catch (RuntimeException e) {
+            throw ApiException.bad("Type how much to put in the PayHero wallet");
+        }
+        if (amount < 10) {
+            throw ApiException.bad("Put at least KES 10 in the PayHero wallet");
+        }
+        String phone = digits(raw.get("phone"));
+        if (phone.startsWith("254")) {
+            phone = "0" + phone.substring(3);
+        }
+        if (phone.length() != 10) {
+            throw ApiException.bad("Type the M-Pesa number to send the prompt to, like 0712 345 678");
+        }
+        var keys = integrations.payHeroKeys(TenantContext.tenantId());
+        return Map.of("reference", payHero.topUp(keys, amount, phone));
     }
 
     /**
