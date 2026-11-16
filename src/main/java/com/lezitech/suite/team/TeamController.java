@@ -27,6 +27,9 @@ public class TeamController {
 
     public static final Set<String> ROLES = Set.of("OWNER", "MANAGER", "CASHIER", "WAITER", "KITCHEN", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT", "TECHNICIAN", "COLLECTOR", "RIDER", "STOREKEEPER");
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
+
     private final Db db;
     private final PasswordEncoder encoder;
 
@@ -187,6 +190,9 @@ public class TeamController {
         if (powers && !callerIsOwner()) {
             throw ApiException.forbidden("Only the owner can give someone owner powers");
         }
+        if (powers) {
+            planFeatures.require("ownerPowers");
+        }
         if (!email.isEmpty() && Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM users WHERE email = :e)", Boolean.class, "e", email))) {
             throw ApiException.conflict("That email is already in use");
         }
@@ -212,6 +218,9 @@ public class TeamController {
         String role = b.has("role") ? role(b) : (String) u.get("role");
         if (b.has("ownerPowers")) {
             boolean powers = b.bool("ownerPowers", false) && !"OWNER".equals(role);
+            if (powers) {
+                planFeatures.require("ownerPowers");
+            }
             if (powers != Boolean.TRUE.equals(u.get("ownerPowers"))) {
                 if (!callerIsOwner()) {
                     throw ApiException.forbidden("Only the owner can give or take owner powers");

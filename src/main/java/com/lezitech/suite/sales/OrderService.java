@@ -23,6 +23,9 @@ public class OrderService {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
+
     private final Db db;
     private final JdbcTemplate jdbc;
     private final StockService stock;
@@ -62,6 +65,9 @@ public class OrderService {
 
     private UUID create(Body b, boolean trusted) {
         String kind = b.str("kind", "SALE");
+        if ("QUOTE".equals(kind)) {
+            planFeatures.require("quotes");
+        }
         String channel = b.str("channel", "COUNTER");
         UUID tableId = b.has("tableId") ? UUID.fromString(b.str("tableId")) : null;
         if (tableId != null) {

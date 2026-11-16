@@ -19,6 +19,9 @@ class PlatformSettingsTest extends IntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    com.lezitech.suite.platform.PlatformSettings platform;
+
     @Test
     void freeDaysAndPlansAreSetFromTheControlPanel() throws Exception {
         String admin = post("/admin/auth/demo", null, Map.of("role", "ADMIN")).at("/token").asText();
@@ -42,10 +45,11 @@ class PlatformSettingsTest extends IntegrationTest {
             }
             assertThat(call("PUT", "/admin/platform-settings", admin, Map.of("plans", plans)).status()).isEqualTo(200);
             assertThat(get("/billing/plans", token(s)).at("/plans/0/monthly").asInt()).isEqualTo(1999);
-            plans.get(0).put("parts", 5);
+            plans.get(0).put("monthly", -1);
             assertThat(call("PUT", "/admin/platform-settings", admin, Map.of("plans", plans)).status()).isEqualTo(400);
         } finally {
-            jdbc.update("DELETE FROM platform_settings WHERE key IN ('trialDays', 'plans')");
+            jdbc.update("DELETE FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures')");
+            platform.forget();
         }
     }
 }

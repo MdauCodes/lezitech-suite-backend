@@ -23,6 +23,18 @@ public class SettingsController {
     /** Monthly KES prices; annual prepay gets two months free. */
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.PlatformSettings platform;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
+
+    /** Each plan with the keys of the extra tools it includes. */
+    private List<Map<String, Object>> plansWithTools() {
+        return platform.plans().stream().map(p -> {
+            Map<String, Object> m = new java.util.LinkedHashMap<>(p);
+            m.remove("parts");
+            m.put("tools", platform.planFeatures((String) p.get("code")));
+            return m;
+        }).toList();
+    }
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -119,7 +131,7 @@ public class SettingsController {
     /** The plans and prices, for the sign-up screen ("this fits the Growth plan, KES 4,500 a month after the trial"). */
     @GetMapping("/api/public/plans")
     public Map<String, Object> publicPlans() {
-        return Map.of("plans", platform.plans(), "trialDays", platform.trialDays());
+        return Map.of("plans", plansWithTools(), "tools", planFeatures.describe(), "trialDays", platform.trialDays());
     }
 
     @GetMapping("/api/billing/plans")
@@ -127,7 +139,7 @@ public class SettingsController {
     public Map<String, Object> plans() {
         TenantContext.caller();
         java.util.List<String> parts = jdbc.queryForList("SELECT unnest(products) FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
-        return Map.of("plans", platform.plans(), "trialDays", platform.trialDays(), "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
+        return Map.of("plans", plansWithTools(), "tools", planFeatures.describe(), "trialDays", platform.trialDays(), "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
                 SELECT plan, billing_cycle, amount, status, created_at FROM subscription_requests
                 WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId()));
     }

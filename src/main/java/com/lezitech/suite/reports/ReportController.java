@@ -23,6 +23,9 @@ public class ReportController {
     /** Completed sales. A landlord's deposit bills are money held for the tenant, not income, so they're left out. */
     private static final String SOLD = " o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.channel <> 'DEPOSIT'";
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
+
     private final Db db;
     private final com.lezitech.suite.mpesa.PayHeroFees payHeroFees;
 
@@ -117,7 +120,7 @@ public class ReportController {
         out.put("from", f.toString());
         out.put("to", t.toString());
         // Branches: each place's share of the sales (one row when there's only the main place).
-        out.put("byBranch", db.list("""
+        if (planFeatures.has("branchReports")) out.put("byBranch", db.list("""
                 SELECT coalesce(l.name, 'Main') AS name, coalesce(sum(o.total), 0) AS sales, count(*) AS orders
                 FROM orders o LEFT JOIN locations l ON l.id = o.location_id WHERE """ + window + " " + """
                  GROUP BY l.name ORDER BY sum(o.total) DESC""", range));

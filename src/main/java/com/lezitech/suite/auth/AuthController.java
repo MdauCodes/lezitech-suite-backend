@@ -333,10 +333,13 @@ public class AuthController {
         return out;
     }
 
-    /** Someone the owner gave owner powers to (e.g. an operations manager) works as an owner. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
+
+    /** Someone the owner gave owner powers to (e.g. an operations manager) works as an owner, on plans that include it. */
     private String effectiveRole(UUID userId, String role) {
-        Boolean powers = jdbc.queryForObject("SELECT owner_powers FROM users WHERE id = ?", Boolean.class, userId);
-        return Boolean.TRUE.equals(powers) ? "OWNER" : role;
+        Map<String, Object> u = jdbc.queryForMap("SELECT owner_powers, tenant_id FROM users WHERE id = ?", userId);
+        return Boolean.TRUE.equals(u.get("owner_powers")) && planFeatures.has((UUID) u.get("tenant_id"), "ownerPowers") ? "OWNER" : role;
     }
 
     /**
@@ -360,7 +363,7 @@ public class AuthController {
                 "SELECT id, email, name, role, job_title, owner_powers, email_confirmed_at IS NOT NULL AS confirmed FROM users WHERE id = ?", userId));
         // The screens follow what they may do: owner powers open the owner's screens; their own job stays as baseRole.
         u.put("base_role", u.get("role"));
-        if (Boolean.TRUE.equals(u.get("owner_powers"))) {
+        if (Boolean.TRUE.equals(u.get("owner_powers")) && planFeatures.has(tenantId, "ownerPowers")) {
             u.put("role", "OWNER");
         }
 
@@ -394,6 +397,8 @@ public class AuthController {
         tenant.put("phone", t.get("phone"));
         tenant.put("displayKey", t.get("display_key"));
         tenant.put("isDemo", t.get("is_demo"));
+        // The plan's extra tools (all of them during the free days), so screens can show what needs an upgrade.
+        tenant.put("planTools", planFeatures.allowed(tenantId));
 
         Map<String, Object> user = new LinkedHashMap<>();
         user.put("id", u.get("id").toString());

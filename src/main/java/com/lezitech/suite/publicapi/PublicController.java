@@ -29,6 +29,9 @@ import java.util.function.Supplier;
 @RequestMapping("/api/public")
 public class PublicController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
+
     private final JdbcTemplate jdbc;
     private final PublicService service;
     private final SectorCatalog sectors;
@@ -389,13 +392,20 @@ public class PublicController {
     }
 
     private Map<String, Object> ordering(Map<String, Object> t) {
+        Map<String, Object> out;
         try {
             Object saved = json.readTree((String) t.get("settings")).path("ordering");
-            return com.lezitech.suite.restaurant.OrderingSettings.withDefaults(
+            out = com.lezitech.suite.restaurant.OrderingSettings.withDefaults(
                     json.convertValue(saved, Map.class), (String) t.get("sector"));
         } catch (Exception e) {
-            return com.lezitech.suite.restaurant.OrderingSettings.withDefaults(null, (String) t.get("sector"));
+            out = com.lezitech.suite.restaurant.OrderingSettings.withDefaults(null, (String) t.get("sector"));
         }
+        if (!planFeatures.has((java.util.UUID) t.get("id"), "onlineOrders")) {
+            out = new LinkedHashMap<>(out);
+            out.put("selfOrder", false);
+            out.put("phoneOrdersOnPlan", false);
+        }
+        return out;
     }
 
     private static boolean locked(Map<String, Object> t) {

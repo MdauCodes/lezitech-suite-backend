@@ -16,21 +16,23 @@ import java.util.Set;
 
 /**
  * Things LeziTech changes from the control panel without a new release: how many free days a new business gets, and
- * the plans (name, monthly price, people, branches, products, how many parts). Read often, so kept for 30 seconds.
+ * the plans (name, monthly price, people, branches, products) and which tools each includes. Read often, so kept for 30 seconds.
  */
 @Component
 public class PlatformSettings {
 
-    /** The plans until LeziTech changes them. parts: how many of selling / customers & leads / buying from suppliers. */
+    /** The plans until LeziTech changes them. Every plan has the screens for the business's own kind; the tools differ (PlanFeatures). */
     public static final List<Map<String, Object>> DEFAULT_PLANS = List.of(
-            plan("LITE", "Lite", 2650, 3, 1, 500, 1, "Selling with stock counts, or one other part. 1 branch, 3 people signing in"),
-            plan("GROWTH", "Growth", 4500, 8, 3, 5000, 2, "Selling plus customers & leads, or plus buying from suppliers. 3 branches, 8 people"),
-            plan("PRO", "Pro", 9000, 30, 10, 0, 3, "Everything: selling, customers & leads, and buying from suppliers. 10 branches, 30 people"));
+            plan("LITE", "Lite", 2650, 3, 1, 500, "Everything to run one shop, kiosk or café day to day. 1 branch, 3 people"),
+            plan("GROWTH", "Growth", 4500, 8, 3, 5000, "Adds suppliers, back-office reports, sales leads, quotes, loyalty and phone ordering. 3 branches, 8 people"),
+            plan("PRO", "Pro", 9000, 30, 10, 0, "Adds reports across branches, full history, owner powers for managers and priority support. 10 branches, 30 people"));
+
+    private static final List<String> PLAN_ORDER = List.of("LITE", "GROWTH", "PRO");
 
     public static final int MIN_TRIAL = 3;
     public static final int MAX_TRIAL = 60;
 
-    private static Map<String, Object> plan(String code, String name, int monthly, int users, int locations, int items, int parts, String blurb) {
+    private static Map<String, Object> plan(String code, String name, int monthly, int users, int locations, int items, String blurb) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("code", code);
         m.put("name", name);
@@ -38,7 +40,6 @@ public class PlatformSettings {
         m.put("users", users);
         m.put("locations", locations);
         m.put("items", items);
-        m.put("parts", parts);
         m.put("blurb", blurb);
         return m;
     }
@@ -59,11 +60,16 @@ public class PlatformSettings {
         Map<String, String> c = cache;
         if (c == null || System.currentTimeMillis() - cachedAt > 30_000) {
             Map<String, String> fresh = new LinkedHashMap<>();
-            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
+            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
             cache = c = fresh;
             cachedAt = System.currentTimeMillis();
         }
         return c;
+    }
+
+    /** Read the settings again on next use (after a change made straight in the database). */
+    public void forget() {
+        cache = null;
     }
 
     /** Free days for a business that signs up (or is handed over) from now on. */
@@ -119,15 +125,66 @@ public class PlatformSettings {
                 throw ApiException.bad("Give each plan a short name");
             }
             int monthly = num(p.get("monthly"), "price"), users = num(p.get("users"), "people"), locations = num(p.get("locations"), "branches"),
-                    items = num(p.get("items"), "products"), parts = num(p.get("parts"), "parts");
-            if (monthly < 0 || users < 0 || locations < 0 || items < 0 || parts < 1 || parts > 3) {
-                throw ApiException.bad("Check the numbers for " + name + " (parts are 1 to 3; 0 people, branches or products means no limit)");
+                    items = num(p.get("items"), "products");
+            if (monthly < 0 || users < 0 || locations < 0 || items < 0) {
+                throw ApiException.bad("Check the numbers for " + name + " (0 people, branches or products means no limit)");
             }
             String blurb = String.valueOf(p.getOrDefault("blurb", "")).trim();
-            clean.add(plan(code, name, monthly, users, locations, items, parts, blurb.length() > 200 ? blurb.substring(0, 200) : blurb));
+            clean.add(plan(code, name, monthly, users, locations, items, blurb.length() > 200 ? blurb.substring(0, 200) : blurb));
         }
         try {
             put("plans", json.writeValueAsString(clean), by);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** The tools a plan includes: LeziTech's choice, or the defaults (each tool from its starting plan upwards). */
+    public Set<String> planFeatures(String code) {
+        String v = all().get("planFeatures");
+        if (v != null) {
+            try {
+                Map<String, List<String>> m = json.readValue(v, new TypeReference<>() { });
+                if (m.containsKey(code)) {
+                    Set<String> out = new java.util.LinkedHashSet<>(m.get(code));
+                    out.retainAll(PlanFeatures.KEYS);
+                    return out;
+                }
+            } catch (Exception e) {
+                // unreadable: defaults
+            }
+        }
+        return defaultFeatures(code);
+    }
+
+    public static Set<String> defaultFeatures(String code) {
+        int rank = PLAN_ORDER.indexOf(code);
+        Set<String> out = new java.util.LinkedHashSet<>();
+        for (PlanFeatures.Feature f : PlanFeatures.CATALOG) {
+            if (rank >= PLAN_ORDER.indexOf(f.plan())) {
+                out.add(f.key());
+            }
+        }
+        return out;
+    }
+
+    /** Which tools each plan includes, from the control panel's tick grid. */
+    public void setPlanFeatures(Map<String, List<String>> byPlan, String by) {
+        Map<String, List<String>> clean = new LinkedHashMap<>();
+        for (String code : PLAN_ORDER) {
+            List<String> keys = byPlan == null ? null : byPlan.get(code);
+            if (keys == null) {
+                throw ApiException.bad("Send the tools for Lite, Growth and Pro");
+            }
+            for (String k : keys) {
+                if (!PlanFeatures.KEYS.contains(k)) {
+                    throw ApiException.bad("Unknown tool: " + k);
+                }
+            }
+            clean.put(code, PlanFeatures.CATALOG.stream().map(PlanFeatures.Feature::key).filter(keys::contains).toList());
+        }
+        try {
+            put("planFeatures", json.writeValueAsString(clean), by);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException(e);
         }

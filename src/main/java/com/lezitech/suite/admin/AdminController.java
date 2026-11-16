@@ -52,12 +52,14 @@ public class AdminController {
     private final AdminService admin;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.PlatformSettings platform;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlanFeatures planFeatures;
 
     /** Free days for new businesses, and the plans' names, prices and limits. */
     @GetMapping("/platform-settings")
     public Map<String, Object> platformSettings() {
         AdminContext.require("read");
-        return Map.of("trialDays", platform.trialDays(), "plans", platform.plans(),
+        return Map.of("trialDays", platform.trialDays(), "plans", platform.plans(), "tools", planFeatures.describe(),
                 "minTrial", com.lezitech.suite.platform.PlatformSettings.MIN_TRIAL, "maxTrial", com.lezitech.suite.platform.PlatformSettings.MAX_TRIAL);
     }
 
@@ -81,6 +83,12 @@ public class AdminController {
             List<Map<String, Object>> p = (List<Map<String, Object>>) plans;
             platform.setPlans(p, by);
             admin.audit("platform.plans", null, Map.of("plans", p.toString()));
+        }
+        if (raw.get("planTools") instanceof Map<?, ?> tools) {
+            @SuppressWarnings("unchecked")
+            Map<String, List<String>> t = (Map<String, List<String>>) tools;
+            platform.setPlanFeatures(t, by);
+            admin.audit("platform.plan_tools", null, Map.of("tools", t.toString()));
         }
         return platformSettings();
     }
