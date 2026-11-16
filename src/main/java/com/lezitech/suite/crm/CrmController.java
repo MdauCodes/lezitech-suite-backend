@@ -29,6 +29,8 @@ import java.util.UUID;
 public class CrmController {
 
     private final Db db;
+    @org.springframework.beans.factory.annotation.Autowired
+    private CustomerLedger ledger;
 
     public CrmController(Db db) {
         this.db = db;
@@ -89,7 +91,9 @@ public class CrmController {
         if (amount.signum() <= 0) {
             throw ApiException.bad("Enter the amount received");
         }
+        db.list("SELECT id FROM customers WHERE id = :id FOR UPDATE", "id", id);
         db.exec("UPDATE customers SET balance = balance - :a WHERE id = :id", "id", id, "a", amount);
+        ledger.record(id, "PAYMENT", amount.negate(), null, b.str("method", "CASH").toUpperCase(), b.str("reference", null), null);
         db.exec("""
                 INSERT INTO activities (tenant_id, customer_id, kind, body, done, user_id)
                 VALUES (:t, :id, 'NOTE', :body, true, :u)""",

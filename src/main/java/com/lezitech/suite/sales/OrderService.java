@@ -32,6 +32,8 @@ public class OrderService {
     private final ApprovalService approvals;
     private final com.lezitech.suite.etims.EtimsService etims;
     @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.crm.CustomerLedger customerLedger;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.activity.ActivityLog activity;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.config.AccessPolicy access;
@@ -506,6 +508,7 @@ public class OrderService {
                 throw ApiException.bad(c.get("name") + " would go over their credit limit of " + limit.toPlainString());
             }
             db.exec("UPDATE customers SET balance = balance + :c WHERE id = :id", "id", customerId, "c", credit);
+            customerLedger.record(UUID.fromString(String.valueOf(customerId)), "SALE", credit, orderId, null, null, null);
         }
         BigDecimal paid = alreadyPaid.add(tendered);
         db.exec("UPDATE orders SET paid = :paid WHERE id = :id", "id", orderId, "paid", paid);
@@ -626,6 +629,7 @@ public class OrderService {
         if (toAccount.signum() > 0 && o.get("customerId") != null) {
             db.list("SELECT id FROM customers WHERE id = :id FOR UPDATE", "id", o.get("customerId"));
             db.exec("UPDATE customers SET balance = balance - :c WHERE id = :id", "id", o.get("customerId"), "c", toAccount);
+            customerLedger.record(UUID.fromString(o.get("customerId").toString()), "REFUND", toAccount.negate(), orderId, null, null, reason);
         }
         db.exec("UPDATE orders SET paid = 0 WHERE id = :id", "id", orderId);
     }
