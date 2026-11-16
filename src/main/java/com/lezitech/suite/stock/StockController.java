@@ -37,7 +37,7 @@ public class StockController {
     @GetMapping
     public List<Map<String, Object>> levels() {
         return db.list("""
-                SELECT i.id, i.name, i.unit, i.barcode, i.cost, i.price, i.reorder_level, c.name AS category_name,
+                SELECT i.id, i.name, i.unit, i.barcode, i.cost, i.price, i.reorder_level, i.kind, i.buy_unit, i.buy_size, c.name AS category_name,
                        coalesce(sum(s.qty), 0) AS on_hand,
                        coalesce(sum(s.qty), 0) * i.cost AS stock_value,
                        coalesce(sum(s.qty), 0) <= i.reorder_level AS low,
