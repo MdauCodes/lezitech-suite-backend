@@ -23,11 +23,11 @@ public class SettingsController {
     /** Monthly KES prices; annual prepay gets two months free. */
     public static final List<Map<String, Object>> PLANS = List.of(
             Map.of("code", "LITE", "name", "Lite", "monthly", 2650, "users", 3, "locations", 1, "items", 500,
-                    "blurb", "One product (POS, CRM or ERP), 1 location, 3 users, each with their own till"),
+                    "blurb", "Selling with stock counts, or one other part. 1 branch, 3 people signing in"),
             Map.of("code", "GROWTH", "name", "Growth", "monthly", 4500, "users", 8, "locations", 3, "items", 5000,
-                    "blurb", "Any two products, 3 locations, 8 users, spreadsheet import"),
+                    "blurb", "Selling plus customers & leads, or plus buying from suppliers. 3 branches, 8 people"),
             Map.of("code", "PRO", "name", "Pro", "monthly", 9000, "users", 30, "locations", 10, "items", 0,
-                    "blurb", "POS + CRM + ERP, 10 locations, 30 users, priority support"));
+                    "blurb", "Everything: selling, customers & leads, and buying from suppliers. 10 branches, 30 people"));
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -121,11 +121,18 @@ public class SettingsController {
         return Map.of("ok", true);
     }
 
+    /** The plans and prices, for the sign-up screen ("this fits the Growth plan, KES 4,500 a month after the trial"). */
+    @GetMapping("/api/public/plans")
+    public Map<String, Object> publicPlans() {
+        return Map.of("plans", PLANS);
+    }
+
     @GetMapping("/api/billing/plans")
     @org.springframework.transaction.annotation.Transactional(readOnly = true) // usage counts need the workspace's row-level security set
     public Map<String, Object> plans() {
         TenantContext.caller();
-        return Map.of("plans", PLANS, "usage", limits.usage(), "requests", jdbc.queryForList("""
+        java.util.List<String> parts = jdbc.queryForList("SELECT unnest(products) FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
+        return Map.of("plans", PLANS, "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
                 SELECT plan, billing_cycle, amount, status, created_at FROM subscription_requests
                 WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId()));
     }

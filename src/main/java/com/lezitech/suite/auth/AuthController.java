@@ -149,6 +149,32 @@ public class AuthController {
                 extra.path("features").fields().forEachRemaining(f -> features.set(f.getKey(), f.getValue()));
             }
         }
+        // Screens the owner left unticked at sign-up ("what you'll use"). The basics every business needs stay on:
+        // the till, products with stock counts, sales, customers, reports, staff and settings.
+        if (raw.get("modulesOff") instanceof List<?> off && !off.isEmpty()) {
+            java.util.Set<String> always = java.util.Set.of("dashboard", "pos", "items", "stock", "sales", "customers", "reports", "team", "settings");
+            for (int i = modules.size() - 1; i >= 0; i--) {
+                String m = modules.get(i).asText();
+                if (off.contains(m) && !always.contains(m)) {
+                    modules.remove(i);
+                    switch (m) {
+                        case "floor" -> features.put("tables", false);
+                        case "kitchen" -> features.put("kitchen", false);
+                        case "bookings" -> features.put("appointments", false);
+                        default -> { }
+                    }
+                }
+            }
+        }
+        // Screens added at sign-up from "you can add".
+        if (raw.get("modulesOn") instanceof List<?> on) {
+            for (Object o : on) {
+                String m = String.valueOf(o);
+                if (java.util.Set.of("crm", "quotes", "purchasing").contains(m) && !modules.toString().contains("\"" + m + "\"")) {
+                    modules.add(m);
+                }
+            }
+        }
         settings.set("modules", modules);
         settings.set("features", features);
         settings.put("receiptFooter", b.str("receiptFooter", "Thank you for your business!"));
