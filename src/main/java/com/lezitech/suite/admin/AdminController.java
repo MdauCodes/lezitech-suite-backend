@@ -63,6 +63,32 @@ public class AdminController {
                 "minTrial", com.lezitech.suite.platform.PlatformSettings.MIN_TRIAL, "maxTrial", com.lezitech.suite.platform.PlatformSettings.MAX_TRIAL);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.Offers offers;
+
+    /** Offers to businesses: percent off for some months, a set price for a plan, or extra free days. */
+    @GetMapping("/offers")
+    public List<Map<String, Object>> offersList() {
+        AdminContext.require("read");
+        return offers.all();
+    }
+
+    @PostMapping("/offers")
+    public Map<String, Object> makeOffer(@RequestBody Map<String, Object> raw) {
+        AdminContext.require("billing");
+        Map<String, Object> o = offers.create(raw, AdminContext.admin().name());
+        admin.audit("offer.create", null, Map.of("title", o.get("title"), "kind", o.get("kind"), "reached", o.get("reached")));
+        return o;
+    }
+
+    @PostMapping("/offers/{id}/stop")
+    public Map<String, Object> stopOffer(@PathVariable UUID id) {
+        AdminContext.require("billing");
+        offers.stop(id);
+        admin.audit("offer.stop", null, Map.of("id", id.toString()));
+        return Map.of("ok", true);
+    }
+
     @PutMapping("/platform-settings")
     public Map<String, Object> savePlatformSettings(@RequestBody Map<String, Object> raw) {
         AdminContext.require("system");

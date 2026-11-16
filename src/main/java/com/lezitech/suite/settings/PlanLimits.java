@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * What each plan includes: people who can sign in, branches (top-level locations; a shop's back
- * store doesn't count) and products. A free trial gets everything Pro has, so owners can try it all.
+ * What each plan includes: staff and branches (top-level locations; a shop's back store doesn't count).
+ * Products are never limited on any plan. A free trial gets everything Pro has, so owners can try it all.
  * Going over the limit is refused with a message that says which plan allows more.
  */
 @Component
@@ -82,15 +82,15 @@ public class PlanLimits {
     }
 
     public void checkUsers(int adding) {
-        check("people who can sign in", "users", users(), adding, limitsOf(effectivePlan()).users());
+        check("staff", "users", users(), adding, limitsOf(effectivePlan()).users());
     }
 
     public void checkLocations(int adding) {
         check("branches", "locations", locations(), adding, limitsOf(effectivePlan()).locations());
     }
 
+    /** Products are never limited; kept so callers stay simple. */
     public void checkItems(long current, int adding) {
-        check("products and services", "items", current, adding, limitsOf(effectivePlan()).items());
     }
 
     public void checkItems(int adding) {
@@ -116,7 +116,6 @@ public class PlanLimits {
         m.put("plan", effectivePlan());
         m.put("users", Map.of("used", users(), "limit", l.users()));
         m.put("locations", Map.of("used", locations(), "limit", l.locations()));
-        m.put("items", Map.of("used", items(), "limit", l.items()));
         return m;
     }
 }

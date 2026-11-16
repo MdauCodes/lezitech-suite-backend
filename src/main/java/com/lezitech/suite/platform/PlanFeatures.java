@@ -157,6 +157,50 @@ public class PlanFeatures {
         return needs == null || has(tenant, needs) ? null : needs;
     }
 
+    /** Screens that are a tool: a business that has the screen needs the tool. */
+    private static final Map<String, String> TOOL_OF_SCREEN = Map.of("crm", "crm", "quotes", "quotes", "purchasing", "purchasing");
+
+    /**
+     * The tools this business set out to use: what it chose at sign-up, plus the tool screens it has. This is its
+     * "setup", which decides the plan that keeps everything running after the free days.
+     */
+    public Set<String> needed(UUID tenant) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        try {
+            String raw = jdbc.queryForObject("SELECT settings::text FROM tenants WHERE id = ?", String.class, tenant);
+            com.fasterxml.jackson.databind.JsonNode s = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
+            s.path("chosenTools").forEach(n -> {
+                if (KEYS.contains(n.asText())) {
+                    out.add(n.asText());
+                }
+            });
+            s.path("modules").forEach(n -> {
+                String t = TOOL_OF_SCREEN.get(n.asText());
+                if (t != null) {
+                    out.add(t);
+                }
+            });
+        } catch (Exception e) {
+            // unreadable settings: nothing extra
+        }
+        return out;
+    }
+
+    /** The cheapest plan that holds this business's setup: its tools, its staff and its branches. */
+    public Map<String, Object> fittingPlan(UUID tenant) {
+        Set<String> need = needed(tenant);
+        long users = jdbc.queryForObject("SELECT count(*) FROM users WHERE tenant_id = ? AND active", Long.class, tenant);
+        long branches = jdbc.queryForObject("SELECT count(*) FROM locations WHERE tenant_id = ? AND parent_id IS NULL", Long.class, tenant);
+        List<Map<String, Object>> plans = platform.plans();
+        for (Map<String, Object> p : plans) {
+            int u = ((Number) p.get("users")).intValue(), l = ((Number) p.get("locations")).intValue();
+            if (platform.planFeatures((String) p.get("code")).containsAll(need) && (u == 0 || users <= u) && (l == 0 || branches <= l)) {
+                return p;
+            }
+        }
+        return plans.get(plans.size() - 1);
+    }
+
     /** The catalogue for screens: key, label, what it's for, and which plans include it. */
     public List<Map<String, Object>> describe() {
         List<Map<String, Object>> out = new ArrayList<>();

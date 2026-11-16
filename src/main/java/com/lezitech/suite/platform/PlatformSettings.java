@@ -23,9 +23,9 @@ public class PlatformSettings {
 
     /** The plans until LeziTech changes them. Every plan has the screens for the business's own kind; the tools differ (PlanFeatures). */
     public static final List<Map<String, Object>> DEFAULT_PLANS = List.of(
-            plan("LITE", "Lite", 2650, 3, 1, 500, "Everything to run one shop, kiosk or café day to day. 1 branch, 3 people"),
-            plan("GROWTH", "Growth", 4500, 8, 3, 5000, "Adds suppliers, back-office reports, sales leads, quotes, loyalty and phone ordering. 3 branches, 8 people"),
-            plan("PRO", "Pro", 9000, 30, 10, 0, "Adds reports across branches, full history, owner powers for managers and priority support. 10 branches, 30 people"));
+            plan("LITE", "Lite", 2650, 3, 1, 0, "Everything to run one shop, kiosk or café day to day. 1 branch, 3 staff"),
+            plan("GROWTH", "Growth", 4500, 8, 3, 0, "Adds suppliers, back-office reports, sales leads, quotes, loyalty and phone ordering. 3 branches, 8 staff"),
+            plan("PRO", "Pro", 9000, 30, 10, 0, "Adds reports across branches, full history, owner powers for managers and priority support. 10 branches, 30 staff"));
 
     private static final List<String> PLAN_ORDER = List.of("LITE", "GROWTH", "PRO");
 
@@ -124,10 +124,10 @@ public class PlatformSettings {
             if (name.isEmpty() || name.length() > 30) {
                 throw ApiException.bad("Give each plan a short name");
             }
-            int monthly = num(p.get("monthly"), "price"), users = num(p.get("users"), "people"), locations = num(p.get("locations"), "branches"),
-                    items = num(p.get("items"), "products");
+            int monthly = num(p.get("monthly"), "price"), users = num(p.get("users"), "staff"), locations = num(p.get("locations"), "branches"),
+                    items = 0; // products are never limited
             if (monthly < 0 || users < 0 || locations < 0 || items < 0) {
-                throw ApiException.bad("Check the numbers for " + name + " (0 people, branches or products means no limit)");
+                throw ApiException.bad("Check the numbers for " + name + " (0 staff or branches means no limit)");
             }
             String blurb = String.valueOf(p.getOrDefault("blurb", "")).trim();
             clean.add(plan(code, name, monthly, users, locations, items, blurb.length() > 200 ? blurb.substring(0, 200) : blurb));

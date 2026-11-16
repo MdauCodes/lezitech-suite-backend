@@ -13,7 +13,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Each plan's limits on people, branches and products are enforced, with an upgrade message. */
+/** Each plan's limits on staff and branches are enforced, with an upgrade message. Products are never limited. */
 class PlanLimitsTest extends IntegrationTest {
 
     @Autowired
@@ -78,18 +78,24 @@ class PlanLimitsTest extends IntegrationTest {
     }
 
     @Test
-    void litePlanCapsProductsIncludingImports() {
+    void productsAreNeverLimited() {
         String owner = onPlan("LITE");
-        long have = get("/billing/plans", owner).at("/usage/items/used").asLong();
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (int i = 0; i < 500 - have; i++) {
+        for (int i = 0; i < 520; i++) {
             rows.add(Map.of("name", "Bulk item " + i, "price", 10));
         }
         Res imp = post("/items/import", owner, Map.of("rows", rows));
         assertThat(imp.status()).as(imp.body().toString()).isEqualTo(200);
-        Res over = post("/items", owner, Map.of("name", "One too many", "price", 10));
-        assertThat(over.status()).isEqualTo(403);
-        assertThat(over.at("/message").asText()).contains("500 products");
+        assertThat(post("/items", owner, Map.of("name", "Still fine", "price", 10)).status()).isEqualTo(200);
+        assertThat(get("/billing/plans", owner).at("/usage").has("items")).isFalse();
+    }
+
+    @Test
+    void aShopWithItsBackStoreIsOneBranch() {
+        for (String sector : new String[] {"retail", "restaurant", "hotel"}) {
+            String owner = token(signup(sector));
+            assertThat(get("/billing/plans", owner).at("/usage/locations/used").asInt()).as(sector).isEqualTo(1);
+        }
     }
 
     @Test

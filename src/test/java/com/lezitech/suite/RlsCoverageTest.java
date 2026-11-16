@@ -36,6 +36,7 @@ class RlsCoverageTest extends IntegrationTest {
             Map.entry("renter_codes", "6-digit email codes for tenants' portal sign-in, used before sign-in"),
             Map.entry("marketing_events", "ad conversion queue sent by a background job"),
             Map.entry("platform_audit", "LeziTech control panel's own log"),
+            Map.entry("platform_offers", "LeziTech's offers to all businesses; not one business's data"),
             Map.entry("integrations", "encrypted payment and SMS keys; read by business id in code"),
             Map.entry("email_jobs", "background email sender works across businesses, then acts as each one"),
             Map.entry("problems", "shown to the business by its id and to the LeziTech control panel"),

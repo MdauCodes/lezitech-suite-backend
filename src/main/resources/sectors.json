@@ -108,7 +108,8 @@
         },
         {
           "name": "Kitchen store",
-          "kind": "STORE"
+          "kind": "STORE",
+          "parent": "Main restaurant"
         }
       ],
       "floors": [
@@ -535,7 +536,8 @@
         },
         {
           "name": "Main store",
-          "kind": "STORE"
+          "kind": "STORE",
+          "parent": "Main property"
         }
       ],
       "spaces": [
@@ -907,7 +909,8 @@
         },
         {
           "name": "Back store",
-          "kind": "STORE"
+          "kind": "STORE",
+          "parent": "Main shop"
         }
       ],
       "categories": [
@@ -1769,7 +1772,8 @@
         },
         {
           "name": "Dispensary store",
-          "kind": "STORE"
+          "kind": "STORE",
+          "parent": "Main pharmacy"
         }
       ],
       "categories": [

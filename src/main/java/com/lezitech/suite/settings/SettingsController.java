@@ -26,14 +26,56 @@ public class SettingsController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.PlanFeatures planFeatures;
 
-    /** Each plan with the keys of the extra tools it includes. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.Offers offers;
+
+    /** Each plan with the keys of the extra tools it includes (products are never limited, so no product count). */
     private List<Map<String, Object>> plansWithTools() {
         return platform.plans().stream().map(p -> {
             Map<String, Object> m = new java.util.LinkedHashMap<>(p);
             m.remove("parts");
+            m.remove("items");
             m.put("tools", platform.planFeatures((String) p.get("code")));
             return m;
         }).toList();
+    }
+
+    /** The plans for this business, each with what it would pay now (any offer taken off). */
+    private List<Map<String, Object>> plansForTenant() {
+        java.util.UUID t = TenantContext.tenantId();
+        return plansWithTools().stream().map(p -> {
+            Map<String, Object> m = new java.util.LinkedHashMap<>(p);
+            var month = offers.price(t, (String) p.get("code"), "MONTHLY");
+            var year = offers.price(t, (String) p.get("code"), "ANNUAL");
+            m.put("pay", month.amount());
+            m.put("payYear", year.amount());
+            m.put("offer", month.offerTitle() != null ? month.offerTitle() : year.offerTitle());
+            return m;
+        }).toList();
+    }
+
+    /**
+     * "Keep everything running": the plan that holds what this business set up (its tools, staff and branches),
+     * what that costs now, and the offers meant for it. Shown on the dashboard as the free days run out.
+     */
+    @GetMapping("/api/billing/keep")
+    public Map<String, Object> keep() {
+        java.util.UUID t = TenantContext.tenantId();
+        Map<String, Object> plan = planFeatures.fittingPlan(t);
+        var price = offers.price(t, (String) plan.get("code"), "MONTHLY");
+        Map<String, Object> tenant = jdbc.queryForMap("SELECT status, trial_ends_at, paid_until, phone FROM tenants WHERE id = ?", t);
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("status", tenant.get("status"));
+        out.put("trialEndsAt", ((java.sql.Timestamp) tenant.get("trial_ends_at")).toInstant().toString());
+        out.put("paidUntil", tenant.get("paid_until") == null ? null : ((java.sql.Timestamp) tenant.get("paid_until")).toInstant().toString());
+        out.put("phone", tenant.get("phone"));
+        out.put("plan", Map.of("code", plan.get("code"), "name", plan.get("name")));
+        out.put("pay", price.amount());
+        out.put("full", price.full());
+        out.put("offer", price.offerTitle());
+        out.put("needs", planFeatures.needed(t));
+        out.put("offers", offers.forTenant(t));
+        return out;
     }
 
     private final JdbcTemplate jdbc;
@@ -139,7 +181,8 @@ public class SettingsController {
     public Map<String, Object> plans() {
         TenantContext.caller();
         java.util.List<String> parts = jdbc.queryForList("SELECT unnest(products) FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
-        return Map.of("plans", plansWithTools(), "tools", planFeatures.describe(), "trialDays", platform.trialDays(), "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
+        return Map.of("plans", plansForTenant(), "tools", planFeatures.describe(), "needs", planFeatures.needed(TenantContext.tenantId()),
+                "fits", planFeatures.fittingPlan(TenantContext.tenantId()).get("code"), "trialDays", platform.trialDays(), "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
                 SELECT plan, billing_cycle, amount, status, created_at FROM subscription_requests
                 WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId()));
     }
@@ -154,13 +197,14 @@ public class SettingsController {
         Body b = new Body(raw);
         String plan = b.str("plan").toUpperCase();
         String cycle = b.str("cycle", "MONTHLY").toUpperCase();
-        Map<String, Object> p = platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
+        platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
                 .orElseThrow(() -> ApiException.bad("Unknown plan"));
-        int monthly = ((Number) p.get("monthly")).intValue();
-        BigDecimal amount = BigDecimal.valueOf("ANNUAL".equals(cycle) ? monthly * 10L : monthly);
+        // The price after the best live offer for this business.
+        var price = offers.price(TenantContext.tenantId(), plan, cycle);
+        BigDecimal amount = BigDecimal.valueOf(price.amount());
         java.util.UUID id = jdbc.queryForObject("""
-                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone) VALUES (?, ?, ?, ?, ?) RETURNING id""",
-                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null));
+                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone, offer_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id""",
+                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null), price.offerId());
         return Map.of("ok", true, "amount", amount, "requestId", id,
                 "message", "Request received. Pay KES " + amount.toPlainString()
                         + " to LeziTech and we activate your plan within one working hour.");

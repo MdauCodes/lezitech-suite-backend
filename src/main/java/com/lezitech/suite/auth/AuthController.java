@@ -178,6 +178,26 @@ public class AuthController {
             }
         }
         settings.set("modules", modules);
+        // The extra tools the owner said they need ("what you'll use"); this is their setup when the free days end.
+        com.fasterxml.jackson.databind.node.ArrayNode chosen = settings.putArray("chosenTools");
+        if (raw.get("tools") instanceof List<?> tools) {
+            tools.stream().map(String::valueOf).filter(com.lezitech.suite.platform.PlanFeatures.KEYS::contains).distinct().forEach(chosen::add);
+            // Screens that are tools follow the choice exactly, so nobody lands on a bigger plan by a default they never saw.
+            java.util.Set<String> picked = new java.util.HashSet<>();
+            chosen.forEach(n -> picked.add(n.asText()));
+            for (int i = modules.size() - 1; i >= 0; i--) {
+                String m = modules.get(i).asText();
+                if (java.util.Set.of("crm", "quotes", "purchasing").contains(m) && !picked.contains(m)) {
+                    modules.remove(i);
+                }
+            }
+            for (String m : List.of("crm", "quotes", "purchasing")) {
+                if (picked.contains(m) && !modules.toString().contains("\"" + m + "\"")) {
+                    modules.add(m);
+                }
+            }
+            settings.set("modules", modules);
+        }
         settings.set("features", features);
         settings.put("receiptFooter", b.str("receiptFooter", "Thank you for your business!"));
         settings.put("storeFeedsShops", pack.path("features").path("storeFeedsShops").asBoolean(false)
