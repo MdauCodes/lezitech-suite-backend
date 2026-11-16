@@ -118,6 +118,10 @@ public class VariantsController {
                                color, needs_prescription, id FROM items WHERE id = :id RETURNING id""",
                         "id", id, "name", familyName + " " + label(values));
             }
+            String sku = blank(v.str("sku", null));
+            if (sku != null) {
+                codeFree(db, sku, vid);
+            }
             String barcode = blank(v.str("barcode", null));
             if (barcode != null && Boolean.TRUE.equals(db.value(
                     "SELECT exists(SELECT 1 FROM items WHERE barcode = :b AND id <> :vid)", Boolean.class, "b", barcode, "vid", vid))) {
@@ -130,9 +134,14 @@ public class VariantsController {
             }
             db.exec("""
                     UPDATE items SET name = :name, variant_values = cast(:vals as jsonb), price = :price, cost = :cost,
-                           sku = :sku, barcode = :barcode, reorder_level = :reorder, active = true WHERE id = :vid""",
+                           barcode = :barcode, reorder_level = :reorder, active = true WHERE id = :vid""",
                     "vid", vid, "name", familyName + " " + label(values), "vals", db.toJson(values), "price", price, "cost", cost,
-                    "sku", blank(v.str("sku", null)), "barcode", barcode, "reorder", v.num("reorderLevel", BigDecimal.ZERO));
+                    "barcode", barcode, "reorder", v.num("reorderLevel", BigDecimal.ZERO));
+            if (sku != null) {
+                db.exec("UPDATE items SET sku = :sku WHERE id = :vid", "vid", vid, "sku", sku);
+            } else {
+                giveSizeCode(db, id, vid, values);
+            }
             kept.add(vid);
             if (barcode != null) {
                 usedBarcode = true;
@@ -152,6 +161,44 @@ public class VariantsController {
             }
         }
         return get(id);
+    }
+
+    /** A code typed for a product must not already be on another product of the business. */
+    public static void codeFree(Db db, String sku, UUID self) {
+        String other = db.value("SELECT name FROM items WHERE lower(sku) = lower(:s) AND (cast(:self as uuid) IS NULL OR id <> cast(:self as uuid)) LIMIT 1",
+                String.class, "s", sku.trim(), "self", self == null ? null : self.toString());
+        if (other != null) {
+            throw ApiException.bad("Code " + sku.trim() + " is already on " + other + ". Give this one another code, or leave it empty and BizNez makes one.");
+        }
+    }
+
+    /**
+     * A size's own code: its product's code and the size, e.g. CLO-0004-M-RED. Kept if the size already has that
+     * kind of code (or one the owner typed that isn't a plain number code).
+     */
+    public static void giveSizeCode(Db db, UUID family, UUID vid, Map<String, String> values) {
+        String famSku = db.value("SELECT sku FROM items WHERE id = :f", String.class, "f", family);
+        String current = db.value("SELECT sku FROM items WHERE id = :v", String.class, "v", vid);
+        if (famSku == null) {
+            return;
+        }
+        if (current != null && current.toUpperCase().startsWith(famSku.toUpperCase() + "-")) {
+            return;
+        }
+        StringBuilder code = new StringBuilder(famSku);
+        for (String val : values.values()) {
+            String part = val.toUpperCase().replaceAll("[^A-Z0-9]", "");
+            if (!part.isEmpty()) {
+                code.append('-').append(part, 0, Math.min(6, part.length()));
+            }
+        }
+        String base = code.toString();
+        String candidate = base;
+        for (int n = 2; Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM items WHERE lower(sku) = lower(:s) AND id <> :v)",
+                Boolean.class, "s", candidate, "v", vid)); n++) {
+            candidate = base + "-" + n;
+        }
+        db.exec("UPDATE items SET sku = :s WHERE id = :v", "s", candidate, "v", vid);
     }
 
     /** "M / Red", in the order of the choices. */

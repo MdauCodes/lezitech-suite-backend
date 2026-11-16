@@ -126,8 +126,11 @@ public class CatalogController {
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
         limits.checkItems(1);
         UUID id = db.insert("""
-                INSERT INTO items (tenant_id, name, kind) VALUES (:t, :name, :kind) RETURNING id""",
-                "name", new Body(raw).str("name"), "kind", new Body(raw).str("kind", "PRODUCT"));
+                INSERT INTO items (tenant_id, name, kind, category_id, sku) VALUES (:t, :name, :kind, :cat, :sku) RETURNING id""",
+                "name", new Body(raw).str("name"), "kind", new Body(raw).str("kind", "PRODUCT"),
+                // Category and code first, so the automatic code starts with the category's letters (DRI-0012).
+                "cat", new Body(raw).has("categoryId") ? UUID.fromString(new Body(raw).str("categoryId")) : null,
+                "sku", new Body(raw).str("sku", "").isBlank() ? null : codeFreeOrThrow(new Body(raw).str("sku")));
         Map<String, Object> saved = updateItem(id, raw);
         // "How many do you have now?" on a new product: its opening stock, at the place the person works.
         Body b = new Body(raw);
@@ -152,6 +155,9 @@ public class CatalogController {
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         String kind = b.str("kind", "PRODUCT");
+        if (b.str("sku", null) != null && !b.str("sku", "").isBlank()) {
+            VariantsController.codeFree(db, b.str("sku"), id);
+        }
         Map<String, Object> before = db.find("SELECT name, price, cost, wholesale_price FROM items WHERE id = :id", "id", id).orElse(null);
         if (before != null) {
             BigDecimal np = b.num("price", BigDecimal.ZERO);
@@ -261,6 +267,11 @@ public class CatalogController {
         db.exec("UPDATE items SET active = false WHERE id = :id OR variant_of = :id", "id", id);
     }
 
+    private String codeFreeOrThrow(String sku) {
+        VariantsController.codeFree(db, sku, null);
+        return sku.trim();
+    }
+
     /** A product was saved with a barcode: this business uses barcodes, so the till and screens offer scanning. */
     void usesBarcodes() {
         db.exec("""
@@ -316,6 +327,7 @@ public class CatalogController {
         int updated = 0;
         int photos = 0;
         List<String> photoProblems = new java.util.ArrayList<>();
+        List<String> codeNotes = new java.util.ArrayList<>();
         for (Map<String, Object> r : rows) {
             Body b = new Body(r);
             if (!b.has("name") && !b.has("group")) {
@@ -343,6 +355,14 @@ public class CatalogController {
             } else {
                 id = existing;
                 updated++;
+            }
+            String rowSku = b.str("sku", null);
+            if (rowSku != null && !rowSku.isBlank() && db.value("SELECT name FROM items WHERE lower(sku) = lower(:s) AND id <> :id LIMIT 1",
+                    String.class, "s", rowSku.trim(), "id", id) != null) {
+                codeNotes.add(b.str("name", b.str("group", "")) + ": code " + rowSku.trim() + " is already on another product, so it kept its own code");
+                r = new java.util.HashMap<>(r);
+                r.remove("sku");
+                b = new Body(r);
             }
             db.exec("""
                     UPDATE items SET category_id = coalesce(:cat, category_id), barcode = coalesce(:barcode, barcode),
@@ -393,7 +413,8 @@ public class CatalogController {
         if (rows.stream().anyMatch(r -> r.get("barcode") != null && !String.valueOf(r.get("barcode")).isBlank())) {
             usesBarcodes();
         }
-        return Map.of("created", created, "updated", updated, "photos", photos, "photoProblems", photoProblems.stream().limit(10).toList());
+        return Map.of("created", created, "updated", updated, "photos", photos, "photoProblems", photoProblems.stream().limit(10).toList(),
+                "codeNotes", codeNotes.stream().limit(10).toList());
     }
 
     /**
@@ -449,6 +470,9 @@ public class CatalogController {
                     "f", fam, "name", name, "cat", catId, "v", db.toJson(values));
         }
         db.exec("UPDATE items SET active = true WHERE id = :id", "id", vid);
+        if (!b.has("sku")) {
+            VariantsController.giveSizeCode(db, fam, vid, values);
+        }
         return vid;
     }
 
