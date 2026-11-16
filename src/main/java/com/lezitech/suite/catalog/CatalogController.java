@@ -30,7 +30,7 @@ public class CatalogController {
             i.id, i.category_id, c.name AS category_name, i.name, i.kind, i.sku, i.barcode, i.unit, i.price, i.cost,
             i.wholesale_price, i.wholesale_min_qty, i.tax_rate, i.track_stock, i.reorder_level, i.duration_min, i.station,
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
-            i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price,
+            i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price, i.pack_price,
             (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
             i.sold_by_weight, i.baked_daily, i.day_old_of,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id
@@ -175,6 +175,27 @@ public class CatalogController {
                 "dur", b.integer("durationMin", null), "station", b.str("station", null),
                 "rx", b.bool("needsPrescription", false), "options", db.toJson(b.raw("options")),
                 "active", b.bool("active", true));
+        // Buy by the carton, sell by the piece: the pack's name, pieces in it, its buying price and (optional) selling price.
+        if ("PRODUCT".equals(kind) && b.has("packSize")) {
+            BigDecimal size = b.num("packSize", null);
+            if (size == null || size.signum() <= 0) {
+                db.exec("UPDATE items SET buy_unit = NULL, buy_size = NULL, buy_price = NULL, pack_price = NULL WHERE id = :id", "id", id);
+            } else {
+                if (size.compareTo(BigDecimal.ONE) <= 0) {
+                    throw ApiException.bad("A pack holds more than one piece");
+                }
+                String unitName = b.str("packUnit", "").trim();
+                BigDecimal buy = b.num("packBuyPrice", null);
+                BigDecimal sell = b.num("packPrice", null);
+                if ((buy != null && buy.signum() < 0) || (sell != null && sell.signum() < 0)) {
+                    throw ApiException.bad("A price can't be below zero");
+                }
+                db.exec("""
+                        UPDATE items SET buy_unit = :u, buy_size = :s, buy_price = :bp, pack_price = :pp,
+                               cost = CASE WHEN cast(:bp as numeric) IS NOT NULL THEN round(cast(:bp as numeric) / :s, 2) ELSE cost END
+                        WHERE id = :id""", "id", id, "u", unitName.isEmpty() ? "pack" : unitName.toLowerCase(), "s", size, "bp", buy, "pp", sell);
+            }
+        }
         // R7: priced per kg and sold by the weight from the scale. Only changed when sent.
         if (b.has("soldByWeight")) {
             boolean kg = b.bool("soldByWeight", false);
@@ -278,6 +299,16 @@ public class CatalogController {
                            cost = coalesce(:cost, cost), reorder_level = coalesce(:reorder, reorder_level) WHERE id = :id""",
                     "id", id, "cat", catId, "barcode", b.str("barcode", null), "sku", b.str("sku", null), "unit", b.str("unit", null),
                     "price", b.num("price", null), "cost", b.num("cost", null), "reorder", b.num("reorderLevel", null));
+            // Pack columns: "Pack" (carton), "Pieces in a pack", "Pack buying price", "Pack selling price".
+            BigDecimal packSize = b.num("packSize", null);
+            if (packSize != null && packSize.compareTo(BigDecimal.ONE) > 0) {
+                BigDecimal buy = b.num("packBuyPrice", null);
+                db.exec("""
+                        UPDATE items SET buy_unit = :u, buy_size = :s, buy_price = coalesce(:bp, buy_price), pack_price = coalesce(:pp, pack_price),
+                               cost = CASE WHEN cast(:bp as numeric) IS NOT NULL THEN round(cast(:bp as numeric) / :s, 2) ELSE cost END
+                        WHERE id = :id AND kind = 'PRODUCT'""", "id", id, "u", b.str("pack", "pack").trim().toLowerCase(), "s", packSize,
+                        "bp", buy, "pp", b.num("packPrice", null));
+            }
             if (b.has("stock") && loc != null) {
                 BigDecimal qty = b.num("stock");
                 BigDecimal current = db.value("SELECT qty FROM stock_levels WHERE item_id = :id AND location_id = :loc",

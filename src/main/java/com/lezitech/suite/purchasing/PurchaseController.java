@@ -78,16 +78,27 @@ public class PurchaseController {
             Body l = new Body(raw2);
             BigDecimal qty = l.num("qty");
             UUID itemId = UUID.fromString(l.str("itemId"));
+            // Ordered in packs (cartons): qty is packs and the cost is a pack's; receiving adds packs × pieces.
+            boolean inPacks = l.bool("inPacks", false);
+            Map<String, Object> it = db.one("Item", "SELECT name, kind, cost, buy_size, buy_price FROM items WHERE id = :itemId", "itemId", itemId);
+            if (inPacks && ("INGREDIENT".equals(it.get("kind")) || it.get("buySize") == null)) {
+                inPacks = "INGREDIENT".equals(it.get("kind")) ? false : failNoPack((String) it.get("name"));
+            }
             BigDecimal cost = l.has("unitCost") ? l.num("unitCost")
-                    : db.value("SELECT cost FROM items WHERE id = :itemId", BigDecimal.class, "itemId", itemId);
+                    : inPacks ? (it.get("buyPrice") != null ? (BigDecimal) it.get("buyPrice") : ((BigDecimal) it.get("cost")).multiply((BigDecimal) it.get("buySize")))
+                    : (BigDecimal) it.get("cost");
             db.exec("""
-                    INSERT INTO purchase_lines (tenant_id, po_id, item_id, qty, unit_cost, batch_no, expiry_date)
-                    VALUES (:t, :po, :itemId, :qty, :cost, :batch, :exp)""",
-                    "po", id, "itemId", itemId, "qty", qty, "cost", cost, "batch", l.str("batchNo", null), "exp", l.date("expiryDate"));
+                    INSERT INTO purchase_lines (tenant_id, po_id, item_id, qty, unit_cost, batch_no, expiry_date, in_packs)
+                    VALUES (:t, :po, :itemId, :qty, :cost, :batch, :exp, :packs)""",
+                    "po", id, "itemId", itemId, "qty", qty, "cost", cost, "batch", l.str("batchNo", null), "exp", l.date("expiryDate"), "packs", inPacks);
             total = total.add(qty.multiply(cost));
         }
         db.exec("UPDATE purchase_orders SET total = :total WHERE id = :id", "id", id, "total", total);
         return get(id);
+    }
+
+    private static boolean failNoPack(String name) {
+        throw ApiException.bad(name + " has no pack size. Set Bought in packs on the product first");
     }
 
     /** Goods arrived: stock goes up, batches are recorded, item cost updates, and we owe the supplier. */
@@ -102,6 +113,21 @@ public class PurchaseController {
         for (Map<String, Object> l : db.list("SELECT * FROM purchase_lines WHERE po_id = :id", "id", id)) {
             UUID itemId = UUID.fromString(l.get("itemId").toString());
             BigDecimal qty = (BigDecimal) l.get("qty");
+            // A line in packs: stock is kept in pieces, the pack's price is its buying price.
+            BigDecimal packSize = Boolean.TRUE.equals(l.get("inPacks"))
+                    ? db.value("SELECT buy_size FROM items WHERE id = :itemId AND kind = 'PRODUCT'", BigDecimal.class, "itemId", itemId) : null;
+            if (packSize != null) {
+                if (l.get("batchNo") != null || l.get("expiryDate") != null) {
+                    db.exec("""
+                            INSERT INTO stock_batches (tenant_id, item_id, location_id, batch_no, expiry_date, qty)
+                            VALUES (:t, :itemId, :loc, :batch, cast(:exp as date), :qty)""",
+                            "itemId", itemId, "loc", loc, "batch", l.get("batchNo") != null ? l.get("batchNo") : "Received " + java.time.LocalDate.now(java.time.ZoneId.of("Africa/Nairobi")),
+                            "exp", l.get("expiryDate"), "qty", qty.multiply(packSize));
+                }
+                stock.move(itemId, loc, qty.multiply(packSize), "RECEIVE", "PO " + id.toString().substring(0, 8), null);
+                db.exec("UPDATE items SET buy_price = :cost, cost = round(:cost / buy_size, 2) WHERE id = :itemId", "itemId", itemId, "cost", l.get("unitCost"));
+                continue;
+            }
             // Record the batch first so the stock move finds batches and counts already in step.
             if (l.get("batchNo") != null || l.get("expiryDate") != null) {
                 db.exec("""

@@ -198,7 +198,7 @@ public class NightSummary {
         BigDecimal foodSales = BigDecimal.ZERO;
         BigDecimal foodCost = BigDecimal.ZERO;
         for (Map<String, Object> d : db.list("""
-                SELECT i.id, i.name, i.kind, i.cost, sum(l.qty) AS qty, sum(l.line_total) AS sales
+                SELECT i.id, i.name, i.kind, i.cost, sum(l.qty * coalesce(l.pack_size, 1)) AS qty, sum(l.line_total) AS sales
                 FROM order_lines l JOIN orders o ON o.id = l.order_id JOIN items i ON i.id = l.item_id
                 WHERE o.kind = 'SALE' AND o.status IN ('PAID', 'CREDIT') AND o.closed_at >= :from AND o.closed_at < :to AND l.parent_line_id IS NULL
                 GROUP BY i.id, i.name, i.kind, i.cost ORDER BY sum(l.qty) DESC""", p)) {

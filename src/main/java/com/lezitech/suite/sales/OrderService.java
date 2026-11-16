@@ -130,6 +130,8 @@ public class OrderService {
             BigDecimal price;
             BigDecimal tax;
             String station = null;
+            // A whole pack (a carton of 24): one line, its own price, and that many pieces off stock.
+            BigDecimal packSize = null;
             if (l.has("itemId")) {
                 item = db.one("Item", "SELECT * FROM items WHERE id = :id", "id", l.str("itemId"));
                 name = (String) item.get("name");
@@ -153,6 +155,17 @@ public class OrderService {
                         happyDeal = happy.dealId();
                     }
                 }
+                if (l.bool("asPack", false)) {
+                    BigDecimal size = (BigDecimal) item.get("buySize");
+                    if (size == null || size.signum() <= 0 || !"PRODUCT".equals(item.get("kind"))) {
+                        throw ApiException.bad(name + " isn't sold by the " + (item.get("buyUnit") == null ? "pack" : item.get("buyUnit")));
+                    }
+                    packSize = size;
+                    String unitName = item.get("buyUnit") == null ? "pack" : (String) item.get("buyUnit");
+                    price = item.get("packPrice") != null ? (BigDecimal) item.get("packPrice") : ((BigDecimal) item.get("price")).multiply(size);
+                    name = name + " (" + unitName + " of " + size.stripTrailingZeros().toPlainString() + ")";
+                    happyDeal = null;
+                }
             } else {
                 name = l.str("name");
                 price = l.num("unitPrice");
@@ -168,8 +181,8 @@ public class OrderService {
                 // A price typed at the till. Down to the lowest price is the cashier's call (if the owner allows);
                 // anything below it needs a manager's PIN. Both are written to the activity log.
                 BigDecimal asked = l.num("unitPrice");
-                BigDecimal shelf = (BigDecimal) item.get("price");
-                BigDecimal lowest = (BigDecimal) item.get("wholesalePrice");
+                BigDecimal shelf = packSize != null ? price : (BigDecimal) item.get("price");
+                BigDecimal lowest = packSize != null ? null : (BigDecimal) item.get("wholesalePrice");
                 boolean belowLowest = lowest != null ? asked.compareTo(lowest) < 0 : asked.compareTo(price) < 0;
                 boolean needsPin = asked.compareTo(price) < 0 && (belowLowest || !bargain);
                 String by = null;
@@ -207,7 +220,7 @@ public class OrderService {
             if (discount.signum() > 0 && !trusted) {
                 String by = approvals.require(approvalSource, "a discount on " + name);
                 approvals.checkDiscountLimit(discount, unit.multiply(qty));
-                BigDecimal lowest = item == null ? null : (BigDecimal) item.get("wholesalePrice");
+                BigDecimal lowest = item == null || packSize != null ? null : (BigDecimal) item.get("wholesalePrice");
                 boolean underLowest = lowest != null && unit.multiply(qty).subtract(discount).compareTo(lowest.multiply(qty)) < 0;
                 activity.record("DISCOUNT", underLowest || bigDiscount(discount, unit.multiply(qty)) ? com.lezitech.suite.activity.ActivityLog.CONCERN
                                 : com.lezitech.suite.activity.ActivityLog.NOTICE,
@@ -220,14 +233,14 @@ public class OrderService {
             }
             UUID lineId = db.insert("""
                     INSERT INTO order_lines (tenant_id, order_id, item_id, name, qty, unit_price, tax_rate, discount, line_total,
-                                             options, note, course, station, staff_id, happy_deal_id, kitchen_status)
+                                             options, note, course, station, staff_id, happy_deal_id, kitchen_status, pack_size)
                     VALUES (:t, :order, :item, :name, :qty, :unit, :tax, :discount, :total, cast(:options as jsonb), :note,
-                            :course, :station, :staff, :happy, :ks) RETURNING id""",
+                            :course, :station, :staff, :happy, :ks, :pack) RETURNING id""",
                     "order", orderId, "item", item == null ? null : UUID.fromString(item.get("id").toString()), "name", name,
                     "qty", qty, "unit", unit, "tax", tax, "discount", discount, "total", lineTotal,
                     "options", db.toJson(options), "note", l.str("note", null), "course", l.integer("course", 1),
                     "station", combo ? null : station, "staff", l.has("staffId") ? UUID.fromString(l.str("staffId")) : null,
-                    "happy", happyDeal, "ks", combo ? "SERVED" : "PENDING");
+                    "happy", happyDeal, "ks", combo ? "SERVED" : "PENDING", "pack", packSize);
             // R6: a combo's parts go to the kitchen and bar (and use up stock and recipes) as KES 0 lines under it.
             for (UUID part : parts) {
                 Map<String, Object> pi = db.one("Item", "SELECT name, station, tax_rate FROM items WHERE id = :id", "id", part);
@@ -512,7 +525,7 @@ public class OrderService {
         }
         UUID loc = o.get("locationId") == null ? stock.defaultLocation() : UUID.fromString(o.get("locationId").toString());
         String ref = "Sale #" + o.get("number");
-        for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
+        for (Map<String, Object> l : db.list("SELECT item_id, qty * coalesce(pack_size, 1) AS qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
             stock.move(UUID.fromString(l.get("itemId").toString()), loc, ((BigDecimal) l.get("qty")).negate(), "SALE", ref, null);
         }
         // R2: dishes with a recipe use up their ingredients.
@@ -576,7 +589,7 @@ public class OrderService {
         tills.requireUnlocked(orderId, "refunded");
         payBack(o, reason, method);
         UUID loc = o.get("locationId") == null ? stock.defaultLocation() : UUID.fromString(o.get("locationId").toString());
-        for (Map<String, Object> l : db.list("SELECT item_id, qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
+        for (Map<String, Object> l : db.list("SELECT item_id, qty * coalesce(pack_size, 1) AS qty FROM order_lines WHERE order_id = :id AND item_id IS NOT NULL", "id", orderId)) {
             stock.move(UUID.fromString(l.get("itemId").toString()), loc, (BigDecimal) l.get("qty"), "VOID", "Refund #" + o.get("number"), reason);
         }
         recipes.useForOrder(orderId, loc, 1, "VOID", "Refund #" + o.get("number"));

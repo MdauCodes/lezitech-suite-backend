@@ -127,7 +127,7 @@ public class ReportController {
         out.put("totals", db.one("Totals", """
                 SELECT coalesce(sum(o.total), 0) AS sales, coalesce(sum(o.tax), 0) AS tax, coalesce(sum(o.discount), 0) AS discounts,
                        count(*) AS orders, coalesce(avg(o.total), 0) AS avg_ticket,
-                       coalesce((SELECT sum(l.qty * i.cost) FROM order_lines l JOIN orders o2 ON o2.id = l.order_id JOIN items i ON i.id = l.item_id
+                       coalesce((SELECT sum(l.qty * coalesce(l.pack_size, 1) * i.cost) FROM order_lines l JOIN orders o2 ON o2.id = l.order_id JOIN items i ON i.id = l.item_id
                                  WHERE o2.status IN ('PAID','CREDIT') AND o2.kind <> 'QUOTE' AND o2.closed_at >= :from AND o2.closed_at < :to), 0) AS cost
                 FROM orders o WHERE """ + window, range));
         // PayHero's charge on each M-Pesa prompt the customers paid (it comes out of the business's PayHero wallet).
@@ -219,7 +219,7 @@ public class ReportController {
                 SELECT name, phone, balance FROM suppliers WHERE balance > 0 ORDER BY balance DESC LIMIT 15"""));
         out.put("marginByCategory", db.list("""
                 SELECT coalesce(c.name, 'Other') AS name, sum(l.line_total) AS sales,
-                       sum(l.line_total) - sum(l.qty * coalesce(i.cost, 0)) - sum(round(l.line_total * l.tax_rate / (100 + l.tax_rate), 2)) AS profit
+                       sum(l.line_total) - sum(l.qty * coalesce(l.pack_size, 1) * coalesce(i.cost, 0)) - sum(round(l.line_total * l.tax_rate / (100 + l.tax_rate), 2)) AS profit
                 FROM order_lines l JOIN orders o ON o.id = l.order_id
                 LEFT JOIN items i ON i.id = l.item_id LEFT JOIN categories c ON c.id = i.category_id
                 WHERE """ + SOLD + " AND o.closed_at >= :from AND o.closed_at < :to GROUP BY 1 ORDER BY sales DESC LIMIT 20", range));
