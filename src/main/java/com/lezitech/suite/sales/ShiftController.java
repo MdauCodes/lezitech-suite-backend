@@ -232,7 +232,10 @@ public class ShiftController {
                 SELECT coalesce(sum(rider_pay), 0) FROM deliveries
                 WHERE rider_paid_shift = :id AND rider_paid_how IN ('TILL_CASH', 'FROM_COLLECTED')""", BigDecimal.class, "id", id);
         s.put("riderPayFromTill", riderPay);
-        BigDecimal expectedCash = ((BigDecimal) s.get("openingCash")).add(cash).subtract(riderPay);
+        // Phase 1: cash paid out of this till for expenses (water vendor, transport...).
+        BigDecimal paidOut = db.value("SELECT coalesce(sum(amount), 0) FROM expenses WHERE shift_id = :id", BigDecimal.class, "id", id);
+        s.put("paidOutFromTill", paidOut);
+        BigDecimal expectedCash = ((BigDecimal) s.get("openingCash")).add(cash).subtract(riderPay).subtract(paidOut);
         s.put("open", "OPEN".equals(s.get("status")));
         s.put("byMethod", byMethod);
         s.put("expectedCash", expectedCash);
@@ -260,7 +263,7 @@ public class ShiftController {
         }
         Map<String, Object> out = new LinkedHashMap<>();
         for (String k : List.of("id", "userId", "userName", "openedAt", "closedAt", "status", "open", "openingCash",
-                "countedCash", "countedMpesa", "countedCard", "note", "orders", "sales", "refunds", "locked")) {
+                "countedCash", "countedMpesa", "countedCard", "note", "orders", "sales", "refunds", "locked", "paidOutFromTill")) {
             out.put(k, s.get(k));
         }
         out.put("checked", s.get("reconciledAt") != null);

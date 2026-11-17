@@ -43,6 +43,36 @@ Owner decisions, 17 Nov:
 ---
 
 ## Phase 1: Business expenses and profit & loss (every business)
+**Status: built 2026-11-17.**
+- **Database:** `V58__expenses_and_profit.sql`: `expenses` (fenced), and `order_lines.unit_cost` filled by a database trigger on every path, with old lines backfilled.
+- **Backend:**
+  - `finance/ExpenseService` and `ExpenseController` (`/api/expenses`, `/categories`, `/{id}/receipt`);
+  - categories per sector or the owner's own (`settings.expenseCategories`);
+  - "Pay from the till" lowers the till's expected cash (`ShiftController`, `NightSummary`) and is logged as `TILL_PAYOUT`;
+  - edits and removals are logged as `EXPENSE_CHANGE`.
+- **Profit & loss:** `finance/ProfitLossService` and `GET /api/reports/profit-loss`.
+  - Sales without VAT, minus the cost of what was sold (recipe cost for dishes and services that use products, else the cost saved on the line).
+  - Minus waste and give-aways, stock-take shortages, stock used in-house, expenses by category, commissions paid and PayHero charges.
+  - Gives net profit and compares it with the period before.
+  - It is the Growth plan tool `profitLoss`; expenses are on every plan.
+- **Screens:**
+  - `pages/Expenses.tsx` (Money menu, owner, manager and accountant): list, filters, by category, add or change with a receipt photo;
+  - the Profit & loss tab in Reports (`components/reports/ProfitLoss.tsx`);
+  - "Pay from the till" on the till bar;
+  - "Spent today" in Your day (night summary).
+- **Fixed on the way:** the sales report's PayHero charges were summed across **all** businesses (`mpesa_requests` has no row-level security); it is now filtered by business.
+- **Tests:** `ExpensesAndProfitTest` (4). Full suite: 222 tests.
+- **Checked in the browser** (demo minimart):
+  - a till payout lowered the expected cash;
+  - rent was added on the Expenses page;
+  - Profit & loss showed sales, costs, rent and water, and the result;
+  - the phone layout is fine;
+  - fixed: the date default was a day early, and "You lost" showed a minus sign.
+- **Known limits:**
+  - buying prices are taken as entered (with VAT if the owner typed them so);
+  - recipe costs use today's ingredient prices.
+
+Original plan:
 - **V58:**
   - `expenses` table: date, category, what, amount, how paid (CASH/MPESA/BANK/CARD), paid to, receipt photo (FileService purpose RECEIPT), branch, `paid_from_till` + `shift_id`, created_by.
   - `order_lines.unit_cost`, captured when lines are added, so profit uses the cost at the time of sale. Old lines fall back to `items.cost`.

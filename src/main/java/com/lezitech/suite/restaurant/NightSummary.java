@@ -168,6 +168,9 @@ public class NightSummary {
         Map<String, Object> open = db.one("Open", "SELECT count(*) AS bills, coalesce(sum(total - paid), 0) AS unpaid FROM orders WHERE kind = 'SALE' AND status = 'OPEN' AND created_at >= :from AND created_at < :to", p);
         sales.put("openBills", open.get("bills"));
         sales.put("openUnpaid", open.get("unpaid"));
+        // Phase 1: what was spent today (expenses dated today, including cash paid out of tills).
+        sales.put("expenses", db.value("SELECT coalesce(sum(amount), 0) FROM expenses WHERE spent_on = (cast(:from as timestamptz) AT TIME ZONE 'Africa/Nairobi')::date",
+                BigDecimal.class, p));
         out.put("sales", sales);
 
         // Tills: each cashier's cash expected, counted, short or over.
@@ -176,11 +179,12 @@ public class NightSummary {
                 SELECT s.id, u.name AS cashier, s.status, s.opening_cash, s.counted_cash, s.closed_at,
                        coalesce((SELECT sum(amount) FROM payments x WHERE x.shift_id = s.id AND x.method = 'CASH'), 0) AS cash,
                        coalesce((SELECT sum(amount) FROM payments x WHERE x.shift_id = s.id AND x.method = 'MPESA'), 0) AS mpesa,
-                       coalesce((SELECT sum(rider_pay) FROM deliveries d WHERE d.rider_paid_shift = s.id AND d.rider_paid_how IN ('TILL_CASH', 'FROM_COLLECTED')), 0) AS rider_pay
+                       coalesce((SELECT sum(rider_pay) FROM deliveries d WHERE d.rider_paid_shift = s.id AND d.rider_paid_how IN ('TILL_CASH', 'FROM_COLLECTED')), 0) AS rider_pay,
+                       coalesce((SELECT sum(e.amount) FROM expenses e WHERE e.shift_id = s.id), 0) AS paid_out
                 FROM shifts s LEFT JOIN users u ON u.id = s.user_id
                 WHERE (s.opened_at >= :from AND s.opened_at < :to) OR (s.closed_at >= :from AND s.closed_at < :to) OR s.status = 'OPEN'
                 ORDER BY s.opened_at""", p)) {
-            BigDecimal expected = n(s.get("openingCash")).add(n(s.get("cash"))).subtract(n(s.get("riderPay")));
+            BigDecimal expected = n(s.get("openingCash")).add(n(s.get("cash"))).subtract(n(s.get("riderPay"))).subtract(n(s.get("paidOut")));
             s.put("expectedCash", expected);
             s.put("difference", s.get("countedCash") == null ? null : n(s.get("countedCash")).subtract(expected));
             s.put("open", "OPEN".equals(s.get("status")));

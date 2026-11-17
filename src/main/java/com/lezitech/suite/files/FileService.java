@@ -35,7 +35,9 @@ public class FileService {
         /** A document a landlord shares with a tenant: the signed lease, house rules... */
         LEASE_DOC(10 * 1024 * 1024, "application/pdf", "image/jpeg", "image/png"),
         /** The design a customer wants on their cake (R7). */
-        CAKE_DESIGN(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp");
+        CAKE_DESIGN(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp"),
+        /** A photo or PDF of the receipt for something the business paid for (expenses). */
+        EXPENSE_RECEIPT(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp", "application/pdf");
 
         final int maxBytes;
         final java.util.Set<String> types;

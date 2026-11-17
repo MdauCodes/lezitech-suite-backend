@@ -135,7 +135,7 @@ public class ReportController {
         int phCount = 0;
         for (Map<String, Object> m : db.list("""
                 SELECT amount FROM mpesa_requests WHERE provider = 'PAYHERO' AND status = 'PAID' AND purpose <> 'SUBSCRIPTION'
-                AND created_at >= :from AND created_at < :to""", range)) {
+                AND tenant_id = cast(:t as uuid) AND created_at >= :from AND created_at < :to""", range)) {
             phFees = phFees.add(payHeroFees.fee(new java.math.BigDecimal(String.valueOf(m.get("amount")))));
             phCount++;
         }

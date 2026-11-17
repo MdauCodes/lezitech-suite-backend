@@ -54,6 +54,8 @@ public class PlanFeatures {
                     List.of(writes("/api/stock/transfer"))),
             new Feature("backOffice", "Back-office reports", "Stock value, profit by category, purchases and written-off stock.", "GROWTH",
                     List.of(all("/api/reports/back-office.*"))),
+            new Feature("profitLoss", "Profit & loss", "What came in, what it cost, what you spent and what you kept, for any dates.", "GROWTH",
+                    List.of(all("/api/reports/profit-loss.*"))),
             new Feature("crm", "Customers & sales leads", "Follow up people who may buy, with reminders, so no sale is forgotten.", "GROWTH",
                     List.of(writes("/api/(pipeline|deals|activities)(/.*)?"))),
             new Feature("quotes", "Quotes and invoices", "Send prices before a sale, then turn the quote into the sale.", "GROWTH", List.of()),
