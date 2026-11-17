@@ -5,6 +5,7 @@ import com.lezitech.suite.common.Body;
 import com.lezitech.suite.common.Db;
 import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,10 +36,97 @@ public class RoomController {
 
     private final Db db;
     private final StayService stays;
+    private final RoomRates rates;
+    private final RoomCalendars calendars;
+    private final OnlineStays online;
 
-    public RoomController(Db db, StayService stays) {
+    public RoomController(Db db, StayService stays, RoomRates rates, RoomCalendars calendars, OnlineStays online) {
         this.db = db;
         this.stays = stays;
+        this.rates = rates;
+        this.calendars = calendars;
+        this.online = online;
+    }
+
+    // ---------- owner rules, prices, other sites' calendars ----------
+
+    @GetMapping("/rooms/settings")
+    public StayService.Rules settings() {
+        return stays.rules();
+    }
+
+    @PostMapping("/rooms/settings")
+    public StayService.Rules saveSettings(@RequestBody Map<String, Object> raw) {
+        stays.saveRules(new Body(raw));
+        return stays.rules();
+    }
+
+    @GetMapping("/rooms/rates")
+    public List<Map<String, Object>> rates() {
+        return rates.list();
+    }
+
+    @PostMapping("/rooms/rates")
+    public Map<String, Object> addRate(@RequestBody Map<String, Object> raw) {
+        return rates.save(null, new Body(raw));
+    }
+
+    @PutMapping("/rooms/rates/{id}")
+    public Map<String, Object> saveRate(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        return rates.save(id, new Body(raw));
+    }
+
+    @DeleteMapping("/rooms/rates/{id}")
+    public void deleteRate(@PathVariable UUID id) {
+        rates.delete(id);
+    }
+
+    /** The price of a stay night by night, shown before saving. */
+    @GetMapping("/rooms/quote")
+    public RoomRates.Quote quote(@RequestParam UUID spaceId, @RequestParam LocalDate checkIn, @RequestParam LocalDate checkOut) {
+        if (!checkOut.isAfter(checkIn)) {
+            throw ApiException.bad("Check-out is after check-in");
+        }
+        return rates.quote(spaceId, checkIn, checkOut);
+    }
+
+    @GetMapping("/rooms/calendars")
+    public List<Map<String, Object>> calendars() {
+        return calendars.list();
+    }
+
+    @PostMapping("/rooms/calendars")
+    public Map<String, Object> addCalendar(@RequestBody Map<String, Object> raw) {
+        return calendars.add(new Body(raw));
+    }
+
+    @DeleteMapping("/rooms/calendars/{id}")
+    public void removeCalendar(@PathVariable UUID id) {
+        calendars.remove(id);
+    }
+
+    @PostMapping("/rooms/calendars/{id}/sync")
+    public Map<String, Object> syncCalendar(@PathVariable UUID id) {
+        calendars.sync(id);
+        return db.one("Calendar", "SELECT * FROM room_calendars WHERE id = :id", "id", id);
+    }
+
+    @GetMapping("/rooms/alerts")
+    public Map<String, Object> alerts() {
+        return online.alerts();
+    }
+
+    @PostMapping("/rooms/alerts/stop")
+    public Map<String, Object> stopAlerts() {
+        return Map.of("seen", online.acknowledge());
+    }
+
+    @GetMapping("/rooms/register")
+    public List<Map<String, Object>> register(@RequestParam LocalDate from, @RequestParam LocalDate to) {
+        if (to.isBefore(from) || from.plusDays(400).isBefore(to)) {
+            throw ApiException.bad("Pick up to about a year");
+        }
+        return online.register(from, to);
     }
 
     // ---------- spaces (shared with property) ----------
@@ -93,8 +181,12 @@ public class RoomController {
         out.put("spaces", db.list("SELECT * FROM spaces WHERE active AND kind IN " + STAY_KINDS + " ORDER BY sort, floor NULLS FIRST, name"));
         out.put("stays", db.list("""
                 SELECT s.*, o.total AS folio_total, o.paid AS folio_paid FROM stays s LEFT JOIN orders o ON o.id = s.folio_id
-                WHERE s.status IN ('RESERVED','IN_HOUSE','CHECKED_OUT') AND s.check_in < :end AND s.check_out > :start
+                WHERE (s.status IN ('RESERVED','IN_HOUSE','CHECKED_OUT') OR (s.status = 'HELD' AND s.hold_until > now()))
+                  AND s.check_in < :end AND s.check_out > :start
                 ORDER BY s.check_in""", "start", start, "end", end));
+        out.put("blocks", db.list("""
+                SELECT id, space_id, starts_on, ends_on, summary FROM room_blocks WHERE starts_on < :end AND ends_on > :start ORDER BY starts_on""",
+                "start", start, "end", end));
         return out;
     }
 
@@ -119,8 +211,10 @@ public class RoomController {
         return db.list("""
                 SELECT sp.* FROM spaces sp WHERE sp.active AND sp.kind IN """ + " " + STAY_KINDS + """
                   AND sp.housekeeping <> 'OUT_OF_ORDER'
-                  AND NOT EXISTS (SELECT 1 FROM stays s WHERE s.space_id = sp.id AND s.status IN ('RESERVED','IN_HOUSE')
+                  AND NOT EXISTS (SELECT 1 FROM stays s WHERE s.space_id = sp.id
+                                  AND (s.status IN ('RESERVED','IN_HOUSE') OR (s.status = 'HELD' AND s.hold_until > now()))
                                   AND s.check_in < :out AND s.check_out > :in)
+                  AND NOT EXISTS (SELECT 1 FROM room_blocks rb WHERE rb.space_id = sp.id AND rb.starts_on < :out AND rb.ends_on > :in)
                 ORDER BY sp.sort, sp.name""", "in", checkIn, "out", checkOut);
     }
 
@@ -154,8 +248,8 @@ public class RoomController {
     }
 
     @PostMapping("/stays/{id}/check-in")
-    public Map<String, Object> checkIn(@PathVariable UUID id) {
-        stays.checkIn(id);
+    public Map<String, Object> checkIn(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
+        stays.checkIn(id, new Body(raw));
         return stay(id);
     }
 

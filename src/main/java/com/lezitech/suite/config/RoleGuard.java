@@ -77,6 +77,10 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(WRITES, "/api/spaces/[^/]+/housekeeping", "update room cleaning", "MANAGER", "RECEPTION"),
             rule(WRITES, "/api/spaces(/.*)?", "change rooms or units", "MANAGER"),
             rule(WRITES, "/api/stays(/.*)?", "change room bookings", "MANAGER", "RECEPTION"),
+            rule(WRITES, "/api/rooms/alerts/stop", "see new online bookings", "MANAGER", "RECEPTION"),
+            rule(WRITES, "/api/rooms/calendars/[^/]+/sync", "refresh room calendars", "MANAGER", "RECEPTION"),
+            rule(WRITES, "/api/rooms(/.*)?", "change room prices, calendars or rules", "MANAGER"),
+            rule(ANY, "/api/rooms/register", "see the guest register", "MANAGER", "RECEPTION", "ACCOUNTANT"),
             rule(WRITES, "/api/trips(/.*)?", "change trips", "MANAGER", "SALES"),
             rule(ANY, "/api/property(/.*)?", "manage rent and tenants", "MANAGER", "ACCOUNTANT"),
             // Caretakers and technicians: only the repair jobs given to them (checked again in JobsController).

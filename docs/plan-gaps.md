@@ -157,6 +157,35 @@ Original plan:
   - privacy.
 
 ## Phase 3: Hotels, lodges & guest houses
+**Status: built 2026-11-17.**
+- **Database:** `V60__rooms_online_calendars_rates.sql`:
+  - `spaces.ical_token` (each room's secret calendar link);
+  - `room_calendars` and `room_blocks` (fenced);
+  - `room_rates` (all rooms, a room type or one room; dates, weekdays, price, shortest stay; fenced);
+  - stays get token, email, hold_until, deposit_amount, acknowledged_at, room_total, rate_fixed, the register fields (id_type, id_number, nationality, coming_from, vehicle_reg) and hall fields (event_name, organiser, people);
+  - `mpesa_requests.stay_id`.
+- **Safe fetching:** `files/SafeFetch`: https only, every resolved address must be public (loopback, private, link-local, CGNAT 100.64/10, 0/8, multicast, fc00::/7 and IPv4-mapped refused), no redirects, time and size limits, calendar or text only.
+- **Calendars both ways:** `rooms/Ical` (read and write) and `rooms/RoomCalendars`:
+  - in: a room follows another site's link; each read replaces that calendar's blocks, skipping our own bookings echoed back (`@biznez` UIDs); errors are kept on the calendar and shown;
+  - out: `GET /api/public/ical/{slug}/{roomId}/{token}.ics` lists reserved, in-house and held nights as "Booked", never names.
+  - Blocks stop bookings (`StayService.assertFree`), drop rooms from `/rooms/available` and the online page, and show on the chart as "Booked on Airbnb".
+- **Prices:** `rooms/RoomRates`: each night takes the most specific rule (room over type over all; dated over open; weekdays over every night), else the room's price. Staff bookings use it unless a price is typed (then fixed per night); check-out charges the nights actually stayed at their own prices.
+- **Online booking:** `rooms/OnlineStays` and `rooms/StayPublicController`:
+  - `GET /api/public/stay/{slug}` (free room types with the stay's total), `POST` to book (the first free room of the type, locked), `/s/{token}`, `/cancel`, `/pay`;
+  - owner rules in `settings.rooms`: online on or off, deposit %, cancel cut-off, ID required;
+  - with a deposit the room is HELD for 20 minutes while the M-Pesa prompt is paid (`StayDepositSettled` → the deposit goes on the room bill and the stay is reserved); unpaid holds are let go, paid ones never;
+  - a deposit paid after the hold ran out only brings the booking back if the room is still free, else a note asks staff to refund or move the guest;
+  - confirmation email; the front desk sees new online bookings until "Seen";
+  - a job every 15 minutes reads the calendars and lets go of unpaid holds.
+- **Staff API** (`RoomController`): `/rooms/settings`, `/rooms/rates`, `/rooms/quote`, `/rooms/calendars` (add, remove, read now), `/rooms/alerts`, `/rooms/register`; check-in takes the register fields. Prices, calendars and rules are for managers; reception can read a calendar now and see the register.
+- **Screens:**
+  - Rooms: the online booking alert and "Share your booking link" (QR, WhatsApp); a new **Online & calendars** tab (online booking rules, each room's calendar link and followed calendars, prices that change, guest register with print);
+  - check-in asks for the register (required when switched on);
+  - the booking window shows the stay's price night by night, email, and event, organiser and people for halls;
+  - the chart shows held stays and other sites' bookings.
+  - Guest pages `/stay/{slug}` (dates, guests, room types with the total, details, deposit) and `/stay/{slug}/s/{token}` (status, pay again, cancel).
+- **Tests:** `RoomCalendarsTest` (6). Full suite: 233 tests.
+- **Left for later:** a separate day view for halls (halls book through the same chart, by day).
 - **iCal import:**
   - V60 `room_calendars` (space_id, source name, url, last_synced_at, last_error) and `room_blocks` (space_id, starts_on, ends_on, uid, source).
   - A job every 15 minutes fetches each URL through a new hardened `files/SafeFetch`. It is extracted from `PhotoLinks.fetch`, adds blocks for 100.64/10, 0/8 and IPv4-mapped IPv6, connects to the checked IP, and limits size and content type.

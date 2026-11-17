@@ -269,6 +269,36 @@ public class MpesaService {
         return push(id, acct.orElse(null), phone, amount, "Booking", "Table booking");
     }
 
+    /** An online room booking's deposit was paid (phase 3): it goes on the stay's bill and the room is reserved. */
+    public record StayDepositSettled(UUID tenant, UUID stayId, String receipt) {
+    }
+
+    /** The deposit for a room booked online: one prompt to the guest's phone, to the business's own till or paybill. */
+    public Map<String, Object> startStayDeposit(UUID stayId, String phoneRaw) {
+        requireEnabled();
+        Map<String, Object> st = tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT deposit_amount, status FROM stays WHERE id = ? AND tenant_id = ?", stayId, TenantContext.tenantId());
+            if (rows.isEmpty()) {
+                throw ApiException.notFound("Booking");
+            }
+            return rows.get(0);
+        });
+        if (!"HELD".equals(st.get("status")) || ((BigDecimal) st.get("deposit_amount")).signum() <= 0) {
+            throw ApiException.conflict("There's no deposit to pay on this booking");
+        }
+        String phone = normalizePhone(phoneRaw);
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "Paying by phone isn't switched on here yet. Please call us to confirm your booking.");
+        }
+        BigDecimal amount = ((BigDecimal) st.get("deposit_amount")).setScale(0, RoundingMode.CEILING);
+        UUID id = insertRequest("STAY", null, null, phone, amount);
+        jdbc.update("UPDATE mpesa_requests SET stay_id = ? WHERE id = ?", stayId, id);
+        return push(id, acct.orElse(null), phone, amount, "Booking", "Room deposit");
+    }
+
     /** An online appointment's deposit was paid (phase 2): the salon confirms it and emails the client. */
     public record AppointmentDepositSettled(UUID tenant, UUID appointmentId) {
     }
@@ -602,6 +632,18 @@ public class MpesaService {
                     events.publishEvent(new ReservationDepositSettled(tenant, booking, "PAID"));
                 } catch (RuntimeException e) {
                     log.warn("After the deposit for booking {}: {}", booking, e.toString());
+                }
+            }
+            return;
+        }
+        if ("STAY".equals(r.get("purpose"))) {
+            UUID stay = (UUID) r.get("stay_id");
+            jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+            if (events != null) {
+                try {
+                    events.publishEvent(new StayDepositSettled(tenant, stay, receipt));
+                } catch (RuntimeException e) {
+                    log.warn("After the deposit for stay {}: {}", stay, e.toString());
                 }
             }
             return;
