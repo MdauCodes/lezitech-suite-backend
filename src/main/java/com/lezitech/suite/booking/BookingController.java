@@ -35,10 +35,59 @@ public class BookingController {
 
     private final Db db;
     private final OrderService orders;
+    private final OnlineAppointments online;
 
-    public BookingController(Db db, OrderService orders) {
+    public BookingController(Db db, OrderService orders, OnlineAppointments online) {
         this.db = db;
         this.orders = orders;
+        this.online = online;
+    }
+
+    // ---------------- online booking (phase 2) ----------------
+
+    @GetMapping("/settings")
+    public Map<String, Object> settings() {
+        Map<String, Object> out = new java.util.LinkedHashMap<>(online.rulesView(online.rules()));
+        out.put("staff", db.list("""
+                SELECT id, name, role, work_hours FROM users WHERE tenant_id = :t AND active
+                  AND role IN ('STYLIST','OWNER','MANAGER','SALES') ORDER BY role = 'STYLIST' DESC, name"""));
+        return out;
+    }
+
+    @PostMapping("/settings")
+    public Map<String, Object> saveSettings(@RequestBody Map<String, Object> raw) {
+        com.lezitech.suite.tenant.TenantContext.requireRole("MANAGER");
+        online.saveRules(new Body(raw));
+        return settings();
+    }
+
+    /** {hours: {...} | null}: a staff member's own week, or back to the business's hours. */
+    @PostMapping("/staff/{userId}/hours")
+    public Map<String, Object> staffHours(@PathVariable UUID userId, @RequestBody Map<String, Object> raw) {
+        online.setStaffHours(userId, raw.get("hours"));
+        return settings();
+    }
+
+    /** Online bookings nobody has looked at yet (they ring on the Bookings screen). */
+    @GetMapping("/alerts")
+    public Map<String, Object> alerts() {
+        online.sweep();
+        return online.alerts();
+    }
+
+    @PostMapping("/alerts/stop")
+    public Map<String, Object> stopAlerts() {
+        return Map.of("stopped", online.acknowledge());
+    }
+
+    /** Send the client a reminder now. */
+    @PostMapping("/{id}/remind")
+    public Map<String, Object> remind(@PathVariable UUID id) {
+        String r = online.remind(id, "MANUAL-" + System.currentTimeMillis() / 60_000);
+        if ("NO_CONTACT".equals(r)) {
+            throw ApiException.bad("Add the client's email to send a reminder (SMS and WhatsApp are coming)");
+        }
+        return Map.of("status", r);
     }
 
     @GetMapping
@@ -132,6 +181,11 @@ public class BookingController {
         order.put("lines", a.get("itemId") == null ? List.of() : List.of(line));
         UUID orderId = orders.create(new Body(order));
         db.exec("UPDATE appointments SET order_id = :orderId, status = 'ARRIVED' WHERE id = :id", "id", id, "orderId", orderId);
+        // A deposit paid online goes on the bill.
+        if ("PAID".equals(a.get("depositStatus")) && ((java.math.BigDecimal) a.get("depositAmount")).signum() > 0) {
+            orders.depositByServer(orderId, "MPESA", (java.math.BigDecimal) a.get("depositAmount"), "Booking deposit " + a.get("depositReceipt"));
+            db.exec("UPDATE appointments SET deposit_status = 'APPLIED' WHERE id = :id", "id", id);
+        }
         return orders.detail(orderId);
     }
 }

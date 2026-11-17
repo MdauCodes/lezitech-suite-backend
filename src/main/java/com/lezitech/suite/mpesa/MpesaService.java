@@ -269,6 +269,37 @@ public class MpesaService {
         return push(id, acct.orElse(null), phone, amount, "Booking", "Table booking");
     }
 
+    /** An online appointment's deposit was paid (phase 2): the salon confirms it and emails the client. */
+    public record AppointmentDepositSettled(UUID tenant, UUID appointmentId) {
+    }
+
+    /** The deposit for an appointment booked online: one prompt to the client's phone, to the business's own till or paybill. */
+    public Map<String, Object> startAppointmentDeposit(UUID appointmentId, String phoneRaw) {
+        requireEnabled();
+        Map<String, Object> a = tx.execute(s -> {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT deposit_amount, deposit_status, status, hold_until FROM appointments WHERE id = ? AND tenant_id = ?",
+                    appointmentId, TenantContext.tenantId());
+            if (rows.isEmpty()) {
+                throw ApiException.notFound("Booking");
+            }
+            return rows.get(0);
+        });
+        if (!"WAITING".equals(a.get("deposit_status")) || !"HELD".equals(a.get("status"))) {
+            throw ApiException.conflict("There's no deposit to pay on this booking");
+        }
+        String phone = normalizePhone(phoneRaw);
+        Optional<PayAccount> acct = integrations.tillAccount(TenantContext.tenantId());
+        if (acct.isEmpty() && !cfg.simulated()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",
+                    "Paying by phone isn't switched on here yet. Please call us to confirm your booking.");
+        }
+        BigDecimal amount = ((BigDecimal) a.get("deposit_amount")).setScale(0, RoundingMode.CEILING);
+        UUID id = insertRequest("APPOINTMENT", null, null, phone, amount);
+        jdbc.update("UPDATE mpesa_requests SET appointment_id = ? WHERE id = ?", appointmentId, id);
+        return push(id, acct.orElse(null), phone, amount, "Booking", "Appointment deposit");
+    }
+
     /** A cake order's deposit was paid: the bakery side confirms it, emails the customer and tells the staff. */
     public record CakeDepositSettled(UUID tenant, UUID cakeOrderId) {
     }
@@ -534,8 +565,9 @@ public class MpesaService {
             return;
         }
         if (code != 0) {
-            jdbc.update("UPDATE mpesa_requests SET status = ? WHERE id = ?", code == 1032 ? "CANCELLED" : "FAILED", id);
+            // Take the PayHero charge off the bill first, so a till that sees "cancelled" also sees the right total.
             dropCustomerFee(id, tenant, user);
+            jdbc.update("UPDATE mpesa_requests SET status = ? WHERE id = ?", code == 1032 ? "CANCELLED" : "FAILED", id);
             announce(r, "FAILED");
             return;
         }
@@ -570,6 +602,26 @@ public class MpesaService {
                     events.publishEvent(new ReservationDepositSettled(tenant, booking, "PAID"));
                 } catch (RuntimeException e) {
                     log.warn("After the deposit for booking {}: {}", booking, e.toString());
+                }
+            }
+            return;
+        }
+        if ("APPOINTMENT".equals(r.get("purpose"))) {
+            UUID appt = (UUID) r.get("appointment_id");
+            TenantContext.runAs(tenant, user, () -> tx.execute(s -> {
+                // Paid after the hold ran out: still theirs if the time is still free, else staff sort it out (money is recorded).
+                jdbc.update("""
+                        UPDATE appointments SET deposit_status = 'PAID', deposit_receipt = ?, hold_until = NULL,
+                               status = CASE WHEN status IN ('HELD', 'CANCELLED') THEN 'BOOKED' ELSE status END, cancel_reason = NULL
+                        WHERE id = ? AND deposit_status IN ('WAITING', 'NONE')""", receipt, appt);
+                jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+                return null;
+            }));
+            if (events != null) {
+                try {
+                    events.publishEvent(new AppointmentDepositSettled(tenant, appt));
+                } catch (RuntimeException e) {
+                    log.warn("After the deposit for appointment {}: {}", appt, e.toString());
                 }
             }
             return;

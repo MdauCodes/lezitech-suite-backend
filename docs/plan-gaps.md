@@ -100,6 +100,37 @@ Original plan:
   - plan gating.
 
 ## Phase 2: Salons, barbers & beauty
+**Status: built 2026-11-17.**
+- **Database:** `V59__online_appointments_and_reminders.sql`:
+  - appointments get token, source, email, deposit fields, hold_until, acknowledged_at and cancel_reason;
+  - `users.work_hours`;
+  - `mpesa_requests.appointment_id`;
+  - `reminders` (fenced, one row per thing, kind and channel).
+- **Reminders:** `notify/Reminders` is channel-neutral, with `EmailChannel` only for now. A business that picks SMS or WhatsApp still gets email until Africa's Talking is connected (phase 10).
+- **Booking:** `booking/OnlineAppointments`.
+  - Rules in `settings.appointments`: online on or off, step, notice, days ahead, deposit, cancel cut-off, reminder hours, opening hours.
+  - Staff hours.
+  - Free times come from hours minus bookings; "anyone" picks the first free stylist. An advisory lock per stylist stops double booking.
+  - A deposit holds the time for 15 minutes (`MpesaService.startAppointmentDeposit`, `AppointmentDepositSettled`); a paid deposit goes on the bill at checkout (`depositByServer`).
+  - Confirmation email, reminders 24 h and 2 h before (each once), and the ring for new online bookings.
+- **Public API:** `booking/AppointmentPublicController`:
+  - `GET/POST /api/public/appointments/{slug}`, `/a/{token}`, `/cancel` and `/pay`, with limits per network and per booking;
+  - a job every 5 minutes frees unpaid holds and sends due reminders.
+- **Staff API** (`BookingController`): `/settings`, `/staff/{id}/hours`, `/alerts`, `/alerts/stop` and `/{id}/remind`.
+- **Screens:**
+  - one link per business, `/book/{slug}` (`BookChooser`): salons get `BookAppointment` (service, who, day, time, details, deposit), restaurants keep table booking;
+  - `/book/{slug}/a/{token}` (`MyAppointment`): status, pay the deposit again, cancel;
+  - Bookings: `components/bookings/OnlineBookingBar` (new-booking alert with Seen, "Share your booking link" with QR and WhatsApp, Online booking settings with opening hours and each person's hours), an "Online" tag on diary blocks, held bookings dashed, "Send a reminder", and deposit and email in the booking window.
+- **Fixed on the way** (`MpesaService`): a cancelled or failed prompt now takes the PayHero charge off the bill *before* showing "cancelled". The till could briefly see the old total, which made `PayHeroFeesTest` flaky.
+- **Tests:** `OnlineAppointmentsTest` (5). Full suite: 227 tests.
+- **Checked in the browser** (demo salon, phone size):
+  - booked Box braids online with anyone free, then landed on "You're booked" in the salon's colours;
+  - the API shows it as ONLINE with Achieng, ringing once, and a manual reminder was sent;
+  - the restaurant link still opens table booking.
+- **Not checked by eye:** the salon's Bookings screen pieces, because signing in would have changed the owner's open session. They are typechecked and their API is tested.
+- **Still to come:** car-wash queue (phase 4, job flow) and gym memberships (phase 8).
+
+Original plan:
 - **Reminder service** (channel-neutral, built here, used by later phases):
   - V59 `reminders` (ref_kind, ref_id, kind, channel EMAIL|SMS|WHATSAPP, sent_to, status, error, sent_at), unique (ref_kind, ref_id, kind, channel), the same claim pattern as `rent_reminders`.
   - `notify/Reminders` with a `Channel` interface. Only `EmailChannel` now; `SmsChannel` and `WhatsAppChannel` come in Phase 10.
