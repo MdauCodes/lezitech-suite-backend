@@ -112,7 +112,7 @@ public class AuthController {
             }
             Integer taken = jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email);
             if (taken != null && taken > 0) {
-                throw ApiException.conflict("That email already has a workspace. Sign in instead.");
+                throw ApiException.conflict("That email already has a business with us. Sign in instead.");
             }
         }
         String business = b.str("businessName");

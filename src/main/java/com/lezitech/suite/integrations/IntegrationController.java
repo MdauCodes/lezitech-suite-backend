@@ -258,7 +258,7 @@ public class IntegrationController {
     private void requireTenant(UUID id) {
         Integer n = jdbc.queryForObject("SELECT count(*) FROM tenants WHERE id = ?", Integer.class, id);
         if (n == null || n == 0) {
-            throw ApiException.notFound("Workspace");
+            throw ApiException.notFound("Business");
         }
     }
 }
