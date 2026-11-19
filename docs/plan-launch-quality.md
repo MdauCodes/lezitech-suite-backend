@@ -114,7 +114,7 @@ App:
 - The **reach-us button** in the app and on the website: a compact icon opening WhatsApp (0796814154), call, and feedback.
 - Halls: a simple day view of hall bookings (hotel 🟡 item), if it fits; otherwise after launch.
 
-## Phase E: The paying moment (1 day)
+## Phase E: The paying moment, referrals and the mall-tenant offer (2 days)
 
 The trial must turn into money without help:
 - the countdown from the first day (days left, what they keep, what it costs for their tools);
@@ -123,7 +123,22 @@ The trial must turn into money without help:
 - reminder emails at 3 days, 1 day and the last day, in the business's words;
 - your offers from the control panel show correctly on the plan page.
 
-**Done when:** a test business goes from trial to paid on a phone in under a minute, with a real KSh payment, refunded afterwards.
+Two growth offers (owner's go-ahead, 19 Nov):
+- **Referral: a free month for both.**
+  - Every business gets its own "Invite a business" link and a WhatsApp share button, in the app and on the paid receipt email.
+  - When the invited business pays its first month, both get a free month added (the `?ref=` code is already recorded at signup).
+  - A small "Your invites" list shows who joined and who has paid.
+  - Plain words throughout ("Your friend gets a free month when they pay. So do you.").
+- **Mall-tenant discount.**
+  - A landlord on BizNez can turn on "Offer my tenants BizNez at a discount" (for example 20% off, set in the control panel per mall).
+  - Tenants see the offer on their tenant portal and statements, with a Start free button that carries the mall's code.
+  - Signups through it get the discount automatically and show in the control panel as coming from that mall.
+  - The landlord's own BizNez bill can get a thank-you credit per tenant who pays (LeziTech's choice, set in the control panel).
+
+**Done when:**
+- a test business goes from trial to paid on a phone in under a minute, with a real KSh payment, refunded afterwards;
+- a referred business paying adds a free month to both;
+- a mall tenant's signup gets the discount and shows its mall.
 
 ## Phase F: Sign-off and deploy (1 day)
 
@@ -156,9 +171,9 @@ The trial must turn into money without help:
 | B. Speed | 1 |
 | C. Reliability | 1–2 |
 | D. Finish what a trial touches | 1–2 |
-| E. The paying moment | 1 |
+| E. The paying moment, referrals and mall-tenant offer | 2 |
 | F. Sign-off and deploy | 1 |
-| **Total** | **7–9 working days** |
+| **Total** | **8–10 working days** |
 
 Started now, that means deploying around **the end of November or the first days of December**.
 Phases A and D can run side by side in separate sessions, because they touch different files (app screens vs website).
