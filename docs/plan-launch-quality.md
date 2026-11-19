@@ -1,14 +1,16 @@
 # Plan: launch quality first, then deploy and market
 
-Written 2026-11-19. Status: **plan, waiting for the owner's go-ahead.**
+Written 2026-11-19, updated the same day with the market research (`market-research-2026-11-19.md`). Status: **approved, to be built in its own session.**
 
 ## The decision
 
-**A short, fixed quality pass (about 7–9 working days), then deploy and market to the five strong business types.**
+**A short, fixed quality pass (about 10–12 working days), then deploy and market to the five strong business types.**
 The weaker types keep improving after launch (`plan-gaps.md` phases 4–10). Each one is opened to marketing when its phase ships.
 
 **Why this order:**
-- Income comes from converting trials, and every trial is bought with ads (roughly KSh 1,000–3,000 a signup).
+- Income comes from converting trials. Google search in Kenya gives only about 300 ad clicks a month for these needs
+  (about KSh 18,000; see the research), so every trial must count, and most growth must come from other channels
+  (the website's own Google ranking, field agents, malls and referrals), which need their tools ready at launch.
   A slow first load, a confusing phone screen or a failed payment loses that customer for good.
 - Waiting for every sector (wholesale, services, tours) would delay income by weeks.
   Real users also show what matters faster than more building: the phase-2 walk found 2 blockers in an afternoon.
@@ -140,6 +142,41 @@ Two growth offers (owner's go-ahead, 19 Nov):
 - a referred business paying adds a free month to both;
 - a mall tenant's signup gets the discount and shows its mall.
 
+## Phase G: Growth tools (2 days)
+
+The research's best case depends on channels beyond ads; each needs a tool and a number from day one.
+- **Google Ads tracking:**
+  - a "trial started" conversion on the app's signup (already sends `StartTrial`; wire the Google tag);
+  - a **"paid" conversion sent back to Google** (offline conversion import, using the `gclid` already recorded at signup), so Google learns to find businesses that pay;
+  - one campaign with 5 ad groups (restaurants, shops, salons, hotels, property), each pointing to its business-type page.
+    The negative keyword list starts from the research: jobs, course, pdf, free download, crack, project, student, card machine.
+- **The website's Google ranking:**
+  - Search Console set up for `businez.com`, with the sitemap submitted;
+  - each business-type and town page checked for title, description and speed on a phone.
+- **Agents' kit** (for 1–2 field agents selling face to face):
+  - an agent role in the control panel, with their own referral code and link;
+  - a demo business per lead type they can open on their phone;
+  - signups and paid businesses counted per agent, and their commission worked out (the rate set by LeziTech);
+  - a one-page "how to show BizNez in 5 minutes" guide per lead type.
+- **One results page** in the control panel (build on "Ad results"):
+  - trials, paying businesses and leavers by channel (Google ads, website ranking, agent, mall, referral, direct) and by business type;
+  - cost per paying business where spend is known.
+
+**Done when:**
+- a test signup from an ad, an agent code, a mall link and a referral each shows under the right channel;
+- a test payment reaches Google Ads as a "paid" conversion.
+
+## Phase H: KRA eTIMS (decision now, build after launch)
+
+Competitors (Uzapoint) issue KRA eTIMS invoices on every sale, and shops that must issue them will ask.
+BizNez already has the eTIMS connection point (`EtimsClient`, with a stub), plus ETR upload and tax with or without eTIMS.
+- **Owner's decision now:**
+  1. apply to KRA as an eTIMS third-party integrator (slow, months); or
+  2. connect through an already-approved eTIMS integrator's API (faster; a fee per invoice or per month).
+- **Build after launch:** the real client behind `EtimsClient` for the chosen route, tested in KRA's sandbox.
+  It's switched on per business that needs it, and shown on the shops page once live.
+- Until then the website says plainly: "Tax receipts: upload your ETR and we send it with the receipt. Direct KRA eTIMS: coming soon."
+
 ## Phase F: Sign-off and deploy (1 day)
 
 1. Walk every lead type again on a phone, owner and staff, with samples off, as a new customer would. One screenshot set each.
@@ -172,14 +209,22 @@ Two growth offers (owner's go-ahead, 19 Nov):
 | C. Reliability | 1–2 |
 | D. Finish what a trial touches | 1–2 |
 | E. The paying moment, referrals and mall-tenant offer | 2 |
+| G. Growth tools | 2 |
 | F. Sign-off and deploy | 1 |
-| **Total** | **8–10 working days** |
+| **Total** | **10–12 working days** |
+| H. KRA eTIMS | decision now; build after launch |
 
 Started now, that means deploying around **the end of November or the first days of December**.
-Phases A and D can run side by side in separate sessions, because they touch different files (app screens vs website).
+Order: A → B → C → D → E → G → F. Phases A and D can run side by side, because they touch different files
+(app screens vs website), and so can B and G.
 
 ## Needed from the owner
 
 - **Go-ahead** on this plan, and on marking the weak types "coming soon" until their phase ships.
 - **Before phase C:** a PayHero sandbox or the live LeziTech PayHero account; Brevo with the `businez.com` domain; Backblaze B2.
+- **Before phase G:**
+  - the Google Ads account to run BizNez ads in (a new account under the LeziTech Agency manager);
+  - Search Console access for `businez.com`;
+  - the agents' commission rate.
+- **Phase H:** the eTIMS route (apply to KRA, or use an approved integrator).
 - **Before phase F:** DNS access for `businez.com` and `lezitech.site`, and a Coolify API token saved to a file.
