@@ -28,16 +28,19 @@ class FirstStepsTest extends IntegrationTest {
         assertThat(done(start, "items")).isFalse();
         assertThat(done(start, "staff")).isFalse();
         assertThat(done(start, "samples")).isFalse();
+        assertThat(done(start, "till")).isFalse();
 
         post("/items", owner, Map.of("name", "Royco 200g", "kind", "PRODUCT", "price", 120));
         staff(owner, "CASHIER");
+        post("/shifts/open", owner, Map.of("openingCash", 500));
         JsonNode later = get("/first-steps", owner).body();
         assertThat(done(later, "items")).isTrue();
         assertThat(done(later, "staff")).isTrue();
+        assertThat(done(later, "till")).isTrue();
         assertThat(later.at("/done").asInt()).isGreaterThan(start.at("/done").asInt());
 
         // A landlord's steps are about units and tenants, not a till.
         JsonNode landlord = get("/first-steps", token(signup("property"))).body();
-        assertThat(landlord.toString()).contains("units").contains("tenants").doesNotContain("\"sale\"");
+        assertThat(landlord.toString()).contains("units").contains("tenants").doesNotContain("\"sale\"").doesNotContain("\"till\"");
     }
 }

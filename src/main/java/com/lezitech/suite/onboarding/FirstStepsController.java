@@ -84,7 +84,10 @@ public class FirstStepsController {
         steps.add(step("staff", "Add your staff and give each a PIN", "Each person signs in with their own PIN, so you see who sold what.", "/team", "Add a staff member",
                 yes("SELECT count(*) > 1 FROM users WHERE tenant_id = :t AND active")));
         if (!property) {
-            steps.add(step("sale", "Make your first real sale", "Open the till, sell something and take the money. That's BizNez working for you.", "/pos", "Open the till and sell",
+            // Each day starts by counting the cash in the drawer: said here first, so it isn't a surprise at the first sale.
+            steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Every morning starts this way, so the evening count adds up.", "/pos", "Open the till",
+                    yes("SELECT exists(SELECT 1 FROM shifts WHERE tenant_id = :t)")));
+            steps.add(step("sale", "Make your first real sale", "Sell something and take the money. That's BizNez working for you.", "/pos", "Make a sale",
                     yes("SELECT exists(SELECT 1 FROM orders WHERE status IN ('PAID', 'CREDIT') AND kind = 'SALE' AND " + own + ")", p)));
         }
         if (until != null || t.get("removed") != null) {

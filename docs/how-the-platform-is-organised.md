@@ -10,7 +10,7 @@ Rule of thumb: **the default is what suits most clients; every client can change
 - **Option:** Settings, "What you use": Selling (POS), Customers & sales leads (CRM), Back office (ERP). Switching a
   part off removes its screens from the menu. Home, customers, items, reports, staff and settings always stay.
   Stored in `tenants.products`; screens per part are in `lib/roles.ts` (`PRODUCT_MODULES`).
-- **Plans:** Lite = one part, Growth = any two, Pro = all three. Enforced when saving settings (`PLAN_LIMIT`).
+- **Plans:** every plan uses every part; plans differ by their extra tools (`PlanFeatures`), since 16 Nov.
 
 ## Reports
 

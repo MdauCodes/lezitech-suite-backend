@@ -2,6 +2,18 @@
 
 Written 2026-11-19, updated the same day with the market research (`market-research-2026-11-19.md`). Status: **approved, to be built in its own session.**
 
+## Progress
+
+| Phase | Status | Notes |
+|---|---|---|
+| A. Phone pass | ✅ Done 2026-11-19 | Findings A.1–A.15 and screenshots in `journey-findings.md` and `docs/screens/phase-a/` |
+| B. Speed | Next | |
+| C. Reliability | Waiting on accounts for the money and email parts | |
+| D. Finish what a trial touches | | |
+| E. Paying moment, referrals, mall offer | | |
+| G. Growth tools | | |
+| F. Sign-off and deploy | Waiting on the owner's go-ahead | |
+
 ## The decision
 
 **A short, fixed quality pass (about 10–12 working days), then deploy and market to the five strong business types.**

@@ -133,10 +133,7 @@ public class SettingsController {
             if (products.isEmpty()) {
                 throw ApiException.bad("Keep at least one part switched on");
             }
-            if (products.size() > 1 && "LITE".equals(limits.effectivePlan())) {
-                throw new ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "PLAN_LIMIT",
-                        "Your Lite plan includes one part (selling, customers or back office). Growth includes any two, Pro all three. The owner can upgrade under Your plan.");
-            }
+            // Every plan may use every part; plans differ by their extra tools (PlanFeatures), not by parts (16 Nov).
             jdbc.update("UPDATE tenants SET products = cast(? as text[]) WHERE id = ?", "{" + String.join(",", products) + "}", TenantContext.tenantId());
         }
         accessPolicy.forget(TenantContext.tenantId());

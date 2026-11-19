@@ -69,15 +69,11 @@ class AccessPolicyTest extends IntegrationTest {
     }
 
     @Test
-    void litePlanKeepsToOnePart() {
+    void litePlanCanUseEveryPart() {
         JsonNode s = signup("retail");
         String owner = token(s);
-        assertThat(call("PUT", "/settings", owner, Map.of("products", List.of("POS", "CRM"), "settings", Map.of())).status()).isEqualTo(200);
         jdbc.update("UPDATE tenants SET status = 'ACTIVE', plan = 'LITE', paid_until = now() + interval '30 days' WHERE id = ?::uuid", s.at("/tenant/id").asText());
-        Res two = call("PUT", "/settings", owner, Map.of("products", List.of("POS", "ERP"), "settings", Map.of()));
-        assertThat(two.status()).isEqualTo(403);
-        assertThat(two.at("/code").asText()).isEqualTo("PLAN_LIMIT");
-        assertThat(call("PUT", "/settings", owner, Map.of("products", List.of("POS"), "settings", Map.of())).status()).isEqualTo(200);
+        assertThat(call("PUT", "/settings", owner, Map.of("products", List.of("POS", "CRM", "ERP"), "settings", Map.of())).status()).isEqualTo(200);
         assertThat(call("PUT", "/settings", owner, Map.of("products", List.of(), "settings", Map.of())).status()).isEqualTo(400);
     }
 }
