@@ -117,6 +117,11 @@ class PackageITest extends IntegrationTest {
         // Support can't extend or give itself access.
         assertThat(post("/support-access", as, Map.of()).status()).isEqualTo(403);
 
+        // Support can't renew itself either: a plain token would carry no grant, so it would outlive the owner's
+        // 5 hours and its changes would stop being marked as support. The owner's own session still renews.
+        assertThat(post("/auth/refresh", as, Map.of()).status()).isEqualTo(403);
+        assertThat(post("/auth/refresh", owner, Map.of()).status()).isEqualTo(200);
+
         // A change made as support is in the business's activity log, marked LeziTech support.
         assertThat(post("/categories", as, Map.of("name", "Added by support")).status()).isEqualTo(200);
         String log = get("/activity", owner).body().toString();

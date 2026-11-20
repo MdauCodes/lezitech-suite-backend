@@ -72,6 +72,18 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         }
         try {
+            // A LeziTech support sign-in must never renew itself. Renewal hands back a plain workspace token with
+            // no grant on it, so the session would outlive the owner's 5 hours and its changes would stop being
+            // recorded as support in the business's activity log. A grant is shorter than a token's life, so a real
+            // support session never needs a renewal: ask the owner for access again instead. Enforced here, with the
+            // grant's other checks, rather than in the endpoint. The return still runs the clean-up below.
+            if (grant != null && "POST".equals(req.getMethod()) && "/api/auth/refresh".equals(req.getRequestURI())) {
+                res.setStatus(403);
+                res.setContentType("application/json");
+                res.getWriter().write("{\"code\":\"SUPPORT_NO_REFRESH\",\"message\":"
+                        + "\"A LeziTech support sign-in can't be renewed. Ask the owner to give access again.\"}");
+                return;
+            }
             chain.doFilter(req, res);
             // Everything LeziTech changes while signed in as the business goes in the business's activity log.
             if (grant != null && WRITES.contains(req.getMethod()) && req.getRequestURI().startsWith("/api/")) {

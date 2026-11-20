@@ -2,7 +2,9 @@ package com.lezitech.suite.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lezitech.suite.publicapi.PublicController;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -68,6 +70,20 @@ public abstract class IntegrationTest {
     protected ObjectMapper json;
 
     private final HttpClient http = HttpClient.newHttpClient();
+
+    /**
+     * The limits on the pages anyone can use are shared static state for the whole test run, and tests all call
+     * from the same address. A business allows 12 orders an hour and 5 per table, so one test's orders could use up
+     * another's allowance and make an unrelated test fail: the order would be refused, the test would carry on with
+     * no order and then fail somewhere confusing. Every test starts with the counts clear.
+     */
+    @BeforeEach
+    void clearPublicLimits() {
+        PublicController.PER_CLIENT.clear();
+        PublicController.PER_TABLE.clear();
+        PublicController.PER_ORDER_PAY.clear();
+        PublicController.FIND_BILL.clear();
+    }
 
     public record Res(int status, JsonNode body) {
         public JsonNode at(String pointer) {
