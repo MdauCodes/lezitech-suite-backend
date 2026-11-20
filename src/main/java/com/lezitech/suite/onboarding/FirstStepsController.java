@@ -83,10 +83,25 @@ public class FirstStepsController {
                 integrations.tillAccount(TenantContext.tenantId()).isPresent()));
         steps.add(step("staff", "Add your staff and give each a PIN", "Each person signs in with their own PIN, so you see who sold what.", "/team", "Add a staff member",
                 yes("SELECT count(*) > 1 FROM users WHERE tenant_id = :t AND active")));
+        // Which of the business's screens this kind of business has (salons take bookings, service firms send quotes).
+        boolean bookings = false, quotes = false;
+        try {
+            for (var m : sectors.get(sector, (String) t.get("subSector")).path("modules")) {
+                bookings |= "bookings".equals(m.asText());
+                quotes |= "quotes".equals(m.asText());
+            }
+        } catch (RuntimeException ignored) { /* unknown sector: no extra steps */ }
         if (!property) {
             // Each day starts by counting the cash in the drawer: said here first, so it isn't a surprise at the first sale.
-            steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Every morning starts this way, so the evening count adds up.", "/pos", "Open the till",
+            steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Counting at the start is what lets BizNez tell you at closing time whether the cash matches what was sold.", "/pos", "Open the till",
                     yes("SELECT exists(SELECT 1 FROM shifts WHERE tenant_id = :t)")));
+            if (bookings) {
+                steps.add(step("booking", "Take your first booking", "Clients book a time with you, and BizNez keeps the day's diary so nobody is double-booked.", "/bookings", "Add my first booking",
+                        yes("SELECT exists(SELECT 1 FROM appointments WHERE " + own + ")", p)));
+            } else if (quotes) {
+                steps.add(step("quote", "Send your first quote", "Tell a customer the price before the work starts. When they say yes, turn it into a bill in one tap.", "/quotes", "Send my first quote",
+                        yes("SELECT exists(SELECT 1 FROM orders WHERE kind = 'QUOTE' AND " + own + ")", p)));
+            }
             steps.add(step("sale", "Make your first real sale", "Sell something and take the money. That's BizNez working for you.", "/pos", "Make a sale",
                     yes("SELECT exists(SELECT 1 FROM orders WHERE status IN ('PAID', 'CREDIT') AND kind = 'SALE' AND " + own + ")", p)));
         }
