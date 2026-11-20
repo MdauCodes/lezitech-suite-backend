@@ -15,6 +15,12 @@ public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
+    private final ErrorAlerts alerts;
+
+    public ApiExceptionHandler(ErrorAlerts alerts) {
+        this.alerts = alerts;
+    }
+
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException e) {
         return ResponseEntity.status(e.status()).body(Map.of("code", e.code(), "message", e.getMessage()));
@@ -36,8 +42,12 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    ResponseEntity<Map<String, Object>> unexpected(Exception e) {
+    ResponseEntity<Map<String, Object>> unexpected(Exception e, jakarta.servlet.http.HttpServletRequest request) {
         log.error("Unexpected error", e);
+        // The path can carry a payment secret or a customer's one-off link, and these alerts are emailed: a secret
+        // reaching one leaves the server altogether. Mask before recording.
+        alerts.record(e, request.getMethod() + " "
+                + com.lezitech.suite.config.RequestLogFilter.maskSecrets(request.getRequestURI()));
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("code", "SERVER_ERROR", "message", "Something went wrong on our side. Please try again."));
     }

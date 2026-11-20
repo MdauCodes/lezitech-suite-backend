@@ -57,6 +57,13 @@ public class RequestLogFilter extends OncePerRequestFilter {
             "^(/api/public/(?:mpesa/stk|payhero|mpesa/c2b))/[^/]+", Pattern.CASE_INSENSITIVE);
 
     /**
+     * Any long opaque segment: the links we email and text to customers carry one, and it is the whole key to
+     * that stay, booking, statement or order. Matching by shape rather than by path means a token added later
+     * is covered without anyone remembering this file. Slugs, numbers and UUID-free words are left alone.
+     */
+    private static final Pattern LONG_TOKEN = Pattern.compile("/(?=[^/]{24,})(?=[^/]*[A-Za-z])[A-Za-z0-9_-]{24,}(?=/|$)");
+
+    /**
      * Replaces the secret segment of a callback path with *** and leaves every other path unchanged.
      * Public because anything else that records a request path must mask it too: error alerts are emailed,
      * so a secret reaching one leaves the server entirely.
@@ -65,7 +72,7 @@ public class RequestLogFilter extends OncePerRequestFilter {
         if (uri == null) {
             return null;
         }
-        return CALLBACK_SECRET.matcher(uri).replaceFirst("$1/***");
+        return LONG_TOKEN.matcher(CALLBACK_SECRET.matcher(uri).replaceFirst("$1/***")).replaceAll("/***");
     }
 
     @Override

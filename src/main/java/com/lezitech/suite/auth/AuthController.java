@@ -47,6 +47,9 @@ public class AuthController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.PlatformSettings platform;
     private final com.lezitech.suite.growth.Referrals referrals;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.lezitech.suite.growth.MallOffer mallOffer;
     private final com.lezitech.suite.growth.MetaConversions meta;
 
     public AuthController(JdbcTemplate jdbc, PasswordEncoder encoder, JwtService jwt, SectorCatalog sectors,
@@ -80,6 +83,10 @@ public class AuthController {
         Object ref = raw.get("referralCode") != null ? raw.get("referralCode") : acq == null ? null : acq.path("ref").asText(null);
         referrals.link(tenantId, ref == null ? null : ref.toString());
         referrals.codeFor(tenantId);
+        // A tenant of a mall that offers BizNez at a discount keeps that discount on every payment.
+        if (mallOffer != null && acq != null && acq.hasNonNull("mall")) {
+            mallOffer.linkSignup(tenantId, acq.get("mall").asText());
+        }
         Object eventId = raw.get("eventId");
         meta.track("StartTrial", eventId == null ? null : eventId.toString(), tenantId, email, new Body(raw).str("phone", null),
                 com.lezitech.suite.growth.Acquisition.visitor(acq, req), java.math.BigDecimal.ZERO);
@@ -341,8 +348,23 @@ public class AuthController {
     /** Silent renewal: a signed-in till swaps its token for a fresh one before it expires. */
     @PostMapping("/refresh")
     public Map<String, Object> refresh() {
+        refuseWhenSupport();
         TenantContext.Caller c = TenantContext.caller();
         return Map.of("token", jwt.issue(c.userId(), c.tenantId(), c.role(), c.name(), versions.current(c.userId(), false)));
+    }
+
+    /**
+     * A LeziTech support sign-in must never be handed a plain workspace token. Such a token carries no grant, so it
+     * would outlive the owner's 5 hours and its changes would stop being recorded as support. This sits on the one
+     * place that mints those tokens, so it covers renewing, switching to another business (which also reached
+     * businesses that never granted support anything) and anything added later that calls session().
+     * A real support session never needs one: a grant is shorter than a token's life, so ask the owner again.
+     */
+    private void refuseWhenSupport() {
+        if (SupportAccess.current().isPresent()) {
+            throw ApiException.forbidden("A LeziTech support sign-in can't start or renew an ordinary session."
+                    + " Ask the owner to give access again.");
+        }
     }
 
     @GetMapping("/me")
@@ -352,6 +374,7 @@ public class AuthController {
     }
 
     public Map<String, Object> session(UUID userId, UUID tenantId, String role, String name) {
+        refuseWhenSupport();
         jdbc.update("UPDATE users SET last_login_at = now() WHERE id = ?", userId);
         Map<String, Object> out = profile(userId, tenantId);
         out.put("token", jwt.issue(userId, tenantId, effectiveRole(userId, role), name, versions.current(userId, false)));
