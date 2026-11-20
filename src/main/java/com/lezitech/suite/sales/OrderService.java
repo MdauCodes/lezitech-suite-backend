@@ -474,6 +474,13 @@ public class OrderService {
         boolean deposit = b.bool("deposit", false);
         BigDecimal change = deposit ? BigDecimal.ZERO : sum.subtract(due).max(BigDecimal.ZERO);
         final BigDecimal changeDue = change;
+        if (!deposit) {
+            BigDecimal nonCash = payments.stream().filter(p -> !"CASH".equalsIgnoreCase(String.valueOf(p.get("method"))))
+                    .map(p -> new Body(p).num("amount", BigDecimal.ZERO)).filter(x -> x.signum() > 0).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (nonCash.compareTo(due) > 0) {
+                throw ApiException.bad("That is more than the " + due.toPlainString() + " still to pay. Only cash can give change, so lower the card, M-Pesa or account amount");
+            }
+        }
         for (Map<String, Object> p : payments) {
             Body pb = new Body(p);
             String method = pb.str("method").toUpperCase();
@@ -507,7 +514,10 @@ public class OrderService {
             Map<String, Object> c = db.one("Customer", "SELECT balance, credit_limit, name FROM customers WHERE id = :id FOR UPDATE", "id", customerId);
             BigDecimal newBalance = ((BigDecimal) c.get("balance")).add(credit);
             BigDecimal limit = (BigDecimal) c.get("creditLimit");
-            if (limit.signum() > 0 && newBalance.compareTo(limit) > 0) {
+            if (limit.signum() <= 0) {
+                throw ApiException.bad(c.get("name") + " has no credit allowed, so they must pay at once. Raise their credit limit first if you want to put this on their account");
+            }
+            if (newBalance.compareTo(limit) > 0) {
                 throw ApiException.bad(c.get("name") + " would go over their credit limit of " + limit.toPlainString());
             }
             db.exec("UPDATE customers SET balance = balance + :c WHERE id = :id", "id", customerId, "c", credit);
@@ -624,6 +634,10 @@ public class OrderService {
             }
             // Account sales come off the account and points go back as points, whatever method the refund is in.
             String back = "CREDIT".equals(paidWith) || "POINTS".equals(paidWith) || method == null ? paidWith : method.toUpperCase();
+            if ("CASH".equals(back)) {
+                // Cash going out must land in somebody's till count.
+                tills.requireOpenTill();
+            }
             db.exec("""
                     INSERT INTO payments (tenant_id, order_id, shift_id, method, amount, kind, refund_reason, user_id)
                     VALUES (:t, :order, :shift, :method, :amount, 'REFUND', :reason, :u)""",

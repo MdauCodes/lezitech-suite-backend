@@ -109,4 +109,64 @@ class CheckoutTest extends IntegrationTest {
             return t;
         }
     }
+
+    @Test
+    void customerOnCreditLimitZeroMustPayAtOnce() {
+        String owner = token(signup("retail"));
+        String sugar = item(owner, "Sugar").get("id").asText();
+        String cid = post("/customers", owner, Map.of("name", "Zero Zawadi", "creditLimit", 0)).at("/id").asText();
+        Res r = post("/orders", owner, Map.of("customerId", cid, "lines", line(sugar, 1),
+                "payments", List.of(Map.of("method", "CREDIT", "amount", 190))));
+        assertThat(r.status()).isEqualTo(400);
+        assertThat(r.at("/message").asText()).contains("Zero Zawadi").contains("pay at once");
+        assertThat(get("/customers/" + cid, owner).at("/balance").decimalValue()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void customerOnPositiveCreditLimitCanStillBuyOnAccount() {
+        String owner = token(signup("retail"));
+        String sugar = item(owner, "Sugar").get("id").asText();
+        String cid = post("/customers", owner, Map.of("name", "Limit Lucy", "creditLimit", 1000)).at("/id").asText();
+        Res r = post("/orders", owner, Map.of("customerId", cid, "lines", line(sugar, 1),
+                "payments", List.of(Map.of("method", "CREDIT", "amount", 190))));
+        assertThat(r.status()).isEqualTo(200);
+        assertThat(r.at("/status").asText()).isEqualTo("CREDIT");
+        assertThat(get("/customers/" + cid, owner).at("/balance").decimalValue()).isEqualByComparingTo("190");
+    }
+
+    @Test
+    void payingMoreThanTheBillByMpesaIsRefusedButCashGivesChange() {
+        String owner = token(signup("retail"));
+        String sugar = item(owner, "Sugar").get("id").asText();
+        Res over = post("/orders", owner, Map.of("lines", line(sugar, 1),
+                "payments", List.of(Map.of("method", "MPESA", "amount", 500, "reference", "XYZ"))));
+        assertThat(over.status()).isEqualTo(400);
+        assertThat(over.at("/message").asText()).contains("more than").contains("190");
+        Res cash = post("/orders", owner, Map.of("lines", line(sugar, 1),
+                "payments", List.of(Map.of("method", "CASH", "amount", 500))));
+        assertThat(cash.status()).isEqualTo(200);
+        assertThat(cash.at("/status").asText()).isEqualTo("PAID");
+        assertThat(cash.at("/change").decimalValue()).isEqualByComparingTo("310");
+    }
+
+    @Test
+    void cashRefundWithNoOpenTillIsRefusedButMpesaRefundWorks() {
+        String owner = token(signup("retail"));
+        // Let cashiers give refunds, so a cashier who has not opened their till can try.
+        assertThat(call("PUT", "/settings", owner, Map.of("settings", Map.of("access", Map.of("CASHIER", Map.of("refunds", true))))).status()).isEqualTo(200);
+        String cashier = staff(owner, "CASHIER");
+        String sugar = item(owner, "Sugar").get("id").asText();
+        // The owner rings both sales (no till needed for the owner); the cashier has no till open.
+        String cashSale = post("/orders", owner, Map.of("lines", line(sugar, 1),
+                "payments", List.of(Map.of("method", "CASH", "amount", 190)))).at("/id").asText();
+        String mpesaSale = post("/orders", owner, Map.of("lines", line(sugar, 1),
+                "payments", List.of(Map.of("method", "MPESA", "amount", 190, "reference", "REF1")))).at("/id").asText();
+        Res cash = post("/orders/" + cashSale + "/refund", cashier, Map.of("reason", "Returned"));
+        assertThat(cash.status()).isEqualTo(409);
+        assertThat(cash.at("/message").asText()).contains("Start your till");
+        assertThat(get("/orders/" + cashSale, owner).at("/status").asText()).isEqualTo("PAID");
+        Res mpesa = post("/orders/" + mpesaSale + "/refund", cashier, Map.of("reason", "Returned"));
+        assertThat(mpesa.status()).isEqualTo(200);
+        assertThat(mpesa.at("/status").asText()).isEqualTo("REFUNDED");
+    }
 }
