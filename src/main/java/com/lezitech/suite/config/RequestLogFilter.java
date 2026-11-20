@@ -57,10 +57,12 @@ public class RequestLogFilter extends OncePerRequestFilter {
             "^(/api/public/(?:mpesa/stk|payhero|mpesa/c2b))/[^/]+", Pattern.CASE_INSENSITIVE);
 
     /**
-     * Any long opaque segment: the links we email and text to customers carry one, and it is the whole key to
-     * that stay, booking, statement or order. Matching by shape rather than by path means a token added later
-     * is covered without anyone remembering this file. Slugs, numbers and UUID-free words are left alone.
+     * On the pages anyone can open, a long opaque segment is a one-off link we emailed or texted a customer, and it
+     * is the whole key to that stay, booking, statement or order. Matching by shape means a token added later is
+     * covered without anyone remembering this file. Only public paths: on a signed-in path the same shape is an
+     * ordinary record id, which is not a secret and which support needs to be able to read in the log.
      */
+    private static final Pattern PUBLIC_PATH = Pattern.compile("^(?:/api/public/|/s/)", Pattern.CASE_INSENSITIVE);
     private static final Pattern LONG_TOKEN = Pattern.compile("/(?=[^/]{24,})(?=[^/]*[A-Za-z])[A-Za-z0-9_-]{24,}(?=/|$)");
 
     /**
@@ -72,7 +74,8 @@ public class RequestLogFilter extends OncePerRequestFilter {
         if (uri == null) {
             return null;
         }
-        return LONG_TOKEN.matcher(CALLBACK_SECRET.matcher(uri).replaceFirst("$1/***")).replaceAll("/***");
+        String masked = CALLBACK_SECRET.matcher(uri).replaceFirst("$1/***");
+        return PUBLIC_PATH.matcher(masked).find() ? LONG_TOKEN.matcher(masked).replaceAll("/***") : masked;
     }
 
     @Override

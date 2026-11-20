@@ -26,7 +26,10 @@ public class Offers {
     private static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
 
     /** What a payment costs after offers: the amount, and the offer used (null if none). */
-    public record Price(long amount, long full, UUID offerId, String offerTitle) {
+    public record Price(long amount, long full, UUID offerId, String offerTitle, long credit) {
+        public Price(long amount, long full, UUID offerId, String offerTitle) {
+            this(amount, full, offerId, offerTitle, 0);
+        }
     }
 
     private final JdbcTemplate jdbc;
@@ -196,6 +199,19 @@ public class Offers {
             if (amount < best.amount()) {
                 best = new Price(amount, full, (UUID) o.get("id"), (String) o.get("title"));
             }
+        }
+        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit FROM tenants WHERE id = ?", tenant);
+        int mall = ((Number) own.get("mall_discount")).intValue();
+        if (mall > 0) {
+            long amount = Math.round(full * (100 - mall) / 100.0);
+            if (amount < best.amount()) {
+                best = new Price(amount, full, null, "Tenants' offer: " + mall + "% off");
+            }
+        }
+        long credit = Math.min(best.amount(), ((Number) own.get("billing_credit")).longValue());
+        if (credit > 0) {
+            best = new Price(best.amount() - credit, full, best.offerId(),
+                    (best.offerTitle() == null ? "" : best.offerTitle() + " · ") + "KSh " + String.format("%,d", credit) + " thank-you credit", credit);
         }
         return best;
     }

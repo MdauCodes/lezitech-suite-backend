@@ -8,7 +8,7 @@ Target: **22 November 2026**. Follow this top to bottom. Each step says what you
 |---|---|
 | App (businesses sign in here) | `https://suite.lezitech.site` |
 | API (the app, Safaricom and PayHero call it) | `https://suite-api.lezitech.site` |
-| Marketing website | `https://businez.com` |
+| Marketing website | `https://lezitech.site/suite` (businez.com is not live yet) |
 
 ---
 
@@ -17,7 +17,7 @@ Target: **22 November 2026**. Follow this top to bottom. Each step says what you
 | Item | Where to get it | Blocks |
 |---|---|---|
 | A **new** Contabo VPS (Cloud VPS 4 or 6 is enough to start), Ubuntu 24.04 | contabo.com | everything |
-| DNS access for `lezitech.site` and `businez.com` | your domain registrar / Cloudflare | HTTPS, email |
+| DNS access for `lezitech.site` (and the sending domain, step 6) | your domain registrar / Cloudflare | HTTPS, email |
 | Brevo account, sending domain verified | brevo.com → Senders, domains | password codes, invites, statements |
 | Backblaze B2 bucket plus an application key (free to start; R2 later) | backblaze.com | photos, ETR uploads |
 | PayHero account for LeziTech (API username, password, channel id) | app.payhero.co.ke | subscription payments |
@@ -60,10 +60,18 @@ Email records come from Brevo (step 6). Check: `nslookup suite-api.lezitech.site
 2. Domain: `https://suite-api.lezitech.site`.
 3. Environment variables: every line of `ops/production.env.example`, filled in. `DATABASE_URL` uses the Postgres service's internal hostname from Coolify.
 4. Health check path: `/actuator/health`.
-5. Deploy. The first start runs all migrations (V1 to the latest) as the owner.
+5. **Before deploying onto a database that already holds sales:** create the four V61 report indexes by hand first, so the deploy does not lock the tills. Flyway cannot use `CONCURRENTLY`, so without this step `V61__report_indexes.sql` blocks every write to `orders`, `order_lines` and `payments` while it builds. In the Postgres terminal, connected to `suite`, run each of these (same names as the migration; run them one at a time, not in a transaction):
+   ```sql
+   CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_orders_closed ON orders (tenant_id, closed_at) WHERE closed_at IS NOT NULL;
+   CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_orders_customer ON orders (tenant_id, customer_id, closed_at) WHERE customer_id IS NOT NULL;
+   CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_lines_item ON order_lines (tenant_id, item_id);
+   CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_payments_order ON payments (order_id);
+   ```
+   `IF NOT EXISTS` makes the migration a no-op afterwards. On a fresh, empty database (first ever deploy) skip this step.
+6. Deploy. The first start runs all migrations (V1 to the latest) as the owner.
    - It stops with "Refusing to start with unsafe settings" if a secret is missing or weak. The message names which one.
-6. Run `db/production-setup.sql` (step 3.4), set `DATABASE_PASSWORD`, redeploy.
-7. Check:
+7. Run `db/production-setup.sql` (step 3.4), set `DATABASE_PASSWORD`, redeploy.
+8. Check:
    ```bash
    curl -s https://suite-api.lezitech.site/actuator/health
    ```
@@ -76,14 +84,16 @@ Email records come from Brevo (step 6). Check: `nslookup suite-api.lezitech.site
 3. Domain: `https://suite.lezitech.site`.
 4. Deploy. Check: the page opens, the sign-in page loads, and the browser console shows no CORS errors. If it does, `CORS_ORIGINS` on the API is missing the app's address.
 
-The marketing website (`website/`) is deployed separately to `businez.com`; its Start and Sign-in links point at `https://suite.lezitech.site`.
+The marketing website (`website/`) is deployed separately to `https://lezitech.site/suite`; its Start and Sign-in links point at `https://suite.lezitech.site`.
 
 ## 6. Email (Brevo)
 
-1. Brevo → **Senders, domains & dedicated IPs → Domains → Add a domain** `businez.com`.
+TODO owner: businez.com is not live yet. Use a domain you control now (for example `lezitech.site`) as `<sending domain>` below, and switch later.
+
+1. Brevo → **Senders, domains & dedicated IPs → Domains → Add a domain** `<sending domain>`.
 2. Add the records Brevo shows at the DNS provider: the **Brevo code TXT**, **DKIM** (CNAME or TXT), and **DMARC** (`_dmarc` TXT, start with `v=DMARC1; p=none; rua=mailto:<your inbox>`).
-3. SPF: if `businez.com` already has an SPF TXT record, add `include:spf.brevo.com` to it. Never create a second SPF record.
-4. Wait for Brevo to show all green, then create an **API key (v3)**. That is `EMAIL_API_KEY`; `EMAIL_FROM=no-reply@businez.com`.
+3. SPF: if `<sending domain>` already has an SPF TXT record, add `include:spf.brevo.com` to it. Never create a second SPF record.
+4. Wait for Brevo to show all green, then create an **API key (v3)**. That is `EMAIL_API_KEY`; `EMAIL_FROM=no-reply@<sending domain>`.
 5. Check: on the sign-in page, **Forgot password** with your own email. The code must arrive in the Gmail inbox (not spam) within a minute and look branded.
 
 ## 7. Payments
@@ -134,6 +144,15 @@ docker exec -i <pg-container> psql -U <owner> -d suite_restore_test -c "select c
 docker exec -i <pg-container> dropdb -U <owner> suite_restore_test
 ```
 The count must match the live database.
+
+### Hearing about problems (phase C)
+
+- **Server errors:** set `ALERT_EMAIL` in the API's settings. Unexpected errors are grouped by kind and place, and one email
+  lists them at most every 15 minutes (`ALERT_EVERY_MS`), so a burst of the same fault is one email.
+- **Uptime:** copy `ops/uptime.sh` to `/usr/local/bin/suite-uptime` (chmod 700), fill `/etc/suite-uptime.env` as its header
+  says, and add the cron line `* * * * * /usr/local/bin/suite-uptime >> /var/log/suite-uptime.log 2>&1`. After two failed
+  minutes in a row it emails once, and once more when the API is back.
+- **Test both once:** stop the API container for 3 minutes (one DOWN email, one back-up email).
 
 ## 10. Control panel settings
 

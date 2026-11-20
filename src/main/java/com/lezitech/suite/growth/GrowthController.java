@@ -39,6 +39,16 @@ public class GrowthController {
         out.put("link", siteUrl + "?ref=" + code);
         out.put("joined", jdbc.queryForObject("SELECT count(*) FROM tenants WHERE referred_by = ?", Long.class, tenant));
         out.put("paid", jdbc.queryForObject("SELECT count(*) FROM tenants WHERE referred_by = ? AND referral_rewarded_at IS NOT NULL", Long.class, tenant));
+        // "Your invites": the businesses that joined with this code, newest first, and whether each has paid yet.
+        out.put("invites", jdbc.queryForList("""
+                SELECT name, created_at AS joined_at, referral_rewarded_at IS NOT NULL AS paid
+                FROM tenants WHERE referred_by = ? ORDER BY created_at DESC LIMIT 50""", tenant).stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", r.get("name"));
+            m.put("joinedAt", r.get("joined_at"));
+            m.put("paid", r.get("paid"));
+            return m;
+        }).toList());
         return out;
     }
 

@@ -83,6 +83,9 @@ public class SettingsController {
     private final SectorCatalog sectors;
     @org.springframework.beans.factory.annotation.Autowired
     private PlanLimits limits;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private PlanActivation planActivation;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.config.AccessPolicy accessPolicy;
     @org.springframework.beans.factory.annotation.Autowired
@@ -200,8 +203,14 @@ public class SettingsController {
         var price = offers.price(TenantContext.tenantId(), plan, cycle);
         BigDecimal amount = BigDecimal.valueOf(price.amount());
         java.util.UUID id = jdbc.queryForObject("""
-                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone, offer_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id""",
-                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null), price.offerId());
+                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone, offer_id, credit_used) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null), price.offerId(), BigDecimal.valueOf(price.credit()));
+        if (amount.signum() == 0 && price.credit() > 0) {
+            // Thank-you credit covers it all: nothing to pay, the plan is on now.
+            planActivation.activate(id, "CREDIT", null);
+            return Map.of("ok", true, "amount", amount, "requestId", id, "paid", true,
+                    "message", "Paid with your thank-you credit. Your " + plan.charAt(0) + plan.substring(1).toLowerCase() + " plan is on.");
+        }
         return Map.of("ok", true, "amount", amount, "requestId", id,
                 "message", "Request received. Pay KES " + amount.toPlainString()
                         + " to LeziTech and we activate your plan within one working hour.");

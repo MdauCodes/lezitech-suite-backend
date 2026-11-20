@@ -41,13 +41,14 @@ public class CrmController {
     @GetMapping("/customers")
     public List<Map<String, Object>> customers(@RequestParam(required = false) String q) {
         return db.list("""
-                SELECT c.*,
-                       (SELECT coalesce(sum(total), 0) FROM orders o WHERE o.customer_id = c.id AND o.status IN ('PAID','CREDIT')) AS lifetime_value,
-                       (SELECT max(created_at) FROM orders o WHERE o.customer_id = c.id AND o.status IN ('PAID','CREDIT')) AS last_visit,
-                       (SELECT count(*) FROM orders o WHERE o.customer_id = c.id AND o.status IN ('PAID','CREDIT')) AS visits
-                FROM customers c
-                WHERE cast(:q as text) IS NULL OR c.name ILIKE '%' || cast(:q as text) || '%' OR c.phone ILIKE '%' || cast(:q as text) || '%'
-                ORDER BY c.name LIMIT 500""", "q", q == null || q.isBlank() ? null : q.trim());
+                SELECT c.*, coalesce(s.lifetime_value, 0) AS lifetime_value, s.last_visit, coalesce(s.visits, 0) AS visits
+                FROM (SELECT * FROM customers c
+                      WHERE cast(:q as text) IS NULL OR c.name ILIKE '%' || cast(:q as text) || '%' OR c.phone ILIKE '%' || cast(:q as text) || '%'
+                      ORDER BY c.name LIMIT 500) c
+                -- Each listed customer's purchases, added up once for the 500 shown (not three look-ups each).
+                LEFT JOIN LATERAL (SELECT sum(o.total) AS lifetime_value, max(o.created_at) AS last_visit, count(*) AS visits
+                                   FROM orders o WHERE o.customer_id = c.id AND o.status IN ('PAID','CREDIT')) s ON true
+                ORDER BY c.name""", "q", q == null || q.isBlank() ? null : q.trim());
     }
 
     @GetMapping("/customers/{id}")

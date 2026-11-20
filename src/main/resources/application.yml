@@ -72,6 +72,9 @@ suite:
     test-event-code: ${META_TEST_EVENT_CODE:}
   # Where new setup requests are emailed (the LeziTech team inbox).
   team-email: ${TEAM_EMAIL:}
+  # Server errors are grouped and emailed here at most every 15 minutes (empty: the team email; neither: log only).
+  alert-email: ${ALERT_EMAIL:}
+  alert-every-ms: ${ALERT_EVERY_MS:900000}
   # Trial reminder emails: EMAIL_PROVIDER off | log | brevo | resend (+ EMAIL_API_KEY, EMAIL_FROM).
   email:
     provider: ${EMAIL_PROVIDER:off}

@@ -49,17 +49,20 @@ public class OrderController {
                                           @RequestParam(required = false) LocalDate to) {
         return db.list("""
                 SELECT o.id, o.number, o.kind, o.channel, o.status, o.total, o.paid, o.created_at, o.closed_at, o.offline,
-                       t.label AS table_label, c.name AS customer_name, u.name AS user_name,
+                       t.label AS table_label, o.customer_name, u.name AS user_name,
                        (SELECT string_agg(DISTINCT p.method, ', ') FROM payments p WHERE p.order_id = o.id) AS methods,
                        (SELECT count(*) FROM order_lines l WHERE l.order_id = o.id) AS line_count
-                FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN customers c ON c.id = o.customer_id
-                LEFT JOIN users u ON u.id = o.user_id
-                WHERE (cast(:status as text) IS NULL OR o.status = cast(:status as text))
-                  AND (cast(:kind as text) IS NULL OR o.kind = cast(:kind as text))
-                  AND (cast(:q as text) IS NULL OR c.name ILIKE '%' || cast(:q as text) || '%' OR o.number::text = cast(:q as text))
-                  AND (cast(:from as date) IS NULL OR o.created_at >= cast(:from as date))
-                  AND (cast(:to as date) IS NULL OR o.created_at < cast(:to as date) + 1)
-                ORDER BY o.created_at DESC LIMIT 500""",
+                FROM (
+                    -- The 500 newest first; the per-bill details below are then worked out for those 500 only.
+                    SELECT o.*, c.name AS customer_name FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+                    WHERE (cast(:status as text) IS NULL OR o.status = cast(:status as text))
+                      AND (cast(:kind as text) IS NULL OR o.kind = cast(:kind as text))
+                      AND (cast(:q as text) IS NULL OR c.name ILIKE '%' || cast(:q as text) || '%' OR o.number::text = cast(:q as text))
+                      AND (cast(:from as date) IS NULL OR o.created_at >= cast(:from as date))
+                      AND (cast(:to as date) IS NULL OR o.created_at < cast(:to as date) + 1)
+                    ORDER BY o.created_at DESC LIMIT 500) o
+                LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN users u ON u.id = o.user_id
+                ORDER BY o.created_at DESC""",
                 "status", blank(status), "kind", blank(kind), "q", blank(q), "from", from, "to", to);
     }
 

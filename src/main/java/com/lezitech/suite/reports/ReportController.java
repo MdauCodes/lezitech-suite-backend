@@ -96,8 +96,9 @@ public class ReportController {
                 SELECT to_char(d, 'YYYY-MM-DD') AS day, coalesce(sum(o.total), 0) AS sales, count(o.id) AS orders
                 FROM generate_series(current_date - 13, current_date, interval '1 day') d
                 LEFT JOIN orders o ON """ + SOLD + """
+                 AND o.closed_at >= cast(:since as timestamptz)
                  AND (o.closed_at AT TIME ZONE 'Africa/Nairobi')::date = d::date
-                GROUP BY d ORDER BY d"""));
+                GROUP BY d ORDER BY d""", "since", Timestamp.from(LocalDate.now(NAIROBI).minusDays(14).atStartOfDay(NAIROBI).toInstant())));
         out.put("topItems", db.list("""
                 SELECT l.name, sum(l.qty) AS qty, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
                 WHERE """ + SOLD + " AND o.closed_at >= :month GROUP BY l.name ORDER BY amount DESC LIMIT 8", "month", month));

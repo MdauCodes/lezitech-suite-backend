@@ -1549,6 +1549,7 @@
     {
       "key": "phones",
       "name": "Electronics & phones",
+      "comingSoon": true,
       "tagline": "Phones, accessories and repair jobs, with your profit on every handset",
       "terms": {
         "item": "Product",
@@ -2475,6 +2476,7 @@
     {
       "key": "petrol-station",
       "name": "Petrol station",
+      "comingSoon": true,
       "tagline": "Fuel by the litre, the forecourt shop and each attendant's cash-up",
       "terms": {
         "item": "Product",
@@ -2606,6 +2608,7 @@
     {
       "key": "gas-water",
       "name": "Gas & water refill",
+      "comingSoon": true,
       "tagline": "LPG refills and cylinders, water refills and deliveries",
       "terms": {
         "item": "Product",
@@ -3075,6 +3078,7 @@
     {
       "key": "gym",
       "name": "Gym & fitness",
+      "comingSoon": true,
       "tagline": "Memberships, day passes, classes and trainer sessions",
       "terms": {
         "customer": "Member",
@@ -3565,6 +3569,7 @@
     {
       "key": "school",
       "name": "Training & schools",
+      "comingSoon": true,
       "tagline": "Students, term fee invoices and payments",
       "terms": {
         "customer": "Student",
@@ -3748,6 +3753,7 @@
     {
       "key": "laundry",
       "name": "Laundry & dry cleaning",
+      "comingSoon": true,
       "tagline": "Drop-off tickets, deposits and payment on pickup",
       "terms": {
         "customer": "Customer",
@@ -3845,6 +3851,7 @@
     {
       "key": "garage",
       "name": "Garage & mechanic",
+      "comingSoon": true,
       "tagline": "Job cards with parts and labour, mechanics and fleet credit",
       "terms": {
         "customer": "Customer",
@@ -4143,6 +4150,7 @@
     {
       "key": "tailoring",
       "name": "Tailoring & dressmaking",
+      "comingSoon": true,
       "tagline": "Orders with measurements, fittings, deposits and collection",
       "terms": {
         "order": "Order",

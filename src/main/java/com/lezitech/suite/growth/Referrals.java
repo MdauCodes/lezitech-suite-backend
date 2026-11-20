@@ -10,7 +10,7 @@ import java.util.UUID;
 
 /**
  * "Bring a business, you both get a month free." Every workspace has a short code (shown in Billing); a business that
- * signs up through lezitech.site/suite?ref=CODE is linked to the one that referred it. When the new business pays for
+ * signs up through the site link (?ref=CODE) is linked to the one that referred it. When the new business pays for
  * the first time, both get one extra month.
  */
 @Component

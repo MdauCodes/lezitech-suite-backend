@@ -12,7 +12,7 @@ import java.util.Map;
 public final class Acquisition {
 
     static final List<String> KEYS = List.of("utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-            "fbclid", "fbc", "fbp", "gclid", "ref", "landing", "referrer", "page", "first_seen");
+            "fbclid", "fbc", "fbp", "gclid", "ref", "mall", "agent", "landing", "referrer", "page", "first_seen");
 
     private Acquisition() {
     }

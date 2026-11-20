@@ -22,6 +22,16 @@ public class PlanActivation {
     private final Referrals referrals;
     private final ObjectMapper json;
 
+    private org.springframework.context.ApplicationEventPublisher events;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.lezitech.suite.growth.MallOffer mallOffer;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void events(org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
+    }
+
     public PlanActivation(JdbcTemplate jdbc, MetaConversions meta, Referrals referrals, ObjectMapper json) {
         this.jdbc = jdbc;
         this.meta = meta;
@@ -36,7 +46,7 @@ public class PlanActivation {
             return r;
         }
         UUID tenant = (UUID) r.get("tenant_id");
-        Integer paidBefore = jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID'",
+        Integer paidBefore = jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID' AND paid_via IS DISTINCT FROM 'CREDIT'",
                 Integer.class, tenant);
         int months = "ANNUAL".equals(r.get("billing_cycle")) ? 12 : 1;
         jdbc.update("""
@@ -44,11 +54,20 @@ public class PlanActivation {
                 WHERE id = ?""", r.get("plan"), months, tenant);
         jdbc.update("UPDATE subscription_requests SET status = 'PAID', paid_via = ?, mpesa_receipt = ? WHERE id = ?", paidVia, receipt, requestId);
 
-        boolean first = paidBefore == null || paidBefore == 0;
+        jdbc.update("UPDATE tenants SET billing_credit = greatest(0, billing_credit - ?) WHERE id = ?", r.get("credit_used"), tenant);
+        // A plan switched on entirely by thank-you credit moved no money, so it is not a first payment (no rewards, no Subscribe).
+        boolean first = !"CREDIT".equals(paidVia) && (paidBefore == null || paidBefore == 0);
         if (first) {
             referrals.rewardOnFirstPayment(tenant);
+            if (mallOffer != null) {
+                mallOffer.thankOnFirstPayment(tenant);
+            }
         }
         report(tenant, requestId, (BigDecimal) r.get("amount"), first);
+        // The receipt by email, with their invite link, once this payment is saved.
+        if (events != null) {
+            events.publishEvent(new PlanPaidEmail.PlanPaid(tenant, requestId));
+        }
         return r;
     }
 

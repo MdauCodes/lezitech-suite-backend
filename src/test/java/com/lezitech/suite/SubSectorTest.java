@@ -84,7 +84,7 @@ class SubSectorTest extends IntegrationTest {
             }
         }
         assertThat(retail).isNotNull();
-        assertThat(retail.get("subSectors").toString()).contains("Butchery").contains("Petrol station").contains("Hardware");
+        assertThat(retail.get("subSectors").toString()).contains("Butchery").contains("Hardware").doesNotContain("Petrol station");
         assertThat(retail.at("/subSectorDetails").toString()).contains("\"key\":\"butchery\"").contains("Do you sell on credit to fundis");
         assertThat(retail.has("seed")).isFalse();
     }
@@ -96,6 +96,11 @@ class SubSectorTest extends IntegrationTest {
         assertThat(pharmacy.status()).isEqualTo(400);
         assertThat(pharmacy.at("/message").asText()).contains("coming soon");
         assertThat(signupAs("beauty", "clinic", Map.of()).status()).isEqualTo(400);
+        // Launch (19 Nov): the types whose own tools aren't built yet open when their phase ships.
+        for (String[] soon : new String[][]{{"services", "garage"}, {"services", "laundry"}, {"services", "school"}, {"services", "tailoring"},
+                {"beauty", "gym"}, {"retail", "phones"}, {"retail", "petrol-station"}, {"retail", "gas-water"}}) {
+            assertThat(signupAs(soon[0], soon[1], Map.of()).status()).as(soon[1]).isEqualTo(400);
+        }
         // Nor can the LeziTech team create one from the control panel.
         String admin = post("/admin/auth/demo", null, Map.of("role", "ADMIN")).at("/token").asText();
         assertThat(post("/admin/workspaces", admin, Map.of("businessName", "Afya Chemist", "sector", "pharmacy", "name", "Owner",

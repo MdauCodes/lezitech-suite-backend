@@ -100,6 +100,20 @@ class GrowthTest extends IntegrationTest {
         assertThat(report.at("/rows").toString()).contains("nov-shops").contains("facebook");
     }
 
+    @Autowired
+    com.lezitech.suite.settings.PlanPaidEmail receipts;
+
+    @Test
+    void payingSendsAReceiptWithTheInviteLink() {
+        JsonNode session = signup("retail");
+        UUID tenant = UUID.fromString(session.at("/tenant/id").asText());
+        UUID req = paidPlan(tenant);
+        String text = receipts.send(new com.lezitech.suite.settings.PlanPaidEmail.PlanPaid(tenant, req));
+        String code = get("/billing/referral", token(session)).at("/code").asText();
+        assertThat(text).contains("Growth plan").contains("KSh 4,500").contains("M-Pesa code: TKL").contains("Running until")
+                .contains("?ref=" + code).doesNotContain("free month");
+    }
+
     @Test
     void aReferredBusinessPayingGivesBothAMonthFree() {
         JsonNode sessionA = signup("retail");
@@ -115,6 +129,7 @@ class GrowthTest extends IntegrationTest {
         UUID bId = tenantOf(b);
         assertThat(jdbc.queryForObject("SELECT referred_by FROM tenants WHERE id = ?", UUID.class, bId)).isEqualTo(a);
         assertThat(get("/billing/referral", ownerA).at("/joined").asInt()).isEqualTo(1);
+        assertThat(get("/billing/referral", ownerA).at("/invites/0/paid").asBoolean()).isFalse();
 
         paidPlan(bId);
         // B: one paid month plus one free; A (still on trial): a month added to the trial.
@@ -123,10 +138,38 @@ class GrowthTest extends IntegrationTest {
         Timestamp trialAfter = jdbc.queryForObject("SELECT trial_ends_at FROM tenants WHERE id = ?", Timestamp.class, a);
         assertThat(trialAfter.toInstant()).isAfter(trialBefore.toInstant().plus(java.time.Duration.ofDays(27)));
         assertThat(get("/billing/referral", ownerA).at("/paid").asInt()).isEqualTo(1);
+        // "Your invites" shows who joined and that they've paid.
+        assertThat(get("/billing/referral", ownerA).at("/invites/0/paid").asBoolean()).isTrue();
+        assertThat(get("/billing/referral", ownerA).at("/invites/0/name").asText()).isNotBlank();
 
         // Only the first payment rewards.
         paidPlan(bId);
         assertThat(jdbc.queryForObject("SELECT trial_ends_at FROM tenants WHERE id = ?", Timestamp.class, a)).isEqualTo(trialAfter);
+    }
+
+    @Test
+    void aPlanSwitchedOnEntirelyByCreditCountsAsNoFirstPaymentSoItPaysNoReferralReward() {
+        JsonNode sessionA = signup("retail");
+        String code = get("/billing/referral", token(sessionA)).at("/code").asText();
+        UUID a = UUID.fromString(sessionA.at("/tenant/id").asText());
+        Timestamp trialBefore = jdbc.queryForObject("SELECT trial_ends_at FROM tenants WHERE id = ?", Timestamp.class, a);
+        BigDecimal creditBefore = jdbc.queryForObject("SELECT billing_credit FROM tenants WHERE id = ?", BigDecimal.class, a);
+        UUID bId = tenantOf(signupWith(Map.of("acquisition", Map.of("ref", code.toLowerCase()))));
+
+        UUID req = jdbc.queryForObject("INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, credit_used) VALUES (?, 'GROWTH', 'MONTHLY', 0, 500) RETURNING id",
+                UUID.class, bId);
+        activation.activate(req, "CREDIT", null);
+
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?", String.class, bId)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT status FROM subscription_requests WHERE id = ?", String.class, req)).isEqualTo("PAID");
+        assertThat(jdbc.queryForObject("SELECT trial_ends_at FROM tenants WHERE id = ?", Timestamp.class, a)).isEqualTo(trialBefore);
+        assertThat(jdbc.queryForObject("SELECT billing_credit FROM tenants WHERE id = ?", BigDecimal.class, a)).isEqualByComparingTo(creditBefore);
+        assertThat(get("/billing/referral", token(sessionA)).at("/paid").asInt()).isZero();
+
+        // A later real payment is still the first one, and rewards.
+        paidPlan(bId);
+        assertThat(jdbc.queryForObject("SELECT trial_ends_at FROM tenants WHERE id = ?", Timestamp.class, a))
+                .isAfter(trialBefore);
     }
 
     @Test

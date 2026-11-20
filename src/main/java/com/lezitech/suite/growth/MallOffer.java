@@ -35,7 +35,7 @@ public class MallOffer {
     private final String siteUrl;
 
     public MallOffer(JdbcTemplate jdbc, ObjectMapper json, Referrals referrals,
-                     @Value("${suite.site-url:https://businez.com}") String siteUrl) {
+                     @Value("${suite.site-url:https://lezitech.site/suite}") String siteUrl) {
         this.jdbc = jdbc;
         this.json = json;
         this.referrals = referrals;
