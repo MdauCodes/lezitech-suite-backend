@@ -1,5 +1,6 @@
 package com.lezitech.suite.auth;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -78,13 +79,7 @@ public class LoginThrottle {
     }
 
     private static String address(HttpServletRequest req) {
-        // Behind Coolify's proxy the real client address is the last X-Forwarded-For entry (the one
-        // the proxy added); earlier entries can be faked by the client.
-        String fwd = req.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) {
-            String[] parts = fwd.split(",");
-            return "ip:" + parts[parts.length - 1].trim();
-        }
-        return "ip:" + req.getRemoteAddr();
+        // The real client address (last X-Forwarded-For entry behind the proxy); see ClientIp.
+        return "ip:" + ClientIp.of(req);
     }
 }

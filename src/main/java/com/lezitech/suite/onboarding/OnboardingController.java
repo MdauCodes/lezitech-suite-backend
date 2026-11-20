@@ -1,5 +1,6 @@
 package com.lezitech.suite.onboarding;
 
+import com.lezitech.suite.common.ClientIp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lezitech.suite.admin.AdminContext;
@@ -355,7 +356,7 @@ public class OnboardingController {
     // ---------- helpers ----------
 
     private void limit(HttpServletRequest req) {
-        String ip = req.getRemoteAddr();
+        String ip = ClientIp.of(req);
         Deque<Instant> d = recent.computeIfAbsent(ip, k -> new ArrayDeque<>());
         synchronized (d) {
             Instant hourAgo = Instant.now().minusSeconds(3600);

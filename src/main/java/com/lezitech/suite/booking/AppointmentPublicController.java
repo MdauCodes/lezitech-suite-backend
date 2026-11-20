@@ -1,5 +1,6 @@
 package com.lezitech.suite.booking;
 
+import com.lezitech.suite.common.ClientIp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezitech.suite.common.ApiException;
@@ -115,7 +116,7 @@ public class AppointmentPublicController {
     /** {itemId, staffId, date, time, name, phone, email, note}: books; asks for the deposit by M-Pesa if the business wants one. */
     @PostMapping("/api/public/appointments/{slug}")
     public Map<String, Object> book(@PathVariable String slug, @RequestBody Map<String, Object> raw, HttpServletRequest req) {
-        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        String client = ClientIp.of(req);
         Map<String, Object> b = business(slug);
         if (!BOOKINGS.allow(b.get("id") + ":" + client)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Several bookings from here just now. Please call us.");

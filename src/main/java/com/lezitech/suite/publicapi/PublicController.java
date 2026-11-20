@@ -1,5 +1,6 @@
 package com.lezitech.suite.publicapi;
 
+import com.lezitech.suite.common.ClientIp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.sector.SectorCatalog;
@@ -188,7 +189,7 @@ public class PublicController {
         if (!Boolean.TRUE.equals(ordering.get("selfOrder")) || locked(t)) {
             throw ApiException.forbidden("This restaurant isn't taking orders by phone right now. Please ask a waiter.");
         }
-        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        String client = ClientIp.of(req);
         Object table = raw.get("tableId");
         if (!PER_CLIENT.allow(t.get("id") + ":" + client) || (table != null && !PER_TABLE.allow(t.get("id") + ":" + table))) {
             throw new ApiException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY",
@@ -234,7 +235,7 @@ public class PublicController {
     public Map<String, Object> findBill(@PathVariable String slug, @PathVariable UUID tableId, @RequestBody Map<String, Object> raw,
                                         jakarta.servlet.http.HttpServletRequest req) {
         Map<String, Object> t = tenant(slug);
-        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        String client = ClientIp.of(req);
         Object rawCode = raw.get("code");
         String code = rawCode == null ? "" : String.valueOf(rawCode).replaceAll("\\D", "");
         List<UUID> tokens = new java.util.ArrayList<>();
@@ -304,7 +305,7 @@ public class PublicController {
         Map<String, Object> ordering = requireOrdering(t);
         var b = new com.lezitech.suite.common.Body(raw);
         List<Map<String, Object>> tables = b.list("tables");
-        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        String client = ClientIp.of(req);
         boolean allowed = PER_CLIENT.allow(t.get("id") + ":" + client);
         if (allowed && tables != null) {
             for (Map<String, Object> one : tables) {

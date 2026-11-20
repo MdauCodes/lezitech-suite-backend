@@ -1,5 +1,6 @@
 package com.lezitech.suite.restaurant;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.mpesa.MpesaService;
@@ -162,7 +163,7 @@ public class ReservationController {
     /** {name, phone, email, party, date, time, note}: books a table; asks for the deposit by M-Pesa if the rule applies. */
     @PostMapping("/api/public/book/{slug}")
     public Map<String, Object> bookOnline(@PathVariable String slug, @RequestBody Map<String, Object> raw, HttpServletRequest req) {
-        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        String client = ClientIp.of(req);
         Map<String, Object> b = business(slug);
         if (!BOOKINGS.allow(b.get("id") + ":" + client)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Several bookings from here just now. Please call the restaurant.");

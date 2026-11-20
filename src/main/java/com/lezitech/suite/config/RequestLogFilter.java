@@ -15,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * One log line per API request (method, path, status, time) and a request id on every log line
@@ -45,10 +46,26 @@ public class RequestLogFilter extends OncePerRequestFilter {
                 MDC.put("tenantId", c.tenantId().toString());
             }
             if (req.getRequestURI().startsWith("/api/")) {
-                log.info("{} {} {} {}ms", req.getMethod(), req.getRequestURI(), res.getStatus(), (System.nanoTime() - start) / 1_000_000);
+                log.info("{} {} {} {}ms", req.getMethod(), maskSecrets(req.getRequestURI()), res.getStatus(), (System.nanoTime() - start) / 1_000_000);
             }
             MDC.clear();
         }
+    }
+
+    /** Payment callback URLs carry a secret as a path segment; it must never reach the logs. */
+    private static final Pattern CALLBACK_SECRET = Pattern.compile(
+            "^(/api/public/(?:mpesa/stk|payhero|mpesa/c2b))/[^/]+", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Replaces the secret segment of a callback path with *** and leaves every other path unchanged.
+     * Public because anything else that records a request path must mask it too: error alerts are emailed,
+     * so a secret reaching one leaves the server entirely.
+     */
+    public static String maskSecrets(String uri) {
+        if (uri == null) {
+            return null;
+        }
+        return CALLBACK_SECRET.matcher(uri).replaceFirst("$1/***");
     }
 
     @Override

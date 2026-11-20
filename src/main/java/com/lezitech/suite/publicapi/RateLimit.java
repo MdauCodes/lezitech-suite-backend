@@ -11,13 +11,23 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class RateLimit {
 
+    /** Most addresses remembered at once, so a flood of different callers cannot grow memory without limit. */
+    private static final int DEFAULT_MAX_KEYS = 50_000;
+
     private final int max;
     private final long windowMs;
+    private final int maxKeys;
     private final Map<String, Deque<Long>> hits = new ConcurrentHashMap<>();
 
     public RateLimit(int max, long windowMs) {
+        this(max, windowMs, DEFAULT_MAX_KEYS);
+    }
+
+    /** maxKeys is how many callers are remembered at once; a test passes a small one to check the clean-up. */
+    public RateLimit(int max, long windowMs, int maxKeys) {
         this.max = max;
         this.windowMs = windowMs;
+        this.maxKeys = maxKeys;
     }
 
     /** True if this key may go ahead now (and counts it). */
@@ -33,14 +43,36 @@ public final class RateLimit {
             }
             q.addLast(now);
         }
-        if (hits.size() > 50_000) {
-            hits.entrySet().removeIf(e -> e.getValue().isEmpty());
+        if (hits.size() > maxKeys) {
+            trim(now);
         }
         return true;
+    }
+
+    /** Drops callers whose hits have all expired; if still over the cap, drops arbitrary entries until under it. */
+    private void trim(long now) {
+        hits.entrySet().removeIf(e -> {
+            Deque<Long> d = e.getValue();
+            synchronized (d) {
+                return d.isEmpty() || now - d.peekLast() > windowMs;
+            }
+        });
+        if (hits.size() > maxKeys) {
+            var it = hits.keySet().iterator();
+            while (hits.size() > maxKeys && it.hasNext()) {
+                it.next();
+                it.remove();
+            }
+        }
     }
 
     /** For tests. */
     public void clear() {
         hits.clear();
+    }
+
+    /** For tests: how many callers are remembered right now. */
+    public int size() {
+        return hits.size();
     }
 }

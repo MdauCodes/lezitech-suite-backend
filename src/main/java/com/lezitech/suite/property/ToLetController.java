@@ -1,5 +1,6 @@
 package com.lezitech.suite.property;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.files.FileService;
@@ -163,7 +164,7 @@ public class ToLetController {
 
     @PostMapping("/api/public/to-let/{slug}/enquire")
     public Map<String, Object> enquire(@PathVariable String slug, @RequestBody Map<String, Object> raw, HttpServletRequest req) {
-        if (!ENQUIRIES.allow(req.getRemoteAddr())) {
+        if (!ENQUIRIES.allow(ClientIp.of(req))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "You've sent several enquiries. Please call the office instead.");
         }
         Map<String, Object> b = business(slug);

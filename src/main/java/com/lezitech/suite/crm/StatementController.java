@@ -1,5 +1,6 @@
 package com.lezitech.suite.crm;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Db;
 import com.lezitech.suite.notify.Mailer;
@@ -122,7 +123,7 @@ public class StatementController {
     public Map<String, Object> publicStatement(@PathVariable String slug, @PathVariable String token,
                                                @RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
                                                HttpServletRequest req) {
-        if (!PER_CLIENT.allow(req.getRemoteAddr())) {
+        if (!PER_CLIENT.allow(ClientIp.of(req))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many tries. Please wait a while and open the link again.");
         }
         if (token == null || !token.matches("[0-9a-f]{32,64}")) {

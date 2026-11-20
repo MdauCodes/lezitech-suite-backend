@@ -1,5 +1,6 @@
 package com.lezitech.suite.publicapi;
 
+import com.lezitech.suite.common.ClientIp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
@@ -84,7 +85,7 @@ public class HandoverController {
 
     /** At most 20 hand-overs an hour from one address. */
     private void limit(HttpServletRequest req) {
-        Deque<Instant> d = recent.computeIfAbsent(req.getRemoteAddr(), k -> new ArrayDeque<>());
+        Deque<Instant> d = recent.computeIfAbsent(ClientIp.of(req), k -> new ArrayDeque<>());
         synchronized (d) {
             Instant hourAgo = Instant.now().minusSeconds(3600);
             while (!d.isEmpty() && d.peekFirst().isBefore(hourAgo)) {

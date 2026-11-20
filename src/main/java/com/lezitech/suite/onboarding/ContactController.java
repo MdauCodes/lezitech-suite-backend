@@ -1,5 +1,6 @@
 package com.lezitech.suite.onboarding;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.admin.AdminContext;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
@@ -99,7 +100,7 @@ public class ContactController {
     /** From the sign-in, sign-up or demo pages (not signed in). {kind, message, page, name, phone, email, business}. */
     @PostMapping("/api/public/contact")
     public Map<String, Object> fromPublic(@RequestBody Map<String, Object> raw, HttpServletRequest req) {
-        String client = req.getHeader("X-Forwarded-For") != null ? req.getHeader("X-Forwarded-For").split(",")[0].trim() : req.getRemoteAddr();
+        String client = ClientIp.of(req);
         if (!PUBLIC.allow(client)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Lots of messages from here in the last hour. Please WhatsApp us instead.");
         }

@@ -1,5 +1,6 @@
 package com.lezitech.suite.property;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.mpesa.MpesaService;
@@ -140,7 +141,7 @@ public class FoodCourtController {
     /** {lines: [{itemId, qty}], phone, table}: the order, then one M-Pesa prompt to the diner's phone. */
     @PostMapping("/api/public/fc/{slug}/orders")
     public Map<String, Object> order(@PathVariable String slug, @RequestBody Map<String, Object> raw, HttpServletRequest req) {
-        if (!ORDERS.allow(req.getRemoteAddr())) {
+        if (!ORDERS.allow(ClientIp.of(req))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many orders from here. Please wait a little.");
         }
         Map<String, Object> b = business(slug);

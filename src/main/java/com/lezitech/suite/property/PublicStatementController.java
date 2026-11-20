@@ -1,5 +1,6 @@
 package com.lezitech.suite.property;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.publicapi.RateLimit;
 import com.lezitech.suite.tenant.TenantContext;
@@ -39,7 +40,7 @@ public class PublicStatementController {
 
     @GetMapping("/api/public/statement/{slug}/{token}")
     public Map<String, Object> statement(@PathVariable String slug, @PathVariable String token, HttpServletRequest req) {
-        if (!PER_CLIENT.allow(req.getRemoteAddr())) {
+        if (!PER_CLIENT.allow(ClientIp.of(req))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many tries. Please wait a while and open the link again.");
         }
         if (token == null || !token.matches("[0-9a-f]{32,64}")) {

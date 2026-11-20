@@ -1,5 +1,6 @@
 package com.lezitech.suite.property;
 
+import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.publicapi.RateLimit;
@@ -122,7 +123,7 @@ public class LandlordsController {
     @GetMapping("/api/public/owner/{slug}/{token}")
     public Map<String, Object> owner(@PathVariable String slug, @PathVariable String token, @RequestParam(required = false) String period,
                                      HttpServletRequest req) {
-        if (!PUBLIC.allow(req.getRemoteAddr())) {
+        if (!PUBLIC.allow(ClientIp.of(req))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many tries. Please wait a while and open the link again.");
         }
         if (token == null || !token.matches("[0-9a-f]{32,64}")) {
