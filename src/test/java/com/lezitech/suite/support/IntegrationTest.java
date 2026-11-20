@@ -61,6 +61,9 @@ public abstract class IntegrationTest {
         r.add("suite.email.jobs-every-ms", () -> "300");
         r.add("suite.mpesa.simulate-delay-ms", () -> "300");
         r.add("suite.mpesa.c2b-secret", () -> "test-c2b-secret");
+        // Tests sign up constantly from one address (one test covers every sub-sector), so the real limit of a few
+        // an hour would stop the suite dead. SignupRateLimitFilterTest checks the limit itself.
+        r.add("suite.signup.max-per-hour", () -> "1000000");
     }
 
     @LocalServerPort

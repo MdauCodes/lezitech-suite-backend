@@ -34,4 +34,17 @@ class StartupSafetyCheckTest {
     void realDatabaseWithProperSecretsStarts() {
         assertThatCode(() -> StartupSafetyCheck.verify(false, GOOD_SECRET, GOOD_KEY, SECRETS)).doesNotThrowAnyException();
     }
+
+    @Test
+    void aDatabaseUserThatCanSeePastTheWallBetweenBusinessesIsRefused() {
+        assertThatThrownBy(() -> StartupSafetyCheck.verifyDatabaseRole("postgres", true, false))
+                .hasMessageContaining("superuser").hasMessageContaining("one business could read another's");
+        assertThatThrownBy(() -> StartupSafetyCheck.verifyDatabaseRole("suite_app", false, true))
+                .hasMessageContaining("BYPASSRLS");
+    }
+
+    @Test
+    void aPlainDatabaseUserStarts() {
+        assertThatCode(() -> StartupSafetyCheck.verifyDatabaseRole("suite_app", false, false)).doesNotThrowAnyException();
+    }
 }
