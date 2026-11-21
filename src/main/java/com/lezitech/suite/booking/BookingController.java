@@ -102,7 +102,7 @@ public class BookingController {
                           AND role IN ('STYLIST','OWNER','MANAGER','SALES') ORDER BY role = 'STYLIST' DESC, name"""),
                 "appointments", db.list("""
                         SELECT a.*, i.name AS service_name, i.price, u.name AS staff_name, o.status AS order_status
-                        FROM appointments a LEFT JOIN items i ON i.id = a.item_id LEFT JOIN users u ON u.id = a.staff_id
+                        FROM appointments a LEFT JOIN items i ON i.id = a.item_id LEFT JOIN users u ON u.id = a.staff_id AND u.tenant_id = :t
                         LEFT JOIN orders o ON o.id = a.order_id
                         WHERE a.starts_at >= :from AND a.starts_at < :to ORDER BY a.starts_at""",
                         "from", Timestamp.from(from), "to", Timestamp.from(to)));
@@ -112,20 +112,23 @@ public class BookingController {
     public Map<String, Object> book(@RequestBody Map<String, Object> raw) {
         Body b = new Body(raw);
         Instant start = b.instant("startsAt");
-        UUID itemId = b.has("itemId") ? UUID.fromString(b.str("itemId")) : null;
+        UUID itemId = b.has("itemId") ? idOrBad(b.str("itemId"), "That service") : null;
         Integer minutes = b.integer("durationMin", null);
         if (minutes == null && itemId != null) {
             minutes = db.value("SELECT duration_min FROM items WHERE id = :itemId", Integer.class, "itemId", itemId);
         }
         Instant end = start.plus(minutes == null ? 60 : minutes, ChronoUnit.MINUTES);
-        UUID staffId = b.has("staffId") ? UUID.fromString(b.str("staffId")) : null;
+        UUID staffId = b.has("staffId") ? idOrBad(b.str("staffId"), "That staff member") : null;
+        if (staffId != null && !inThisBusiness(staffId, true)) {
+            throw ApiException.bad("That staff member isn't on this business, so they can't be booked");
+        }
         if (staffId != null && Boolean.TRUE.equals(db.value("""
                 SELECT exists(SELECT 1 FROM appointments WHERE staff_id = :staffId AND status IN ('BOOKED','ARRIVED')
                   AND starts_at < :end AND ends_at > :start)""", Boolean.class,
                 "staffId", staffId, "start", Timestamp.from(start), "end", Timestamp.from(end)))) {
             throw ApiException.conflict("That staff member is already booked at this time");
         }
-        UUID customerId = b.has("customerId") ? UUID.fromString(b.str("customerId")) : null;
+        UUID customerId = b.has("customerId") ? idOrBad(b.str("customerId"), "That client") : null;
         String name = b.str("customerName", null);
         if (customerId == null && b.has("phone")) {
             customerId = db.value("SELECT id FROM customers WHERE phone = :phone LIMIT 1", UUID.class, "phone", b.str("phone"));
@@ -146,6 +149,20 @@ public class BookingController {
                 "customerId", customerId, "name", name, "phone", b.str("phone", null), "itemId", itemId, "staffId", staffId,
                 "start", Timestamp.from(start), "end", Timestamp.from(end), "notes", b.str("notes", null));
         return db.one("Appointment", "SELECT * FROM appointments WHERE id = :id", "id", id);
+    }
+
+    private static UUID idOrBad(String s, String what) {
+        try {
+            return UUID.fromString(s);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.bad(what + " isn't recognised. Please pick it from the list again");
+        }
+    }
+
+    private boolean inThisBusiness(UUID userId, boolean activeOnly) {
+        Long n = db.value("SELECT count(*) FROM users WHERE id = :id AND tenant_id = :t AND (active OR NOT :activeOnly)", Long.class,
+                "id", userId, "activeOnly", activeOnly);
+        return n != null && n > 0;
     }
 
     @PatchMapping("/{id}")
@@ -170,8 +187,13 @@ public class BookingController {
         if (a.get("itemId") != null) {
             line.put("itemId", a.get("itemId"));
         }
-        if (a.get("staffId") != null) {
+        // A stale staff reference (someone removed, or from before this was checked) must never block taking payment.
+        // The booking is paid with no one credited, and the stale name is cleared off the booking so the diary is
+        // honest and the bad reference cannot spread. A booking is never credited to whoever took the payment.
+        if (a.get("staffId") != null && inThisBusiness(UUID.fromString(a.get("staffId").toString()), false)) {
             line.put("staffId", a.get("staffId"));
+        } else if (a.get("staffId") != null) {
+            db.exec("UPDATE appointments SET staff_id = NULL WHERE id = :id", "id", id);
         }
         java.util.Map<String, Object> order = new java.util.HashMap<>();
         order.put("channel", "BOOKING");

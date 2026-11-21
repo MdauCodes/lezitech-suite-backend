@@ -161,6 +161,31 @@ Sign in at `https://suite.lezitech.site` with `ADMIN_EMAIL` / `ADMIN_PASSWORD`, 
 2. **Platform settings:** free days (7, 14 or 21), plan prices and offers. These override `TRIAL_DAYS`.
 3. Add other LeziTech admins with the role they need.
 
+### Telling open copies to reload after a release
+
+Nothing to do in the normal case. Every deploy builds a new API, and the API reports its own build time at
+`GET /api/public/client-status`. A copy of the app that was already open sees that the release has changed and
+offers the person one button, "Reload now and get the update". Pressing it is the end of it; it does not come back
+for that release. No client can influence this: the figure comes from the API's own build, never from a browser.
+
+Two things you can do by hand if you ever need to, with the operator key:
+
+```
+# Say that copies older than a given release must reload (14 digits, UTC, yyyyMMddHHmmss)
+curl -X POST https://<api>/api/platform/client-release   -H "X-Operator-Key: $OPERATOR_KEY" -H "Content-Type: application/json"   --data '{"min": "20261121093000", "message": "A fix for bills is ready."}'
+
+# Stop asking anyone to reload
+curl -X POST https://<api>/api/platform/client-release   -H "X-Operator-Key: $OPERATOR_KEY" -H "Content-Type: application/json"   --data '{"min": "clear", "message": "clear"}'
+```
+
+One thing to know: the figure is the API's own build time, so **rebuilding or rolling back also counts as a new
+release** and will ask everyone to reload once, even if the code is identical. That is harmless — they reload and
+carry on — but do not be surprised by it after a rollback.
+
+`min` is the only setting that *forces* the bar. Use it sparingly: for an ordinary release the automatic path above
+is enough. `latest` overrides the API's own build time and is only for the case where the web app was redeployed
+without the API.
+
 ## 11. Launch-day checks (about 30 minutes)
 
 Do these on a phone, as a new business, with **samples unticked**:

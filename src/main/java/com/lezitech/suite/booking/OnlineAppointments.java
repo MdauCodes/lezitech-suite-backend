@@ -334,7 +334,7 @@ public class OnlineAppointments {
         Map<String, Object> a = db.one("Booking", """
                 SELECT a.id, a.token, a.status, a.customer_name, a.starts_at, a.ends_at, a.deposit_amount, a.deposit_status, a.hold_until,
                        a.cancel_reason, i.name AS service, i.price, u.name AS staff
-                FROM appointments a LEFT JOIN items i ON i.id = a.item_id LEFT JOIN users u ON u.id = a.staff_id WHERE a.id = :id""", "id", id);
+                FROM appointments a LEFT JOIN items i ON i.id = a.item_id LEFT JOIN users u ON u.id = a.staff_id AND u.tenant_id = a.tenant_id WHERE a.id = :id""", "id", id);
         Map<String, Object> out = new LinkedHashMap<>(a);
         Instant start = Instant.parse(a.get("startsAt").toString());
         out.put("day", start.atZone(NAIROBI).format(DAY));
@@ -360,7 +360,7 @@ public class OnlineAppointments {
     public Map<String, Object> alerts() {
         List<Map<String, Object>> list = db.list("""
                 SELECT a.id, a.customer_name, a.starts_at, i.name AS service, u.name AS staff, a.status, a.created_at
-                FROM appointments a LEFT JOIN items i ON i.id = a.item_id LEFT JOIN users u ON u.id = a.staff_id
+                FROM appointments a LEFT JOIN items i ON i.id = a.item_id LEFT JOIN users u ON u.id = a.staff_id AND u.tenant_id = a.tenant_id
                 WHERE a.source = 'ONLINE' AND a.acknowledged_at IS NULL AND a.status IN ('BOOKED', 'HELD')
                 ORDER BY a.created_at""");
         return Map.of("count", list.size(), "bookings", list);

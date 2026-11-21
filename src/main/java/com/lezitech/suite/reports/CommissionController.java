@@ -51,13 +51,15 @@ public class CommissionController {
                 "pf", f, "pt", t};
         List<Map<String, Object>> staff = db.list("""
                 WITH earned AS (
-                  SELECT coalesce(l.staff_id, o.user_id) AS user_id, count(*) AS lines, count(DISTINCT o.id) AS sales,
+                  SELECT """ + ReportController.STAFF_OF + """
+                         AS user_id, count(*) AS lines, count(DISTINCT o.id) AS sales,
                          coalesce(sum(l.line_total), 0) AS amount,
                          coalesce(sum(round(l.line_total * coalesce(i.commission_rate, u.commission_rate, 0) / 100, 2)), 0) AS commission
                   FROM order_lines l
                   JOIN orders o ON o.id = l.order_id
                   LEFT JOIN items i ON i.id = l.item_id
-                  JOIN users u ON u.id = coalesce(l.staff_id, o.user_id)
+                  JOIN users u ON u.id = """ + ReportController.STAFF_OF + """
+                         AND u.tenant_id = :t
                   WHERE o.status IN ('PAID', 'CREDIT') AND o.kind <> 'QUOTE' AND o.closed_at >= :from AND o.closed_at < :to
                   GROUP BY 1),
                 paid AS (

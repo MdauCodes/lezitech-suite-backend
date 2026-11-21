@@ -60,7 +60,7 @@ public class PlatformSettings {
         Map<String, String> c = cache;
         if (c == null || System.currentTimeMillis() - cachedAt > 30_000) {
             Map<String, String> fresh = new LinkedHashMap<>();
-            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
+            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
             cache = c = fresh;
             cachedAt = System.currentTimeMillis();
         }
@@ -185,6 +185,81 @@ public class PlatformSettings {
         }
         try {
             put("planFeatures", json.writeValueAsString(clean), by);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static final java.time.format.DateTimeFormatter STAMP = java.time.format.DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(java.time.format.ResolverStyle.STRICT);
+
+    /** True only for exactly 14 digits that are a real date and time, as yyyyMMddHHmmss (UTC). */
+    public static boolean isStamp(String s) {
+        if (s == null || s.length() != 14) {
+            return false;
+        }
+        for (int i = 0; i < 14; i++) {
+            if (s.charAt(i) < '0' || s.charAt(i) > '9') {
+                return false;
+            }
+        }
+        try {
+            java.time.LocalDateTime.parse(s, STAMP);
+            return true;
+        } catch (java.time.format.DateTimeParseException e) {
+            return false;
+        }
+    }
+
+    private String unquoted(String key) {
+        String v = all().get(key);
+        if (v == null || v.equals("null")) {
+            return null;
+        }
+        try {
+            Object o = json.readValue(v, Object.class);
+            return o == null ? null : String.valueOf(o);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** The oldest app version still allowed to run; anything older is told to reload. Null when unset. */
+    public String minClientRelease() {
+        return unquoted("minClientRelease");
+    }
+
+    /** The newest app version known to the platform. Null when unset. */
+    public String latestClientRelease() {
+        return unquoted("latestClientRelease");
+    }
+
+    /** The plain-words note shown with a reload request. Null when unset. */
+    public String reloadMessage() {
+        return unquoted("reloadMessage");
+    }
+
+    /** Operator path. A null argument leaves that setting alone; "clear" removes it. */
+    public void setClientRelease(String latest, String min, String message, String by) {
+        if (latest != null && !"clear".equals(latest) && !isStamp(latest)) {
+            throw ApiException.bad("The newest version must be 14 digits like 20261121093000");
+        }
+        if (min != null && !"clear".equals(min) && !isStamp(min)) {
+            throw ApiException.bad("The oldest allowed version must be 14 digits like 20261121093000");
+        }
+        if (message != null && message.length() > 200) {
+            throw ApiException.bad("Keep the reload note to 200 characters or fewer");
+        }
+        putOrClear("latestClientRelease", latest, by);
+        putOrClear("minClientRelease", min, by);
+        putOrClear("reloadMessage", message, by);
+    }
+
+    private void putOrClear(String key, String value, String by) {
+        if (value == null) {
+            return;
+        }
+        try {
+            put(key, "clear".equals(value) ? "null" : json.writeValueAsString(value), by);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException(e);
         }

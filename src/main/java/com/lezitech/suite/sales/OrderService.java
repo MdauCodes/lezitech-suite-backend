@@ -112,6 +112,14 @@ public class OrderService {
         addLines(orderId, b.list("lines"), b, false);
     }
 
+    private static UUID staffIdOrBad(String s) {
+        try {
+            return UUID.fromString(s);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.bad("That staff member isn't on this business, so the sale can't be credited to them");
+        }
+    }
+
     private void addLines(UUID orderId, List<Map<String, Object>> lines, Body approvalSource, boolean trusted) {
         Map<String, Object> order = requireOpen(orderId);
         boolean wholesale = "WHOLESALE".equals(order.get("channel"))
@@ -120,6 +128,23 @@ public class OrderService {
         // Cashiers may bargain down to an item's lowest price (its wholesale price) without a PIN, unless the owner turned that off.
         boolean bargain = !Boolean.FALSE.equals(db.value(
                 "SELECT (settings->>'bargainToLowest')::boolean FROM tenants WHERE id = :t", Boolean.class));
+        // A line may name who made the sale; that person must be on this business. Checked once for the whole request.
+        List<UUID> staffIds = new ArrayList<>();
+        for (Map<String, Object> raw : lines) {
+            Body sl = new Body(raw);
+            if (sl.has("staffId")) {
+                UUID sid = staffIdOrBad(sl.str("staffId"));
+                if (!staffIds.contains(sid)) {
+                    staffIds.add(sid);
+                }
+            }
+        }
+        if (!staffIds.isEmpty()) {
+            Long known = db.value("SELECT count(*) FROM users WHERE tenant_id = :t AND id IN (:ids)", Long.class, "ids", staffIds);
+            if (known == null || known != staffIds.size()) {
+                throw ApiException.bad("That staff member isn't on this business, so the sale can't be credited to them");
+            }
+        }
         for (Map<String, Object> raw : lines) {
             Body l = new Body(raw);
             BigDecimal qty = l.num("qty", BigDecimal.ONE);
@@ -244,7 +269,7 @@ public class OrderService {
                     "order", orderId, "item", item == null ? null : UUID.fromString(item.get("id").toString()), "name", name,
                     "qty", qty, "unit", unit, "tax", tax, "discount", discount, "total", lineTotal,
                     "options", db.toJson(options), "note", l.str("note", null), "course", l.integer("course", 1),
-                    "station", combo ? null : station, "staff", l.has("staffId") ? UUID.fromString(l.str("staffId")) : null,
+                    "station", combo ? null : station, "staff", l.has("staffId") ? staffIdOrBad(l.str("staffId")) : null,
                     "happy", happyDeal, "ks", combo ? "SERVED" : "PENDING", "pack", packSize);
             // R6: a combo's parts go to the kitchen and bar (and use up stock and recipes) as KES 0 lines under it.
             for (UUID part : parts) {
@@ -707,7 +732,7 @@ public class OrderService {
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN customers c ON c.id = o.customer_id
                 LEFT JOIN users u ON u.id = o.user_id WHERE o.id = :id""", "id", orderId));
         o.put("lines", db.list("""
-                SELECT l.*, s.name AS staff_name FROM order_lines l LEFT JOIN users s ON s.id = l.staff_id
+                SELECT l.*, s.name AS staff_name FROM order_lines l LEFT JOIN users s ON s.id = l.staff_id AND s.tenant_id = :t
                 WHERE l.order_id = :id ORDER BY l.course, l.created_at""", "id", orderId));
         o.put("payments", db.list("SELECT * FROM payments WHERE order_id = :id ORDER BY created_at", "id", orderId));
         return o;

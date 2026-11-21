@@ -21,6 +21,14 @@ public class ReportController {
 
     private static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
     /** Completed sales. A landlord's deposit bills are money held for the tenant, not income, so they're left out. */
+    /**
+     * Who a sold line is credited to: the staff member named on the line, else whoever rang up the sale.
+     * A booking never falls back — a service with no stylist recorded is credited to nobody, not to the
+     * person who took the payment (the owner's decision, 21 Nov 2026). Defined once because this used to be
+     * copied into five queries and the business fence was missed in three of them.
+     */
+    public static final String STAFF_OF = " coalesce(l.staff_id, CASE WHEN o.channel = 'BOOKING' THEN NULL ELSE o.user_id END) ";
+
     private static final String SOLD = " o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND o.channel <> 'DEPOSIT'";
 
     @org.springframework.beans.factory.annotation.Autowired
@@ -87,11 +95,22 @@ public class ReportController {
         k.put("arrears", db.value("SELECT coalesce(sum(total - paid), 0) FROM orders WHERE lease_id IS NOT NULL AND status = 'OPEN' AND due_on < current_date", java.math.BigDecimal.class));
         k.put("top_staff", db.find("""
                 SELECT u.name, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
-                JOIN users u ON u.id = coalesce(l.staff_id, o.user_id)
+                JOIN users u ON u.id = """ + STAFF_OF + """
+                 AND u.tenant_id = :t
                 WHERE """ + SOLD + " AND o.closed_at >= :today GROUP BY u.name ORDER BY 2 DESC LIMIT 1", "today", today).orElse(null));
+        // Management numbers for the owner's home: who bought this month, and who sold the most.
+        k.put("customers_served_month", db.value("SELECT count(DISTINCT o.customer_id) FROM orders o WHERE " + SOLD
+                + " AND o.customer_id IS NOT NULL AND o.closed_at >= :month", Long.class, "month", month));
+        k.put("walk_in_sales_month", db.value("SELECT count(*) FROM orders o WHERE " + SOLD
+                + " AND o.customer_id IS NULL AND o.closed_at >= :month", Long.class, "month", month));
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("kpis", k);
+        out.put("topStaff", db.list("""
+                SELECT u.name, u.role, count(DISTINCT o.id) AS orders, sum(l.line_total) AS amount
+                FROM order_lines l JOIN orders o ON o.id = l.order_id JOIN users u ON u.id = """ + STAFF_OF + """
+                 AND u.tenant_id = :t
+                WHERE """ + SOLD + " AND o.closed_at >= :month GROUP BY u.id, u.name, u.role ORDER BY amount DESC LIMIT 3", "month", month));
         out.put("daily", db.list("""
                 SELECT to_char(d, 'YYYY-MM-DD') AS day, coalesce(sum(o.total), 0) AS sales, count(o.id) AS orders
                 FROM generate_series(current_date - 13, current_date, interval '1 day') d
@@ -161,7 +180,8 @@ public class ReportController {
                 WHERE kind = 'REFUND' AND created_at >= :from AND created_at < :to""", range));
         out.put("byStaff", db.list("""
                 SELECT u.name, count(DISTINCT o.id) AS orders, sum(l.line_total) AS amount
-                FROM order_lines l JOIN orders o ON o.id = l.order_id JOIN users u ON u.id = coalesce(l.staff_id, o.user_id)
+                FROM order_lines l JOIN orders o ON o.id = l.order_id JOIN users u ON u.id = """ + STAFF_OF + """
+                 AND u.tenant_id = :t
                 WHERE """ + window + " GROUP BY u.name ORDER BY amount DESC", range));
         out.put("byCategory", db.list("""
                 SELECT coalesce(c.name, 'Other') AS name, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
