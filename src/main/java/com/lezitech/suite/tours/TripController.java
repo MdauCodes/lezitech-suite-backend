@@ -93,6 +93,18 @@ public class TripController {
         return get(id);
     }
 
+    /**
+     * How a trip deposit was taken, from a short list rather than free text. "POINTS" would otherwise put the money
+     * on the bill without taking the points off the customer, and an unknown word is money recorded as nothing.
+     */
+    private static String depositMethod(String asked) {
+        String m = asked == null ? "MPESA" : asked.trim().toUpperCase();
+        if (!java.util.Set.of("CASH", "MPESA", "CARD", "BANK").contains(m)) {
+            throw ApiException.bad("A deposit can be cash, M-Pesa, card or bank");
+        }
+        return m;
+    }
+
     /** Book seats: checks capacity, creates the client and an invoice (package x pax + extras). */
     @PostMapping("/{id}/bookings")
     public Map<String, Object> book(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
@@ -133,9 +145,8 @@ public class TripController {
                 "pax", pax, "pickup", b.str("pickup", null), "nat", b.str("nationality", null),
                 "status", b.str("status", "CONFIRMED"), "order", order, "notes", b.str("notes", null));
         if (b.has("deposit") && b.num("deposit").signum() > 0) {
-            orders.pay(order, new Body(Map.of("deposit", true, "payments",
-                    List.of(Map.of("method", b.str("depositMethod", "MPESA"), "amount", b.num("deposit"),
-                            "reference", b.str("depositReference", ""))))));
+            orders.depositByServer(order, depositMethod(b.str("depositMethod", "MPESA")), b.num("deposit"),
+                    b.str("depositReference", ""));
         }
         if (booked + pax >= seats) {
             db.exec("UPDATE trips SET status = 'FULL' WHERE id = :id AND status = 'OPEN'", "id", id);

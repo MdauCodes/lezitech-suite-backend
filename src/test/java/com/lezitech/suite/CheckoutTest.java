@@ -150,6 +150,18 @@ class CheckoutTest extends IntegrationTest {
     }
 
     @Test
+    void callingItADepositInTheRequestDoesNotBuyAWayPastTheOverpaymentCheck() {
+        // "deposit" turns off both the change calculation and the overpayment check, so a request must never be
+        // able to claim it. Only the business's own bookings pay ahead, through depositByServer.
+        String owner = token(signup("retail"));
+        String sugar = item(owner, "Sugar").get("id").asText();
+        Res sneaky = post("/orders", owner, Map.of("lines", line(sugar, 1), "deposit", true,
+                "payments", List.of(Map.of("method", "MPESA", "amount", 500, "reference", "XYZ"))));
+        assertThat(sneaky.status()).isEqualTo(400);
+        assertThat(sneaky.at("/message").asText()).contains("more than").contains("190");
+    }
+
+    @Test
     void cashRefundWithNoOpenTillIsRefusedButMpesaRefundWorks() {
         String owner = token(signup("retail"));
         // Let cashiers give refunds, so a cashier who has not opened their till can try.

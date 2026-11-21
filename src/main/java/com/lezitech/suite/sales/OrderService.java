@@ -425,7 +425,7 @@ public class OrderService {
                 throw ApiException.bad("Use the customer's points with \"Use points\", so they come off their balance");
             }
         }
-        return payInternal(orderId, b);
+        return payInternal(orderId, b, false);
     }
 
     /**
@@ -433,21 +433,31 @@ public class OrderService {
      * owed by that waiter (method WAITER). No till needs to be open.
      */
     public Map<String, Object> settleByServer(UUID orderId, String method, BigDecimal amount, String reference) {
-        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", method, "amount", amount, "reference", reference)))));
+        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", method, "amount", amount, "reference", reference)))), true);
     }
 
-    /** Money paid ahead (e.g. a table booking's deposit) put on a bill: it counts towards the bill but doesn't close it. */
+    /**
+     * Money paid ahead (a table booking's, a trip's, a stay's deposit) put on a bill: it counts towards the bill
+     * but doesn't close it, and none of it is change. Only the business's own booking screens call this, and each
+     * builds the method and amount itself. The paying endpoints use pay(), which ignores a "deposit" asked for in a
+     * request: the flag switches off both the change calculation and the check that stops someone overpaying by
+     * card or M-Pesa, so a request that could set it could overpay.
+     */
     public Map<String, Object> depositByServer(UUID orderId, String method, BigDecimal amount, String reference) {
+        if ("CASH".equalsIgnoreCase(method)) {
+            // Cash over the counter has to land in somebody's till count, the same as a sale or a refund.
+            tills.requireOpenTill();
+        }
         return payInternal(orderId, new Body(Map.of("deposit", true,
-                "payments", List.of(Map.of("method", method, "amount", amount, "reference", reference)))));
+                "payments", List.of(Map.of("method", method, "amount", amount, "reference", reference)))), true);
     }
 
     /** Points used on a bill (checked and recorded by LoyaltyService): a POINTS payment, closing the bill if that settles it. */
     public Map<String, Object> payWithPoints(UUID orderId, BigDecimal value, String reference) {
-        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", "POINTS", "amount", value, "reference", reference)))));
+        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", "POINTS", "amount", value, "reference", reference)))), true);
     }
 
-    private Map<String, Object> payInternal(UUID orderId, Body b) {
+    private Map<String, Object> payInternal(UUID orderId, Body b, boolean allowDeposit) {
         Map<String, Object> o = requireOpen(orderId);
         if ("QUOTE".equals(o.get("kind"))) {
             throw ApiException.bad("Convert the quotation to a sale before taking payment");
@@ -471,7 +481,8 @@ public class OrderService {
         // Cash given beyond what's due is change, not revenue; trim the cash line by it.
         BigDecimal sum = payments.stream().map(p -> new Body(p).num("amount", BigDecimal.ZERO)).reduce(BigDecimal.ZERO, BigDecimal::add);
         // A deposit (room, tour, event) may exceed what's billed so far; it's not change.
-        boolean deposit = b.bool("deposit", false);
+        // Only a body the server built may call this a deposit: see depositByServer.
+        boolean deposit = allowDeposit && b.bool("deposit", false);
         BigDecimal change = deposit ? BigDecimal.ZERO : sum.subtract(due).max(BigDecimal.ZERO);
         final BigDecimal changeDue = change;
         if (!deposit) {

@@ -251,8 +251,8 @@ public class SeedService {
                     "trip", trip, "customer", customer, "lead", lead, "phone", bk.path("phone").asText(null), "pax", pax,
                     "pickup", bk.path("pickup").asText(null), "nat", bk.path("nationality").asText(null), "order", order);
             if (bk.has("deposit")) {
-                orders.pay(order, new com.lezitech.suite.common.Body(Map.of("deposit", true, "payments",
-                        java.util.List.of(Map.of("method", "MPESA", "amount", bk.get("deposit").asInt(), "reference", "SAMPLE")))));
+                orders.depositByServer(order, "MPESA",
+                        java.math.BigDecimal.valueOf(bk.get("deposit").asInt()), "SAMPLE");
             }
         }
         if (seed.path("leases").isEmpty()) {

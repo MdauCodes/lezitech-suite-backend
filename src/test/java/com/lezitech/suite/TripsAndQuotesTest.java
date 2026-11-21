@@ -22,6 +22,13 @@ class TripsAndQuotesTest extends IntegrationTest {
         assertThat(trip.status()).as(trip.body().toString()).isEqualTo(200);
         String id = trip.at("/id").asText();
 
+        // A deposit can only be taken in a way we really handle: "POINTS" would add the money to the bill without
+        // taking any points off the customer, and a made-up word would be money recorded as nothing.
+        Res points = post("/trips/" + id + "/bookings", owner, Map.of("leadName", "The Smiths", "pax", 3,
+                "deposit", 10000, "depositMethod", "POINTS"));
+        assertThat(points.status()).isEqualTo(400);
+        assertThat(points.at("/message").asText()).contains("cash, M-Pesa, card or bank");
+
         Res first = post("/trips/" + id + "/bookings", owner, Map.of("leadName", "The Smiths", "pax", 3, "nationality", "UK",
                 "deposit", 10000, "depositMethod", "MPESA", "depositReference", "TKL1"));
         assertThat(first.status()).as(first.body().toString()).isEqualTo(200);
