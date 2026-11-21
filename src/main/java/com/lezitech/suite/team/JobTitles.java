@@ -66,7 +66,14 @@ public final class JobTitles {
             "property", List.of(
                     new Job("Accountant", "ACCOUNTANT", "Checks rent paid, money owed and landlord statements."),
                     new Job("Caretaker", "TECHNICIAN", "Sees the repair jobs given to them and reads meters."),
-                    new Job("Stall attendant", "COLLECTOR", "Collects daily stall fees on a phone and hands in the cash.")));
+                    new Job("Stall attendant", "COLLECTOR", "Collects daily stall fees on a phone and hands in the cash.")),
+            "resort", List.of(
+                    new Job("Receptionist", "RECEPTION", "Checks guests in and out and takes their payments."),
+                    new Job("Waiter / barman", "WAITER", "Takes orders in the restaurant and at the bar, serves and brings the bill."),
+                    new Job("Chef", "KITCHEN", "Sees orders on the kitchen screen and marks them ready."),
+                    new Job("Pool or games attendant", "CASHIER", "Sells entry, time and drinks at the pool or games room."),
+                    new Job("Store keeper", "STOREKEEPER", "Receives deliveries and counts stock for every area."),
+                    new Job("Accountant", "ACCOUNTANT", "Checks sales, payments, money owed and reports; doesn't sell.")));
 
     public static List<Map<String, Object>> presets(String sector) {
         List<Map<String, Object>> out = new ArrayList<>();

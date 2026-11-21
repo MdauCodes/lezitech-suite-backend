@@ -2724,5 +2724,287 @@
         0
       ]
     }
+  },
+  {
+    "key": "resort",
+    "comingSoon": true,
+    "name": "Resorts & clubs",
+    "tagline": "One business, every place in it: restaurant, bar, pool, games and rooms",
+    "icon": "palmtree",
+    "color": "#0284c7",
+    "subSectors": [
+      "Beach resort",
+      "Country club",
+      "Members' club",
+      "Safari lodge & camp",
+      "Conference & retreat centre",
+      "Water park & recreation centre"
+    ],
+    "products": [
+      "POS",
+      "ERP"
+    ],
+    "posMode": "RESTAURANT",
+    "home": "/dashboard",
+    "modules": [
+      "dashboard",
+      "pos",
+      "floor",
+      "kitchen",
+      "rooms",
+      "bookings",
+      "items",
+      "stock",
+      "purchasing",
+      "customers",
+      "crm",
+      "sales",
+      "reports",
+      "team",
+      "settings"
+    ],
+    "terms": {
+      "customer": "Guest",
+      "customers": "Guests",
+      "item": "Item",
+      "items": "Items",
+      "order": "Bill",
+      "orders": "Bills",
+      "staff": "Staff",
+      "location": "Area"
+    },
+    "features": {
+      "tables": true,
+      "kitchen": true,
+      "courses": false,
+      "splitBill": true,
+      "tips": true,
+      "barcode": true,
+      "expiry": false,
+      "prescriptions": false,
+      "wholesalePricing": false,
+      "credit": true,
+      "loyalty": true,
+      "appointments": false,
+      "commissions": false,
+      "storeFeedsShops": true,
+      "channels": [
+        "DINE_IN",
+        "COUNTER"
+      ],
+      "rooms": true,
+      "trips": false,
+      "property": false,
+      "deposits": true,
+      "orderBoard": true,
+      "publicMenu": true,
+      "allowNegativeStock": false
+    },
+    "kpis": [
+      "sales_today",
+      "open_bills",
+      "occupancy_today",
+      "arrivals_today"
+    ],
+    "stages": [
+      {
+        "name": "Enquiry",
+        "probability": 10
+      },
+      {
+        "name": "Quoted",
+        "probability": 40
+      },
+      {
+        "name": "Won",
+        "probability": 100,
+        "won": true
+      },
+      {
+        "name": "Lost",
+        "probability": 0,
+        "lost": true
+      }
+    ],
+    "seed": {
+      "locations": [
+        {
+          "name": "Reception",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Restaurant",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Bar",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Liquor store",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Swimming pool",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Games room",
+          "kind": "SHOP"
+        },
+        {
+          "name": "Main kitchen",
+          "kind": "KITCHEN",
+          "parent": "Restaurant"
+        },
+        {
+          "name": "Main store",
+          "kind": "STORE",
+          "parent": "Reception"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Kitchen",
+          "color": "#c2410c",
+          "items": [
+            {
+              "name": "Nyama choma (half kg)",
+              "price": 700,
+              "cost": 420,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Grilled tilapia with ugali",
+              "price": 850,
+              "cost": 500,
+              "kind": "SERVICE"
+            }
+          ]
+        },
+        {
+          "name": "Bar",
+          "color": "#0284c7",
+          "items": [
+            {
+              "name": "Tusker 500ml",
+              "price": 300,
+              "cost": 180,
+              "stock": 240,
+              "reorder": 60
+            },
+            {
+              "name": "Soda 300ml",
+              "price": 100,
+              "cost": 55,
+              "stock": 300,
+              "reorder": 72
+            }
+          ]
+        },
+        {
+          "name": "Liquor store",
+          "color": "#7c3aed",
+          "items": [
+            {
+              "name": "Whisky 750ml (sealed)",
+              "price": 2600,
+              "cost": 1950,
+              "barcode": "6164500000011",
+              "stock": 24,
+              "reorder": 6
+            },
+            {
+              "name": "Wine 750ml (sealed)",
+              "price": 1800,
+              "cost": 1250,
+              "barcode": "6164500000028",
+              "stock": 30,
+              "reorder": 8
+            }
+          ]
+        },
+        {
+          "name": "Entry & recreation",
+          "color": "#059669",
+          "items": [
+            {
+              "name": "Swimming pool day pass (adult)",
+              "price": 500,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Swimming pool day pass (child)",
+              "price": 300,
+              "kind": "SERVICE"
+            },
+            {
+              "name": "Pool table, one hour",
+              "price": 200,
+              "kind": "SERVICE"
+            }
+          ]
+        }
+      ],
+      "customers": [
+        {
+          "name": "Walk-in guest"
+        },
+        {
+          "name": "Grace Mutiso",
+          "phone": "0711654321"
+        }
+      ],
+      "suppliers": [
+        {
+          "name": "Coast Beverages Ltd",
+          "phone": "0722333444"
+        }
+      ],
+      "deals": []
+    },
+    "extras": [],
+    "demo": {
+      "business": "Bahari Beach Resort",
+      "color": "#0284c7",
+      "roles": [
+        {
+          "role": "OWNER",
+          "label": "Owner / director",
+          "name": "Mr. Omondi"
+        },
+        {
+          "role": "MANAGER",
+          "label": "Resort manager",
+          "name": "Faith Njeri"
+        },
+        {
+          "role": "RECEPTION",
+          "label": "Reception",
+          "name": "Alice Kemunto"
+        },
+        {
+          "role": "WAITER",
+          "label": "Waiter / barman",
+          "name": "Dennis Mwangi"
+        }
+      ]
+    },
+    "examples": {
+      "business": "Bahari Beach Resort",
+      "category": "Bar",
+      "item": "Tusker 500ml",
+      "optionGroup": "Size",
+      "optionChoice": "500ml",
+      "tagline": "Everything in one place, by the water",
+      "note": "",
+      "importRow": [
+        "Tusker 500ml",
+        "Bar",
+        300,
+        180,
+        240
+      ]
+    }
   }
 ]

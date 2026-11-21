@@ -4548,5 +4548,87 @@
         ]
       }
     }
+  ],
+  "resort": [
+    {
+      "key": "beach-resort",
+      "name": "Beach resort",
+      "tagline": "Restaurant, bar, pool and rooms, each with its own till and takings",
+      "seo": {
+        "headline": "Resort software for Kenya",
+        "pitch": "Run the restaurant, bar, liquor store, pool, games room and rooms as one business, and see what every area took today.",
+        "keywords": [
+          "resort software Kenya",
+          "beach resort POS Kenya",
+          "resort management system Kenya"
+        ]
+      }
+    },
+    {
+      "key": "country-club",
+      "name": "Country club",
+      "tagline": "Members, guests and every bar and kitchen in the club on one bill",
+      "seo": {
+        "headline": "Country club software for Kenya",
+        "pitch": "One system for the clubhouse, the bar, the kitchen and the grounds, with takings kept apart by area.",
+        "keywords": [
+          "country club software Kenya",
+          "club management system Kenya",
+          "golf club POS Kenya"
+        ]
+      }
+    },
+    {
+      "key": "members-club",
+      "name": "Members' club",
+      "tagline": "A club bar and kitchen, with members and their guests",
+      "seo": {
+        "headline": "Members' club software for Kenya",
+        "pitch": "Serve members and their guests across the bar, kitchen and lounge, and see each area's takings.",
+        "keywords": [
+          "members club software Kenya",
+          "social club system Kenya"
+        ]
+      }
+    },
+    {
+      "key": "safari-lodge-resort",
+      "name": "Safari lodge & camp",
+      "tagline": "Tents and cottages with a restaurant, bar and shop under one business",
+      "seo": {
+        "headline": "Safari lodge software for Kenya",
+        "pitch": "Book tents and cottages, run the restaurant, bar and curio shop, and report on the whole camp or one area.",
+        "keywords": [
+          "safari lodge software Kenya",
+          "camp management system Kenya"
+        ]
+      }
+    },
+    {
+      "key": "conference-retreat",
+      "name": "Conference & retreat centre",
+      "tagline": "Halls, meals and rooms for groups, each area counted on its own",
+      "seo": {
+        "headline": "Conference centre software for Kenya",
+        "pitch": "Take group bookings for halls and rooms, serve meals from the kitchen and see what each area took.",
+        "keywords": [
+          "conference centre software Kenya",
+          "retreat centre system Kenya"
+        ]
+      }
+    },
+    {
+      "key": "water-park",
+      "name": "Water park & recreation centre",
+      "tagline": "Day entry, pool, games and food, all on one till each",
+      "seo": {
+        "headline": "Water park software for Kenya",
+        "pitch": "Sell day entry at the gate, run the pool, games and kitchen tills, and see the day's takings by area.",
+        "keywords": [
+          "water park software Kenya",
+          "recreation centre POS Kenya"
+        ]
+      }
+    }
   ]
 }

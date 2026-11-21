@@ -42,7 +42,8 @@ public class ExpenseService {
             "services", List.of("Fuel", "Tools and equipment", "Subcontractors"),
             "tours", List.of("Fuel", "Park fees", "Vehicle service"),
             "property", List.of("Security", "Cleaning", "Garbage collection"),
-            "pharmacy", List.of("Cold chain (fridge)", "Security"));
+            "pharmacy", List.of("Cold chain (fridge)", "Security"),
+            "resort", List.of("Gas and charcoal", "Pool chemicals", "Grounds and gardens", "Security", "Entertainment and artists"));
 
     private final Db db;
     private final ActivityLog activity;
