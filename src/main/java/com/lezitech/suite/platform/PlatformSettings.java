@@ -25,7 +25,8 @@ public class PlatformSettings {
     public static final List<Map<String, Object>> DEFAULT_PLANS = List.of(
             plan("LITE", "Lite", 2650, 3, 1, 0, "Everything to run one shop, kiosk or café day to day. 1 branch, 3 staff"),
             plan("GROWTH", "Growth", 4500, 8, 3, 0, "Adds suppliers, back-office reports, sales leads, quotes, loyalty and phone ordering. 3 branches, 8 staff"),
-            plan("PRO", "Pro", 9000, 30, 10, 0, "Adds reports across branches, full history, owner powers for managers and priority support. 10 branches, 30 staff"));
+            // 0 means no limit (see PlanLimits.check): the top plan caps nothing.
+            plan("PRO", "Pro", 9000, 0, 0, 0, "Adds reports across branches, full history, owner powers for managers and priority support. Unlimited branches and staff"));
 
     private static final List<String> PLAN_ORDER = List.of("LITE", "GROWTH", "PRO");
 

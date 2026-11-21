@@ -103,7 +103,8 @@ class PlanLimitsTest extends IntegrationTest {
         String owner = token(signup("retail"));
         JsonNode usage = get("/billing/plans", owner).at("/usage");
         assertThat(usage.at("/plan").asText()).isEqualTo("PRO");
-        assertThat(usage.at("/users/limit").asInt()).isEqualTo(30);
+        // The top plan caps nothing, so a business on free days is capped at nothing either. 0 means no limit.
+        assertThat(usage.at("/users/limit").asInt()).isEqualTo(0);
         assertThat(addStaff(owner).status()).isEqualTo(200);
         assertThat(addStaff(owner).status()).isEqualTo(200);
     }
