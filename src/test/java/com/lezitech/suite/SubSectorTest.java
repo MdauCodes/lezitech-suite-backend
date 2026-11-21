@@ -89,12 +89,18 @@ class SubSectorTest extends IntegrationTest {
         assertThat(retail.has("seed")).isFalse();
     }
 
-    /** Pharmacy and medical clinics are "coming soon" (patients' health data): listed, but nobody can open one yet. */
+    /** Pharmacy, resorts and medical clinics are "coming soon": listed, but nobody can open one yet. */
     @Test
     void comingSoonSectorsCantBeOpened() {
         Res pharmacy = signupAs("pharmacy", null, Map.of());
         assertThat(pharmacy.status()).isEqualTo(400);
         assertThat(pharmacy.at("/message").asText()).contains("coming soon");
+        // Resorts (21 Nov): the pack is there so people see it is on the way, but nobody can open one yet,
+        // by the sector's own name or by one of its kinds.
+        Res resort = signupAs("resort", null, Map.of());
+        assertThat(resort.status()).isEqualTo(400);
+        assertThat(resort.at("/message").asText()).contains("coming soon");
+        assertThat(signupAs("resort", "beach-resort", Map.of()).status()).isEqualTo(400);
         assertThat(signupAs("beauty", "clinic", Map.of()).status()).isEqualTo(400);
         // Launch (19 Nov): the types whose own tools aren't built yet open when their phase ships.
         for (String[] soon : new String[][]{{"services", "garage"}, {"services", "laundry"}, {"services", "school"}, {"services", "tailoring"},
@@ -105,6 +111,8 @@ class SubSectorTest extends IntegrationTest {
         String admin = post("/admin/auth/demo", null, Map.of("role", "ADMIN")).at("/token").asText();
         assertThat(post("/admin/workspaces", admin, Map.of("businessName", "Afya Chemist", "sector", "pharmacy", "name", "Owner",
                 "email", "soon-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local")).status()).isEqualTo(400);
+        assertThat(post("/admin/workspaces", admin, Map.of("businessName", "Bahari Resort", "sector", "resort", "name", "Owner",
+                "email", "soon-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local")).status()).isEqualTo(400);
         // The beauty picker no longer offers clinics, but the details say they're coming.
         JsonNode beauty = null;
         for (JsonNode p : get("/public/sectors", null).body()) {
@@ -114,8 +122,18 @@ class SubSectorTest extends IntegrationTest {
         }
         assertThat(beauty.get("subSectors").toString()).doesNotContain("Medical & dental clinic").contains("Car wash");
         assertThat(beauty.at("/subSectorDetails").toString()).contains("\"key\":\"clinic\"").contains("\"comingSoon\":true");
-        // No demo workspace for pharmacy.
-        assertThat(get("/public/demo", null).body().toString()).doesNotContain("\"sector\":\"pharmacy\"");
+        // The sign-up picker lists resorts, marked as coming soon.
+        JsonNode resortPack = null;
+        for (JsonNode p : get("/public/sectors", null).body()) {
+            if ("resort".equals(p.get("key").asText())) {
+                resortPack = p;
+            }
+        }
+        assertThat(resortPack).isNotNull();
+        assertThat(resortPack.path("comingSoon").asBoolean()).isTrue();
+        assertThat(resortPack.get("name").asText()).contains("Resort");
+        // No demo workspace for pharmacy or resorts.
+        assertThat(get("/public/demo", null).body().toString()).doesNotContain("\"sector\":\"pharmacy\"").doesNotContain("\"sector\":\"resort\"");
     }
 
     /** Every sub-sector's sample data loads: a typo in subsectors.json fails here, not on a customer's signup. */
