@@ -11,7 +11,7 @@ import java.util.UUID;
 /**
  * Emails from a business to its own customers (a booking, a reminder, a statement) look like that business: its
  * logo (or initials in its colour), its name as the sender, replies going to its email, its phone and address in the
- * footer. BizNez only appears as a small "sent with BizNez" line.
+ * footer. Busynez only appears as a small "sent with Busynez" line.
  */
 @Component
 public class BrandedEmail {
@@ -58,7 +58,7 @@ public class BrandedEmail {
                 + (b.address() == null || b.address().isBlank() ? "" : "<br>" + Mailer.esc(b.address()))
                 + (contacts.isEmpty() ? "" : "<br>" + contacts);
         return EmailLayout.page(new EmailLayout.Look(b.name(), darken(b.color()), tint(b.color()), mark, footer,
-                "<span style=\"color:#9a9a93\">Sent with BizNez</span>"), bodyHtml, preheader);
+                "<span style=\"color:#9a9a93\">Sent with Busynez</span>"), bodyHtml, preheader);
     }
 
     // ---------------- colours ----------------

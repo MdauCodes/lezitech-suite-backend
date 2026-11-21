@@ -114,7 +114,7 @@ public class IntegrationController {
         String account = String.valueOf(raw.getOrDefault("accountNumber", "")).trim();
         String name = jdbc.queryForObject("SELECT name FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
         var keys = integrations.payHeroKeys(TenantContext.tenantId());
-        var c = payHero.addChannel(keys, payHero.wallet(keys).accountId(), type, number, account, name + " (BizNez)");
+        var c = payHero.addChannel(keys, payHero.wallet(keys).accountId(), type, number, account, name + " (Busynez)");
         return Map.of("id", c.id(), "shortCode", c.shortCode());
     }
 

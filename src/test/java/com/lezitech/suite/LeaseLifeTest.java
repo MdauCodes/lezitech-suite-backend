@@ -77,7 +77,7 @@ class LeaseLifeTest extends IntegrationTest {
         assertThat(unit(owner, "G03").get("depositHeld").decimalValue()).isEqualByComparingTo("20000");
         assertThat(get("/reports/dashboard", owner).at("/kpis/sales_today").asDouble()).isEqualTo(salesBefore);
 
-        // Already received before BizNez: no bill, but held.
+        // Already received before Busynez: no bill, but held.
         lease(owner, "G04", TODAY.withDayOfMonth(1), Map.of("deposit", 15000, "depositAlreadyReceived", true));
         assertThat(unit(owner, "G04").get("depositHeld").decimalValue()).isEqualByComparingTo("15000");
         assertThat(unit(owner, "G04").get("arrears").decimalValue()).isEqualByComparingTo("0");

@@ -73,10 +73,10 @@ public class LoginCodes {
         String code = issue(user, "RESET", RESET_TTL);
         String name = first((String) rows.get(0).get("name"));
         String what = forPin ? "till PIN" : "password";
-        mailer.send(email, (String) rows.get(0).get("name"), code + " is your BizNez code",
-                "Hi " + name + ",\n\nYour code to set a new BizNez " + what + " is " + code + ".\nIt works for 15 minutes.\n\n"
+        mailer.send(email, (String) rows.get(0).get("name"), code + " is your Busynez code",
+                "Hi " + name + ",\n\nYour code to set a new Busynez " + what + " is " + code + ".\nIt works for 15 minutes.\n\n"
                         + "If you didn't ask for this, ignore this email; your " + what + " stays the same.\n\nLeziTech",
-                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new BizNez " + what + " is:</p>"
+                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new Busynez " + what + " is:</p>"
                         + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                         + "<p>It works for 15 minutes. If you didn't ask for this, ignore this email; your " + what + " stays the same.</p>");
     }
@@ -96,16 +96,16 @@ public class LoginCodes {
         String setPassword = appUrl + "/reset?email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8) + "&w=" + slug;
         String signIn = appUrl + "/w/" + slug;
         String role = job == null || job.isBlank() ? "" : " as " + job;
-        String text = "Hi " + name + ",\n\n" + byName + " added you to " + business + " on BizNez" + role + ".\n\n"
+        String text = "Hi " + name + ",\n\n" + byName + " added you to " + business + " on Busynez" + role + ".\n\n"
                 + "1. Open " + setPassword + "\n2. Enter the code " + code + " (it works for 3 days) and choose your password.\n"
                 + "3. After that, sign in any time at " + signIn + " with " + email + ".\n\n" + business;
-        String html = "<p>Hi " + Mailer.esc(name) + ",</p><p>" + Mailer.esc(byName) + " added you to <b>" + Mailer.esc(business) + "</b> on BizNez"
+        String html = "<p>Hi " + Mailer.esc(name) + ",</p><p>" + Mailer.esc(byName) + " added you to <b>" + Mailer.esc(business) + "</b> on Busynez"
                 + Mailer.esc(role) + ".</p><p>Your code to set your password:</p>"
                 + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                 + "<p><a href=\"" + setPassword + "\" style=\"display:inline-block;background:#101415;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none\">Set my password</a></p>"
                 + "<p>The code works for 3 days. After that, sign in any time at <a href=\"" + signIn + "\">" + Mailer.esc(signIn) + "</a> with "
                 + Mailer.esc(email) + ".</p><p>" + Mailer.esc(business) + "</p>";
-        return mailer.send(email, fullName, code + " is your code to join " + business + " on BizNez", text, html);
+        return mailer.send(email, fullName, code + " is your code to join " + business + " on Busynez", text, html);
     }
 
     /** "Confirm your email" from Home: a code to the address on the account. At most 4 an hour. */
@@ -117,10 +117,10 @@ public class LoginCodes {
         }
         String code = issue(user, "CONFIRM", RESET_TTL);
         String name = first(fullName);
-        mailer.send(email, fullName, code + " confirms your BizNez email",
-                "Hi " + name + ",\n\nYour code to confirm this email for BizNez is " + code + ".\nIt works for 15 minutes.\n\n"
+        mailer.send(email, fullName, code + " confirms your Busynez email",
+                "Hi " + name + ",\n\nYour code to confirm this email for Busynez is " + code + ".\nIt works for 15 minutes.\n\n"
                         + "Confirming means you can always get back into your account.\n\nLeziTech",
-                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to confirm this email for BizNez is:</p>"
+                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to confirm this email for Busynez is:</p>"
                         + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
                         + "<p>It works for 15 minutes. Confirming means you can always get back into your account.</p>");
     }

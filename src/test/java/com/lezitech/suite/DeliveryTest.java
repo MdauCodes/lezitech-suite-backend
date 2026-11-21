@@ -146,7 +146,7 @@ class DeliveryTest extends IntegrationTest {
         assertThat(get("/delivery/alerts", rider).at("/count").asInt()).isZero();
         post("/delivery/" + h.get("id").asText() + "/rider", owner, Map.of("riderId", juma));
 
-        // Phone notifications: the device signs up with the key BizNez made.
+        // Phone notifications: the device signs up with the key Busynez made.
         assertThat(get("/push", rider).at("/publicKey").asText()).hasSizeGreaterThan(80);
         assertThat(post("/push/subscribe", rider, Map.of("endpoint", "https://push.example.invalid/abc", "keys",
                 Map.of("p256dh", "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", "auth", "tBHItJI5svbpez7KI4CCXg"))).at("/devices").asInt()).isEqualTo(1);

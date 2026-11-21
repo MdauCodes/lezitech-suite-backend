@@ -168,7 +168,7 @@ public class VariantsController {
         String other = db.value("SELECT name FROM items WHERE lower(sku) = lower(:s) AND (cast(:self as uuid) IS NULL OR id <> cast(:self as uuid)) LIMIT 1",
                 String.class, "s", sku.trim(), "self", self == null ? null : self.toString());
         if (other != null) {
-            throw ApiException.bad("Code " + sku.trim() + " is already on " + other + ". Give this one another code, or leave it empty and BizNez makes one.");
+            throw ApiException.bad("Code " + sku.trim() + " is already on " + other + ". Give this one another code, or leave it empty and Busynez makes one.");
         }
     }
 

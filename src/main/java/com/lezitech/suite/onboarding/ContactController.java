@@ -83,7 +83,7 @@ public class ContactController {
         return out;
     }
 
-    /** From inside BizNez: who and where are filled in. {kind, message, page, phone}. */
+    /** From inside Busynez: who and where are filled in. {kind, message, page, phone}. */
     @PostMapping("/api/contact")
     public Map<String, Object> fromApp(@RequestBody Map<String, Object> raw) {
         TenantContext.Caller c = TenantContext.caller();
@@ -141,7 +141,7 @@ public class ContactController {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);
         out.put("id", id);
-        out.put("whatsapp", wa("Hi BizNez team, I've just sent a " + label(kind).toLowerCase() + (business != null ? " from " + business : "") + ": "
+        out.put("whatsapp", wa("Hi Busynez team, I've just sent a " + label(kind).toLowerCase() + (business != null ? " from " + business : "") + ": "
                 + (message.length() > 300 ? message.substring(0, 300) + "..." : message)));
         return out;
     }

@@ -37,7 +37,7 @@ public class PayHeroFees {
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
     private volatile List<Band> bands;
-    private volatile String source = "copy kept in BizNez";
+    private volatile String source = "copy kept in Busynez";
     private volatile Instant fetchedAt;
 
     public PayHeroFees(ObjectMapper json) {

@@ -100,7 +100,7 @@ public class ErrorAlerts {
             dropped = 0;
         }
         int total = groups.stream().mapToInt(x -> x.count).sum();
-        StringBuilder text = new StringBuilder("BizNez had " + total + " server error" + (total == 1 ? "" : "s") + " in " + groups.size()
+        StringBuilder text = new StringBuilder("Busynez had " + total + " server error" + (total == 1 ? "" : "s") + " in " + groups.size()
                 + " group" + (groups.size() == 1 ? "" : "s") + " since the last alert.\n\n");
         for (Group g : groups) {
             text.append(g.count).append(" × ").append(g.kind).append(" at ").append(g.where.isEmpty() ? "(outside our code)" : g.where)
@@ -111,7 +111,7 @@ public class ErrorAlerts {
             text.append(lost).append(" more error(s) of other kinds weren't grouped (too many kinds at once).\n");
         }
         text.append("Full details are in the server log at those times.");
-        String subject = "BizNez: " + total + " server error" + (total == 1 ? "" : "s") + " (" + groups.get(0).kind + (groups.size() > 1 ? " and more" : "") + ")";
+        String subject = "Busynez: " + total + " server error" + (total == 1 ? "" : "s") + " (" + groups.get(0).kind + (groups.size() > 1 ? " and more" : "") + ")";
         if (to == null || to.isBlank()) {
             log.warn("{}\n{}", subject, text);
             return text.toString();

@@ -97,7 +97,7 @@ public final class SafeFetch {
         URI uri = check(link);
         try {
             HttpResponse<InputStream> res = CLIENT.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(15))
-                    .header("User-Agent", "BizNez calendar sync").GET().build(), HttpResponse.BodyHandlers.ofInputStream());
+                    .header("User-Agent", "Busynez calendar sync").GET().build(), HttpResponse.BodyHandlers.ofInputStream());
             try (InputStream in = res.body()) {
                 if (res.statusCode() / 100 == 3) {
                     throw ApiException.bad("That link moved to another address. Copy the calendar link again from the other site");

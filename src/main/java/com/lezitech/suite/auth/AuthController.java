@@ -83,7 +83,7 @@ public class AuthController {
         Object ref = raw.get("referralCode") != null ? raw.get("referralCode") : acq == null ? null : acq.path("ref").asText(null);
         referrals.link(tenantId, ref == null ? null : ref.toString());
         referrals.codeFor(tenantId);
-        // A tenant of a mall that offers BizNez at a discount keeps that discount on every payment.
+        // A tenant of a mall that offers Busynez at a discount keeps that discount on every payment.
         if (mallOffer != null && acq != null && acq.hasNonNull("mall")) {
             mallOffer.linkSignup(tenantId, acq.get("mall").asText());
         }
@@ -103,7 +103,7 @@ public class AuthController {
     }
 
     /**
-     * As above; with {@code owner} it's another business of an owner already on BizNez: no email or password of its own
+     * As above; with {@code owner} it's another business of an owner already on Busynez: no email or password of its own
      * (they sign in as before and switch), and it joins their group.
      */
     public Map<String, Object> createWorkspace(Map<String, Object> raw, String fixedSlug, LinkedOwner owner) throws Exception {
@@ -127,7 +127,7 @@ public class AuthController {
         JsonNode pack = sectors.get(b.str("sector"), b.str("subSector", null));
         // Coming-soon sectors (pharmacy, clinics: patients' health data) can't be opened yet, by anyone.
         if (sectors.comingSoon(b.str("sector"), b.str("subSector", null))) {
-            throw ApiException.bad("BizNez for " + pack.path("subSector").asText(pack.get("name").asText()).toLowerCase()
+            throw ApiException.bad("Busynez for " + pack.path("subSector").asText(pack.get("name").asText()).toLowerCase()
                     + " is coming soon. Ask us to tell you when it's ready.");
         }
         if (fixedSlug == null && Boolean.TRUE.equals(jdbc.queryForObject("""

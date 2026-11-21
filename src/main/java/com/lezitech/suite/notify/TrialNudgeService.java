@@ -81,9 +81,9 @@ public class TrialNudgeService {
         boolean last = "DAY7".equals(kind);
         boolean ended = ends.isBefore(Instant.now());
         String when = ended ? "have ended" : last ? "end today" : daysLeft == 1 ? "end tomorrow" : "end on " + DAY.format(ends);
-        String subject = ended ? "Your BizNez free days have ended: your records are safe"
-                : last ? "Your BizNez free days end today" : daysLeft == 1 ? "Your BizNez free days end tomorrow"
-                : "Your BizNez free days end in " + daysLeft + " days";
+        String subject = ended ? "Your Busynez free days have ended: your records are safe"
+                : last ? "Your Busynez free days end today" : daysLeft == 1 ? "Your Busynez free days end tomorrow"
+                : "Your Busynez free days end in " + daysLeft + " days";
         String link = appUrl + "/billing";
         // What keeps their own setup running: the plan that has the tools they use, and its price.
         String cost = "";
@@ -98,11 +98,11 @@ public class TrialNudgeService {
         String safe = "Everything you have entered stays safe" + (ended ? ", and you can still see it." : ".");
         String text = "Hi " + owner + ",\n\nThe free days for " + business + " " + when + ". " + safe + "\n\n"
                 + (cost.isEmpty() ? "" : cost + "\n\n")
-                + "To keep selling without a break, open " + link + " and pay by M-Pesa: a prompt comes to your phone and BizNez carries on straight away.\n\n"
+                + "To keep selling without a break, open " + link + " and pay by M-Pesa: a prompt comes to your phone and Busynez carries on straight away.\n\n"
                 + (support.isBlank() ? "" : "Questions? WhatsApp us on " + support + ".\n\n") + "Thank you,\nLeziTech";
         String html = "<p>Hi " + esc(owner) + ",</p><p>The free days for <b>" + esc(business) + "</b> " + when + ". " + safe + "</p>"
                 + (cost.isEmpty() ? "" : "<p>" + esc(cost) + "</p>")
-                + "<p>To keep selling without a break, <a href=\"" + link + "\">pay by M-Pesa</a>: a prompt comes to your phone and BizNez carries on straight away.</p>"
+                + "<p>To keep selling without a break, <a href=\"" + link + "\">pay by M-Pesa</a>: a prompt comes to your phone and Busynez carries on straight away.</p>"
                 + (support.isBlank() ? "" : "<p>Questions? WhatsApp us on " + esc(support) + ".</p>") + "<p>Thank you,<br>LeziTech</p>";
         String wa = "Hi " + owner + ", this is LeziTech. The free days for " + business + " " + when
                 + ". Your records are safe. " + (cost.isEmpty() ? "" : cost + " ") + "To keep using it, choose a plan here: " + link

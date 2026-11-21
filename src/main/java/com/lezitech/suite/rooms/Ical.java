@@ -86,7 +86,7 @@ public final class Ical {
         StringBuilder b = new StringBuilder();
         line(b, "BEGIN:VCALENDAR");
         line(b, "VERSION:2.0");
-        line(b, "PRODID:-//BizNez//Rooms//EN");
+        line(b, "PRODID:-//Busynez//Rooms//EN");
         line(b, "CALSCALE:GREGORIAN");
         line(b, "X-WR-CALNAME:" + escape(calendarName));
         String stamp = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'"));

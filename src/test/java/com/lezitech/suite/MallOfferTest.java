@@ -14,7 +14,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Phase E: a mall offers its tenants BizNez at a discount; a tenant who joins through it pays less and the landlord is thanked. */
+/** Phase E: a mall offers its tenants Busynez at a discount; a tenant who joins through it pays less and the landlord is thanked. */
 class MallOfferTest extends IntegrationTest {
 
     @Autowired

@@ -264,7 +264,7 @@ public class IntegrationService {
             String base = cfg.callbackBase().replaceAll("/+$", "") + "/api/public/mpesa/c2b/" + cfg.c2bSecret();
             try {
                 daraja.registerC2bUrls(a, base + "/confirmation", base + "/validation");
-                msg += " Payments made straight to " + a.partyB() + " will now show up in BizNez.";
+                msg += " Payments made straight to " + a.partyB() + " will now show up in Busynez.";
             } catch (ApiException e) {
                 msg += " Registering direct payments to " + a.partyB() + " didn't work (" + e.getMessage() + ").";
             }

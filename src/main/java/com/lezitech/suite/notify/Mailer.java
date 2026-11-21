@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * The one place emails leave BizNez: trial reminders, sign-in codes, welcome emails, receipts and
+ * The one place emails leave Busynez: trial reminders, sign-in codes, welcome emails, receipts and
  * alerts to the LeziTech team. EMAIL_PROVIDER picks the service: off, log (local), brevo or resend.
  */
 @Component
@@ -134,15 +134,15 @@ public class Mailer {
     }
 
     /**
-     * BizNez's own emails to business owners (codes, trial reminders, alerts), in the same card layout as the
+     * Busynez's own emails to business owners (codes, trial reminders, alerts), in the same card layout as the
      * businesses' emails: our mark on top, the message in a white card, our contact details below.
      */
     public String layout(String bodyHtml) {
         String mark = "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\"><tr>"
                 + "<td width=\"44\" height=\"44\" align=\"center\" valign=\"middle\" bgcolor=\"#b8f24a\" style=\"width:44px;height:44px;border-radius:12px;"
                 + "background:#b8f24a;color:#101415;font:bold 22px Arial,Helvetica,sans-serif\">B</td></tr></table>";
-        return EmailLayout.page(new EmailLayout.Look("BizNez", "#101415", "#f4f2ec", mark,
-                "BizNez by LeziTech" + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)), null), bodyHtml, null);
+        return EmailLayout.page(new EmailLayout.Look("Busynez", "#101415", "#f4f2ec", mark,
+                "Busynez by LeziTech" + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)), null), bodyHtml, null);
     }
 
     /**

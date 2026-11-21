@@ -114,7 +114,7 @@ public class PayHeroGateway {
         return r.path("reference").asText("");
     }
 
-    /** Link a till or paybill to the PayHero account from BizNez (type is "till" or "paybill"). */
+    /** Link a till or paybill to the PayHero account from Busynez (type is "till" or "paybill"). */
     public Channel addChannel(PayAccount.PayHero a, long accountId, String type, String shortCode, String accountNumber, String description) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("channel_type", type);

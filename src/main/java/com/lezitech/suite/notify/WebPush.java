@@ -36,7 +36,7 @@ import java.util.concurrent.Executors;
 /**
  * Phone and computer notifications (Web Push, as Moments Packaging does it) so staff never miss an order, even with the
  * app closed or the phone locked. Each staff member turns them on per device. The key pair is made once and kept by
- * BizNez (the private half encrypted); VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY override it. Sending happens after the
+ * Busynez (the private half encrypted); VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY override it. Sending happens after the
  * change is saved, in the background; a device that has gone away (404/410) is forgotten.
  */
 @Service

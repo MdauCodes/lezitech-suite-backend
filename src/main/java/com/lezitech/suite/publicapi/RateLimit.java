@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A small in-memory limit for pages anyone can use without signing in (ordering from a table, payment prompts).
- * One server runs BizNez, so memory is enough; a restart only forgets the last hour.
+ * One server runs Busynez, so memory is enough; a restart only forgets the last hour.
  */
 public final class RateLimit {
 

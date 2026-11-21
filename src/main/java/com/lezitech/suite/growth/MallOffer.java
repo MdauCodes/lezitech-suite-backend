@@ -22,7 +22,7 @@ import java.util.UUID;
 
 /**
  * The mall-tenant offer (phase E). LeziTech sets a discount per mall in the control panel (and, if it likes, a thank-you
- * credit in KSh for the landlord per tenant who pays); the landlord switches "Offer my tenants BizNez at a discount" on.
+ * credit in KSh for the landlord per tenant who pays); the landlord switches "Offer my tenants Busynez at a discount" on.
  * Tenants then see the offer on their tenant page and statements, with a Start free link carrying the mall's code;
  * a business that signs up with it keeps the discount on every payment and shows in the control panel under its mall.
  */

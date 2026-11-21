@@ -36,7 +36,7 @@ public final class PhotoLinks {
                 }
             }
             java.net.http.HttpResponse<java.io.InputStream> res = LINKS.send(java.net.http.HttpRequest.newBuilder(uri)
-                    .timeout(java.time.Duration.ofSeconds(15)).header("User-Agent", "BizNez photo import").GET().build(),
+                    .timeout(java.time.Duration.ofSeconds(15)).header("User-Agent", "Busynez photo import").GET().build(),
                     java.net.http.HttpResponse.BodyHandlers.ofInputStream());
             if (res.statusCode() != 200) {
                 res.body().close();

@@ -8,7 +8,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Reaching the BizNez team in one tap: the numbers, and a message from inside the app or from the sign-in page. */
+/** Reaching the Busynez team in one tap: the numbers, and a message from inside the app or from the sign-in page. */
 class ContactTest extends IntegrationTest {
 
     @Test
@@ -18,7 +18,7 @@ class ContactTest extends IntegrationTest {
         assertThat(nums.at("/display").asText()).isEqualTo("0796 814 154");
         assertThat(nums.at("/callDisplay").asText()).isEqualTo("0794 206 566");
 
-        // A waiter inside BizNez: who and where are filled in.
+        // A waiter inside Busynez: who and where are filled in.
         JsonNode s = signup("restaurant");
         String waiter = staff(token(s), "WAITER");
         Res sent = post("/contact", waiter, Map.of("kind", "PROBLEM", "message", "The kitchen screen isn't updating", "page", "/kitchen"));

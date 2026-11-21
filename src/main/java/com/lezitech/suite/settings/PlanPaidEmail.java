@@ -79,19 +79,19 @@ public class PlanPaidEmail {
         String invite = siteUrl + "?ref=" + referrals.codeFor(e.tenant());
         String business = (String) r.get("business");
 
-        String text = "Hi " + owner + ",\n\nThank you. " + business + " is on the BizNez " + plan + " plan (" + cycle + ").\n\n"
+        String text = "Hi " + owner + ",\n\nThank you. " + business + " is on the Busynez " + plan + " plan (" + cycle + ").\n\n"
                 + "Paid: KSh " + amount + (code == null ? "" : "\nM-Pesa code: " + code) + (until.isEmpty() ? "" : "\nRunning until: " + until) + "\n\n"
-                + "Know another business that could use BizNez? Share your invite link.\nYour link: " + invite + "\n\n"
+                + "Know another business that could use Busynez? Share your invite link.\nYour link: " + invite + "\n\n"
                 + (mailer.support().isBlank() ? "" : "Questions? WhatsApp us on " + mailer.support() + ".\n\n") + "Thank you,\nLeziTech";
-        String html = "<p>Hi " + esc(owner) + ",</p><p>Thank you. <b>" + esc(business) + "</b> is on the BizNez <b>" + esc(plan) + "</b> plan (" + cycle + ").</p>"
+        String html = "<p>Hi " + esc(owner) + ",</p><p>Thank you. <b>" + esc(business) + "</b> is on the Busynez <b>" + esc(plan) + "</b> plan (" + cycle + ").</p>"
                 + "<table role=\"presentation\" cellpadding=\"6\" cellspacing=\"0\" border=\"0\" style=\"font:15px Arial,Helvetica,sans-serif\">"
                 + "<tr><td style=\"color:#6b7280\">Paid</td><td><b>KSh " + amount + "</b></td></tr>"
                 + (code == null ? "" : "<tr><td style=\"color:#6b7280\">M-Pesa code</td><td>" + esc(code) + "</td></tr>")
                 + (until.isEmpty() ? "" : "<tr><td style=\"color:#6b7280\">Running until</td><td>" + until + "</td></tr>") + "</table>"
-                + "<p style=\"margin-top:20px\"><b>Know another business that could use BizNez?</b> Share your invite link.</p>"
+                + "<p style=\"margin-top:20px\"><b>Know another business that could use Busynez?</b> Share your invite link.</p>"
                 + "<p><a href=\"" + invite + "\">" + esc(invite) + "</a></p>"
                 + (mailer.support().isBlank() ? "" : "<p>Questions? WhatsApp us on " + esc(mailer.support()) + ".</p>") + "<p>Thank you,<br>LeziTech</p>";
-        String status = mailer.send(email, owner, "Thank you: " + business + " is on BizNez " + plan, text, mailer.layout(html));
+        String status = mailer.send(email, owner, "Thank you: " + business + " is on Busynez " + plan, text, mailer.layout(html));
         if (!"SENT".equals(status) && !"OFF".equals(status)) {
             log.warn("Plan receipt email to {} {}", email, status);
         }

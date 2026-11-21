@@ -77,7 +77,7 @@ public class BusinessesController {
         }
         UUID person = person();
         if (mine(person).size() >= MAX_BUSINESSES) {
-            throw ApiException.bad("You have " + MAX_BUSINESSES + " businesses already. Talk to the BizNez team to add more.");
+            throw ApiException.bad("You have " + MAX_BUSINESSES + " businesses already. Talk to the Busynez team to add more.");
         }
         Map<String, Object> me = jdbc.queryForMap("SELECT u.name, t.group_id, t.phone, t.brand_color FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE u.id = ?",
                 c.userId());

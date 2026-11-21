@@ -202,7 +202,7 @@ final class NightPdf {
             }
             p.y -= 10;
             p.need(14);
-            p.text(PLAIN, 8, "Made by BizNez for " + s.get("business") + ".", MARGIN);
+            p.text(PLAIN, 8, "Made by Busynez for " + s.get("business") + ".", MARGIN);
             p.out.close();
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             p.doc.save(bytes);

@@ -29,7 +29,7 @@ import static com.lezitech.suite.notify.Mailer.esc;
  *   <li><b>Rent increases</b> written in the lease (a % or fixed amount every N months) are proposed 30 days ahead and
  *       wait for the owner: approve (the amount can be changed) or skip. Approved ones email the tenant a notice and
  *       apply to bills from the month they're due.</li>
- *   <li><b>Deposit</b> is billed like rent when the lease starts (or ticked as received before BizNez). It's money held
+ *   <li><b>Deposit</b> is billed like rent when the lease starts (or ticked as received before Busynez). It's money held
  *       for the tenant, not income: deposit bills (channel {@code DEPOSIT}) are left out of sales and tax.</li>
  *   <li><b>Move-out:</b> the deposit held, minus unpaid rent and the repair costs the owner lists. What's left to give
  *       back is shown; the owner records the refund after paying it. If the tenant still owes, that shows instead.</li>
@@ -64,7 +64,7 @@ public class LeaseLife {
                 INSERT INTO lease_events (tenant_id, lease_id, kind, summary, detail, user_id, user_name)
                 VALUES (:t, :lease, :kind, :summary, cast(:detail as jsonb), :u, :name)""",
                 "lease", leaseId, "kind", kind, "summary", summary, "detail", db.toJson(detail == null ? Map.of() : detail),
-                "u", c == null ? null : c.userId(), "name", c == null || "system".equals(c.name()) ? "BizNez" : c.name());
+                "u", c == null ? null : c.userId(), "name", c == null || "system".equals(c.name()) ? "Busynez" : c.name());
     }
 
     public Map<String, Object> history(UUID leaseId) {
@@ -95,7 +95,7 @@ public class LeaseLife {
         return order;
     }
 
-    /** What the landlord holds for the tenant now: received before BizNez, plus what's been paid on deposit bills. */
+    /** What the landlord holds for the tenant now: received before Busynez, plus what's been paid on deposit bills. */
     public BigDecimal depositHeld(UUID leaseId) {
         Map<String, Object> l = db.one("Lease", "SELECT deposit_before, deposit_settled_on FROM leases WHERE id = :id", "id", leaseId);
         if (l.get("depositSettledOn") != null) {
@@ -329,9 +329,9 @@ public class LeaseLife {
             db.exec("UPDATE orders SET status = 'VOID', paid = 0, closed_at = now(), note = concat_ws(' · ', note, 'Deposit settled at move-out') WHERE id = :id",
                     "id", d.get("id"));
         }
-        // 3. A deposit received before BizNez is put on their account like a payment.
+        // 3. A deposit received before Busynez is put on their account like a payment.
         if (before.signum() > 0) {
-            ledger.receive(leaseId, before, "DEPOSIT", null, "MOVEOUT", "Deposit held before BizNez", day);
+            ledger.receive(leaseId, before, "DEPOSIT", null, "MOVEOUT", "Deposit held before Busynez", day);
         }
         // 4. Credit (the deposit and anything paid ahead) pays what they owe, oldest first.
         ledger.useCredit(leaseId);

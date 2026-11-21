@@ -60,7 +60,7 @@ public class FirstStepsController {
         if (property) {
             steps.add(step("units", "Add your own units or stalls", "So every rent bill, notice and repair belongs to the right place.", "/property", "Add my units",
                     yes("SELECT exists(SELECT 1 FROM spaces WHERE " + own + ")", p)));
-            steps.add(step("tenants", "Add a tenant and their lease", "BizNez then bills their rent every month and reminds them by email.", "/property", "Add a tenant and lease",
+            steps.add(step("tenants", "Add a tenant and their lease", "Busynez then bills their rent every month and reminds them by email.", "/property", "Add a tenant and lease",
                     yes("SELECT exists(SELECT 1 FROM leases WHERE " + own + ")", p)));
         } else {
             // The business's own word for what it sells: Menu, Services & products, Packages & extras...
@@ -93,16 +93,16 @@ public class FirstStepsController {
         } catch (RuntimeException ignored) { /* unknown sector: no extra steps */ }
         if (!property) {
             // Each day starts by counting the cash in the drawer: said here first, so it isn't a surprise at the first sale.
-            steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Counting at the start is what lets BizNez tell you at closing time whether the cash matches what was sold.", "/pos", "Open the till",
+            steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Counting at the start is what lets Busynez tell you at closing time whether the cash matches what was sold.", "/pos", "Open the till",
                     yes("SELECT exists(SELECT 1 FROM shifts WHERE tenant_id = :t)")));
             if (bookings) {
-                steps.add(step("booking", "Take your first booking", "Clients book a time with you, and BizNez keeps the day's diary so nobody is double-booked.", "/bookings", "Add my first booking",
+                steps.add(step("booking", "Take your first booking", "Clients book a time with you, and Busynez keeps the day's diary so nobody is double-booked.", "/bookings", "Add my first booking",
                         yes("SELECT exists(SELECT 1 FROM appointments WHERE " + own + ")", p)));
             } else if (quotes) {
                 steps.add(step("quote", "Send your first quote", "Tell a customer the price before the work starts. When they say yes, turn it into a bill in one tap.", "/quotes", "Send my first quote",
                         yes("SELECT exists(SELECT 1 FROM orders WHERE kind = 'QUOTE' AND " + own + ")", p)));
             }
-            steps.add(step("sale", "Make your first real sale", "Sell something and take the money. That's BizNez working for you.", "/pos", "Make a sale",
+            steps.add(step("sale", "Make your first real sale", "Sell something and take the money. That's Busynez working for you.", "/pos", "Make a sale",
                     yes("SELECT exists(SELECT 1 FROM orders WHERE status IN ('PAID', 'CREDIT') AND kind = 'SALE' AND " + own + ")", p)));
         }
         if (until != null || t.get("removed") != null) {
