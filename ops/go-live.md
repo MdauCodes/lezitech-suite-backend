@@ -1,4 +1,4 @@
-# BizNez go-live runbook
+# Busynez go-live runbook
 
 Target: **22 November 2026**. Follow this top to bottom. Each step says what you need in hand and how to check that it worked.
 
@@ -56,7 +56,7 @@ Email records come from Brevo (step 6). Check: `nslookup suite-api.lezitech.site
 
 ## 4. API
 
-1. Coolify → **New resource → Application → GitHub** `MdauCodes/lezitech-suite-api`, branch `launch`, build pack **Dockerfile**, port **8090**.
+1. Coolify → **New resource → Application → GitHub** `MdauCodes/lezitech-suite-backend`, branch `launch`, build pack **Dockerfile**, port **8090**.
 2. Domain: `https://suite-api.lezitech.site`.
 3. Environment variables: every line of `ops/production.env.example`, filled in. `DATABASE_URL` uses the Postgres service's internal hostname from Coolify.
 4. Health check path: `/actuator/health`.
@@ -68,8 +68,13 @@ Email records come from Brevo (step 6). Check: `nslookup suite-api.lezitech.site
    CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_payments_order ON payments (order_id);
    ```
    `IF NOT EXISTS` makes the migration a no-op afterwards. On a fresh, empty database (first ever deploy) skip this step.
-6. Deploy. The first start runs all migrations (V1 to the latest) as the owner.
+6. Deploy. The first start runs all migrations (V1 to the latest) as the owner (`FLYWAY_*`).
+   - **Expect this first deploy to end unhealthy, and that is normal.** V1 creates the `suite_app` role *without a
+     password*, so the app cannot yet connect as it. Migrations still run and the schema is complete. Do step 7,
+     then deploy again and it comes up.
    - It stops with "Refusing to start with unsafe settings" if a secret is missing or weak. The message names which one.
+   - It also stops with `FILES_STORE=b2 needs B2_ENDPOINT, B2_REGION, B2_KEY_ID, B2_APP_KEY and B2_BUCKET` if file
+     storage is incomplete. File storage is **not** optional: the app will not start without it, even for a demo.
 7. Run `db/production-setup.sql` (step 3.4), set `DATABASE_PASSWORD`, redeploy.
 8. Check:
    ```bash
@@ -79,7 +84,7 @@ Email records come from Brevo (step 6). Check: `nslookup suite-api.lezitech.site
 
 ## 5. Web app
 
-1. Coolify → **New resource → Application → GitHub** `MdauCodes/lezitech-suite-web`, branch `launch`, build pack **Dockerfile**, port **80**.
+1. Coolify → **New resource → Application → GitHub** `MdauCodes/lezitech-suite-frontend`, branch `launch`, build pack **Dockerfile**, port **80**.
 2. Build argument (not a runtime variable): `VITE_API_URL=https://suite-api.lezitech.site`
 3. Domain: `https://suite.lezitech.site`.
 4. Deploy. Check: the page opens, the sign-in page loads, and the browser console shows no CORS errors. If it does, `CORS_ORIGINS` on the API is missing the app's address.
