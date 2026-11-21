@@ -1,9 +1,9 @@
 # BizNez: handoff for the next session
 
 Read this first. It says where everything is, what is decided, what is built, what isn't, and what to do next.
-Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Coolify.
+Last updated: 2026-11-11. Go-live target: **22 November 2026** on Contabo + Coolify.
 
-## 0. Status at a glance (2026-11-10, 12 days to go-live)
+## 0. Status at a glance (2026-11-11, 11 days to go-live)
 
 **Built and committed:**
 - **For businesses:**
@@ -17,7 +17,8 @@ Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Cool
   - referrals
   - Ad results page in the control panel
 - **A new app look:** ink sidebar, warm canvas, Manrope.
-- 72 API tests passing; the web app typechecks.
+- **Marketing website (SEO):** sub-sector pages, town pages (10), JSON-LD structured data, robots.txt with AI crawlers, llms.txt, sitemap, About/Contact/Privacy/Terms pages, tax calculators (Turnover Tax + VAT), pricing updated to Lite KSh 2,650/3 staff. Domain: businez.com.
+- 72 API tests passing; the web app and website typecheck clean.
 
 **Waiting on the owner (MdauCodes): main risk to the date.** Ask about these at the start of every session until they're done.
 1. **Create the GitHub repos** `MdauCodes/lezitech-suite-api` and `MdauCodes/lezitech-suite-web`. Then push `launch` in both. Nothing is backed up off this machine yet.
@@ -25,25 +26,27 @@ Last updated: 2026-11-10. Go-live target: **22 November 2026** on Contabo + Cool
 3. **Contabo server and a PayHero sandbox account**, so a test server can be set up early and real payments and callbacks confirmed.
 
 **Decisions still open:**
-- Hide "Beauty clinic" as coming soon too? It may hold health-like client notes.
-- Turnover Tax default: 1.5% (KRA rate since July 2023, what's built) or the 3% in the old notes?
+- Open questions remaining in `docs/SEO-AEO-GEO-PLAN.md` section 9 (most answered in `docs/decisions.md`).
 
-**Next to build:** SEO, GEO and AEO. **Full plan: [docs/SEO-AEO-GEO-PLAN.md](docs/SEO-AEO-GEO-PLAN.md)**, with decisions waiting in its section 9. In short:
-- the website on the Lovable design, replacing the plain `/` page
-- pages for every sector, sub-sector and town
-- structured data, sitemap, `noindex` on app screens
-- the fix that carries the ad source from the website to signup
+**Next to build:** SEO content completion, then restaurant QR ordering, then drawers. In short:
+- Guides (5) and comparison pages (3) for the website — Claude drafts, owner reviews
+- Unique hand-reviewed copy for top 20 sub-sector pages (150–300 words each)
+- Open Graph images per sector
+- `noindex` on the app (suite.lezitech.site) — robots.txt + X-Robots-Tag header
+- Google Search Console and Bing Webmaster Tools verification
+- Full SEO plan: [docs/SEO-AEO-GEO-PLAN.md](docs/SEO-AEO-GEO-PLAN.md)
 
 ## 1. What BizNez is
 
 A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, made by LeziTech
 (owner: MdauCodes). It is the first of several LeziTech products under lezitech.site.
+- Marketing website: `businez.com` (confirmed by owner 2026-11-11)
 - App: `suite.lezitech.site` (planned)
-- Marketing pages: `lezitech.site/suite` (planned)
-- Plans: **Lite KES 2,000**, **Growth KES 4,500**, **Pro KES 9,000** a month, with a 7-day free trial.
-  - Lite: 2 logins, 1 branch, 500 items
+- Plans: **Lite KES 2,650**, **Growth KES 4,500**, **Pro KES 9,000** a month, with a 7-day free trial.
+  - Lite: 3 logins, 1 branch, 500 items
   - Growth: 8 logins, 3 branches, 5,000 items
   - Pro: 30 logins, 10 branches, unlimited items
+  - Yearly billing = 10 × monthly price (2 months free)
 
 ## 2. Where things are
 
@@ -96,7 +99,7 @@ A multi-sector POS, stock, M-Pesa, CRM and tax app for Kenyan small businesses, 
 - **Email:** `Mailer` sends through Brevo or Resend (`EMAIL_PROVIDER`). **Brevo isn't set up yet**, and password codes depend on it.
 - **Tax** (`TaxController`, `/tax`):
   - VAT, Turnover Tax and the Tourism Fund levy, per day, month or year, with filing dates (VAT and TOT on the 20th, levy on the 9th).
-  - TOT defaults to **1.5%** (KRA rate since July 2023). The user's old notes said 3%: confirm with them. All rates are editable.
+  - TOT defaults to **1.5%** (KRA rate since July 2023, confirmed by owner 2026-11-11). All rates are editable.
   - eTIMS code exists but is switched off (`ETIMS_MODE=off`).
 - **Assisted onboarding:**
   - Public "set it up for me" form â†’ the team creates the workspace in /admin â†’ hand-over starts the trial and sends a 6-digit welcome code.
@@ -168,7 +171,33 @@ Web on `launch`, matching:
     /admin/setup. The API's `CORS_ORIGINS` must include the website's address in production.
 - Rule (owner, 2026-11-10): customers must never sense the platform is shared. Copy says "your business", never
   "each business"/"workspace"; signup carries their business type so the app opens shaped for them.
-- Still to do: Privacy and Terms pages; real photos for hotels, salons, wholesale, services, safaris; typecheck is clean.
+- Still to do: real photos for hotels, salons, wholesale, services, safaris; typecheck is clean.
+
+**Built 2026-11-11 (SEO pages — this session):**
+- Pricing updated: Lite KSh 2,650 / 3 staff (was KSh 2,000 / 2 staff). Home page teaser updated too.
+- Sector data copied to `website/src/data/` (sectors.json, subsectors.json) with TypeScript helper.
+- **Sub-sector pages** (`/sectors/{sector}/{sub}`): component + route, with JSON-LD (Organization, BreadcrumbList, FAQPage).
+- **Town pages** (`/towns/{town}`): 10 towns with real local content (markets, KRA centres, coverage). Component + route.
+- **JSON-LD components**: Organization, SoftwareApplication, FAQPage, BreadcrumbList, HowTo, Article.
+- **robots.txt**: updated with AI crawler allowlist (GPTBot, PerplexityBot, ClaudeBot, etc.) + sitemap reference.
+- **llms.txt**: plain summary for AI crawlers.
+- **Sitemap**: server route at `/sitemap.xml` that generates XML from sector data.
+- **Trust pages**: About, Contact, Privacy (draft), Terms (draft) — with routes and JSON-LD.
+- **Footer**: links to real Privacy, Terms, About, Contact pages (was `#` placeholders).
+- **Header**: added About and Contact to mobile nav.
+- **Root HTML**: `lang="en-KE"` (was `lang="en"`).
+- **Turnover Tax calculator** (`/tools/turnover-tax`): interactive 1.5% calculator with tax bracket cards, threshold warning at KES 25M/year, FAQ section, and CTA. JSON-LD (BreadcrumbList, FAQPage).
+- **VAT calculator** (`/tools/vat`): two-mode calculator — add 16% VAT to a price or extract VAT from a total. VAT category cards (Standard, Zero-rated, Exempt), FAQ section, and CTA. JSON-LD (BreadcrumbList, FAQPage).
+- Both calculators cross-link to each other. Full responsive styles matching the deep green design system.
+- `npx tsc --noEmit` is clean.
+
+**Still to build (SEO):**
+- Guides at `/guides/{slug}` (5 at launch)
+- Comparison pages at `/compare/{slug}` (3 at launch)
+- Open Graph images per sector
+- The 20 top sub-sectors need unique hand-reviewed copy (150–300 words each)
+- `noindex` on the app (`suite.lezitech.site`) — `robots.txt` + `X-Robots-Tag` header
+- Google Search Console and Bing Webmaster Tools verification
 
 ## 6c. Platform organisation (2026-11-11)
 
@@ -202,17 +231,17 @@ guide for the team: `docs/client-guide.md` (public version: website `/what-you-n
    - `PAYHERO_*`, `MPESA_*`, `META_*`, `SITE_URL`, `APP_URL`, `CORS_ORIGINS`
 
    Callbacks need public HTTPS. **Suggested: set up a test server early**, so external accounts can be verified while building.
-5. **Ad source lost between domains (bug, fixed for the new website's links; see 6b):** the website on `lezitech.site` and the app on `suite.lezitech.site` don't share localStorage. The website's Start and Setup links must carry the UTM, fbclid, gclid and ref parameters to the app (`captureAcquisition()` already reads them from the URL). Fix this with the SEO pages.
-6. **Privacy policy and terms**, including data processing terms for the data businesses keep about their customers. The website only has placeholders.
+5. **Ad source lost between domains (bug, fixed for the new website's links; see 6b):** the website on `businez.com` and the app on `suite.lezitech.site` don't share localStorage. The website's Start and Setup links carry the UTM, fbclid, gclid and ref parameters to the app via `StartLink`/`SignInLink` in `lezi-site.tsx`.
+6. ~~Privacy policy and terms.~~ Built 2026-11-11 as drafts on the website (/privacy, /terms). Marked for lawyer review.
 7. ~~Open questions for the user.~~ Answered 2026-11-11: Beauty clinic stays live; Turnover Tax 1.5%.
    All owner answers live in `docs/decisions.md`.
 
 ## 8. Next work, in order
 
 **2026-11-11: the owner set a new pre-launch order. Read `docs/decisions.md` first; it overrides the list below.**
-SEO pages, then restaurant QR ordering (a client is waiting; keep `docs/restaurant-table-ordering.md` current as it
+SEO content completion (guides, comparisons, unique sub-sector copy), then restaurant QR ordering (a client is waiting; keep `docs/restaurant-table-ordering.md` current as it
 is built), then drawers (blind count, float, reconciliation lock), carton/piece units, customer statements, and the
-test server and deploy last. Lite becomes KSh 2,650 with 3 staff.
+test server and deploy last. Lite is KSh 2,650 with 3 staff. Domain: businez.com.
 
 1. **Design elevation.** The user found the app and website "too whitish and generic" and wants them **clean, elegant, unique but simple to understand**.
    - **App: done 2026-11-10** (web commit `7fd83d0`):
@@ -227,16 +256,15 @@ test server and deploy last. Lite becomes KSh 2,650 with 3 staff.
      softer overlay, bolder title and quiet footer.
    - Still plain: control-panel inner pages (tables), the public customer pages (menu, order board, tracking), Demo and
      Set-it-up pages.
-   - **Website: still the old plain template at `/`.** Replace it with the Lovable design as part of the SEO step.
+   - **Website: Lovable design is live** at `website/` with SEO pages built (sub-sectors, towns, calculators, trust pages). Domain: businez.com.
    - Direction: the Lovable look, used consistently:
      - off-white canvas `#f6f7f5`, ink `#101415`, lime `#b8f24a` as a fill only
      - Manrope, with JetBrains Mono for labels
      - an ink sidebar, white cards with fine borders, and clear stat tiles
    - Each workspace's brand colour stays for its own highlights (`applyBrand` in `theme.ts`).
 2. **SEO, GEO and AEO:**
-   - Pages generated ahead of time for each sector, sub-sector and town, from `SectorCatalog.pages()` and the `seo` blocks, on the Lovable design.
-   - JSON-LD (Organization, SoftwareApplication with KES offers, FAQPage, BreadcrumbList), a sitemap, and `noindex` on all app screens.
-   - Pharmacy and clinics shown as "coming soon"; plus the cross-domain fix from item 5 of section 7.
+  - **Built 2026-11-11:** Sub-sector pages, town pages (10), JSON-LD, robots.txt (with AI crawlers), llms.txt, sitemap, About/Contact/Privacy/Terms pages, tax calculators (Turnover Tax + VAT), pricing updated to KSh 2,650. Domain: businez.com.
+  - **Still to build:** Guides (5), comparisons (3), OG images, unique copy for top 20 sub-sectors, `noindex` on the app, Search Console setup.
 3. **GA4 and Google Ads conversion tracking**, alongside the Meta tracking that already exists.
 4. **Guides and comparison pages:** Claude drafts, the user reviews.
 5. **Deploy** and run through the go-live checklist.
