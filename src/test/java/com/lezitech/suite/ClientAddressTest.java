@@ -27,6 +27,44 @@ class ClientAddressTest extends IntegrationTest {
     }
 
     @Test
+    void aCallerThatReachesUsDirectlyCannotNameItsOwnAddress() {
+        // Public peer: nothing came through our proxy, so the header is the caller's own invention. If we believed
+        // it, anyone reaching the container directly could send a new address per request and dodge every limit.
+        MockHttpServletRequest direct = new MockHttpServletRequest();
+        direct.setRemoteAddr("41.90.77.7");
+        direct.addHeader("X-Forwarded-For", "10.0.0.1, 127.0.0.1");
+        assertThat(ClientIp.of(direct)).isEqualTo("41.90.77.7");
+    }
+
+    @Test
+    void aSecondForwardedLineCannotOutrankTheOneOurProxyAdded() {
+        // Some proxies add another header line instead of appending. Reading only the first line would take the
+        // caller's value, so every line is read and the last entry of the last line wins.
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setRemoteAddr("172.18.0.5");
+        req.addHeader("X-Forwarded-For", "6.6.6.6");
+        req.addHeader("X-Forwarded-For", "203.0.113.9");
+        assertThat(ClientIp.of(req)).isEqualTo("203.0.113.9");
+    }
+
+    @Test
+    void ourOwnProxyOnAPrivateOrLoopbackAddressIsBelieved() {
+        for (String proxy : new String[]{"127.0.0.1", "::1", "10.1.2.3", "192.168.1.9", "172.16.0.1", "172.31.255.254", "fd00::1"}) {
+            MockHttpServletRequest req = new MockHttpServletRequest();
+            req.setRemoteAddr(proxy);
+            req.addHeader("X-Forwarded-For", "1.1.1.1, 203.0.113.9");
+            assertThat(ClientIp.of(req)).as("behind " + proxy).isEqualTo("203.0.113.9");
+        }
+        // 172.32 and 172.15 are public, not our private network.
+        for (String notOurs : new String[]{"172.32.0.1", "172.15.0.1"}) {
+            MockHttpServletRequest req = new MockHttpServletRequest();
+            req.setRemoteAddr(notOurs);
+            req.addHeader("X-Forwarded-For", "1.1.1.1, 203.0.113.9");
+            assertThat(ClientIp.of(req)).as("direct from " + notOurs).isEqualTo(notOurs);
+        }
+    }
+
+    @Test
     void aBlankOrBrokenHeaderFallsBackWithoutError() {
         MockHttpServletRequest req = new MockHttpServletRequest();
         req.setRemoteAddr("10.0.0.2");
