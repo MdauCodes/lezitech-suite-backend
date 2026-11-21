@@ -203,6 +203,44 @@ Do these on a phone, as a new business, with **samples unticked**:
 
 If any check fails: the API logs are in Coolify → API → Logs. Every request is logged with its time and status.
 
+## 11b. One check before the release that carries V63 (staff-table wall)
+
+V63 puts the wall between businesses around the staff table. Until now a few screens could show a staff
+member who belonged to a different business - that was the bug V63 closes - and any row still holding such a
+reference will now show a blank name, or drop out of a report altogether. That is the right outcome, but if
+there are such rows it means a sales or commission total can change on the day you deploy, and you should
+know which ones rather than find out from a total that moved.
+
+Run this against the live database **before** deploying (it only reads, and it finds the columns itself, so
+nothing is missed if a new one was added since this was written):
+
+```sql
+SELECT table_name, column_name, cnt AS rows_pointing_at_another_business
+FROM (
+  SELECT c.table_name, c.column_name,
+         (xpath('/row/c/text()', query_to_xml(format(
+            'SELECT count(*) AS c FROM %I t JOIN users u ON u.id = t.%I WHERE u.tenant_id <> t.tenant_id',
+            c.table_name, c.column_name), false, true, '')))[1]::text::bigint AS cnt
+  FROM information_schema.columns c
+  JOIN information_schema.tables bt ON bt.table_schema = 'public' AND bt.table_name = c.table_name
+                                   AND bt.table_type = 'BASE TABLE'
+  JOIN information_schema.columns tc ON tc.table_schema = 'public' AND tc.table_name = c.table_name
+                                    AND tc.column_name = 'tenant_id'
+  WHERE c.table_schema = 'public' AND c.data_type = 'uuid'
+    AND c.column_name NOT IN ('id', 'tenant_id') AND c.table_name <> 'users'
+) x
+WHERE cnt > 0 ORDER BY 1, 2;
+```
+
+**No rows: nothing to do, deploy.** Any rows: each one is a leftover from the bug, not something V63 caused.
+Decide per row whether that work should be credited to somebody in the right business or to nobody, then set
+the column to that person or to NULL before deploying. Do not leave them to be fenced out of sight.
+
+A note on rolling back this release: V63's `app_email_taken` function and the three Java call sites that use
+it must go together. Flyway cannot undo a migration, so if you redeploy an older API while V63 stays applied,
+adding a staff member on an email another business already uses gives a 500 instead of plain words. Nothing
+else in V63 is affected, and the wall itself keeps working on an older API.
+
 ## 12. After launch
 
 - Watch `/var/log/suite-backup.log` daily the first week.

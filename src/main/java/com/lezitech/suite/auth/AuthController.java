@@ -117,8 +117,8 @@ public class AuthController {
             if (password.length() < 8) {
                 throw ApiException.bad("Use a password of at least 8 characters");
             }
-            Integer taken = jdbc.queryForObject("SELECT count(*) FROM users WHERE email = ?", Integer.class, email);
-            if (taken != null && taken > 0) {
+            Boolean taken = jdbc.queryForObject("SELECT app_email_taken(cast(? as text))", Boolean.class, email);
+            if (Boolean.TRUE.equals(taken)) {
                 throw ApiException.conflict("That email already has a business with us. Sign in instead.");
             }
         }

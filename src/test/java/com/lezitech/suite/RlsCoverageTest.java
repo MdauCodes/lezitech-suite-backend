@@ -17,13 +17,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * A few tables are deliberately not fenced: they are read before anyone is signed in (sign-in, M-Pesa callbacks),
  * or only by the LeziTech control panel. Code that touches them always filters by business itself.
+ *
+ * `users` is fenced (V63) but not quite like the rest: with no business set it shows every row rather than none,
+ * because signing in has to look people up by email before anyone knows which business it is. So it passes this
+ * test, but it would not pass {@link #withoutABusinessSetTheFencedTablesShowNothing} - see UsersFenceTest, and
+ * the long comment in V63__users_tenant_fence.sql for why that is still worth having.
  */
 class RlsCoverageTest extends IntegrationTest {
 
     /** Not fenced on purpose, with the reason. */
     static final Map<String, String> UNFENCED = Map.ofEntries(
             Map.entry("tenants", "the businesses themselves; always read by id"),
-            Map.entry("users", "sign-in looks people up by email before a business is known"),
             Map.entry("subscription_requests", "plan payments; worked by the LeziTech control panel"),
             Map.entry("mpesa_requests", "Safaricom's callback arrives without a sign-in; matched by secret token"),
             Map.entry("mpesa_c2b", "Safaricom's till payment arrives without a sign-in; matched by till number"),

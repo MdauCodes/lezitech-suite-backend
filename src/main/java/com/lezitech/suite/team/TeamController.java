@@ -19,7 +19,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Staff accounts. users has no RLS, so every query here filters on :t explicitly. */
+/**
+ * Staff accounts. Every query here filters on :t explicitly, and since V63 the database fences `users` to
+ * the business as well, because this controller is transactional. The one question that has to look past
+ * that fence is whether an email is already in use, which is platform-wide: app_email_taken() answers it.
+ */
 @RestController
 @RequestMapping("/api/team")
 @Transactional
@@ -193,7 +197,7 @@ public class TeamController {
         if (powers) {
             planFeatures.require("ownerPowers");
         }
-        if (!email.isEmpty() && Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM users WHERE email = :e)", Boolean.class, "e", email))) {
+        if (!email.isEmpty() && Boolean.TRUE.equals(db.value("SELECT app_email_taken(cast(:e as text))", Boolean.class, "e", email))) {
             throw ApiException.conflict("That email is already in use");
         }
         limits.checkUsers(1);
@@ -241,7 +245,7 @@ public class TeamController {
                 if (!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
                     throw ApiException.bad("That email doesn't look right");
                 }
-                if (Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM users WHERE email = :e AND id <> :id)", Boolean.class, "e", email, "id", id))) {
+                if (Boolean.TRUE.equals(db.value("SELECT app_email_taken(cast(:e as text), cast(:id as uuid))", Boolean.class, "e", email, "id", id))) {
                     throw ApiException.conflict("That email is already in use");
                 }
                 db.exec("UPDATE users SET email = :e, email_confirmed_at = NULL WHERE id = :id AND tenant_id = :t", "id", id, "e", email);
