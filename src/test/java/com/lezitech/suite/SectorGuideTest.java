@@ -29,6 +29,12 @@ class SectorGuideTest {
         guides = new SectorGuideController(new SectorCatalog(json), json);
     }
 
+    /** The same words, however the lines were broken and wherever the page feet fell. */
+    private static String flat(String text) {
+        return text.replaceAll("Busynez by LeziTech\\s+busynez.site\\s+page \\d+", " ")
+                .replaceAll("\\s+", " ").trim();
+    }
+
     private static String words(byte[] pdf) throws IOException {
         try (PDDocument doc = Loader.loadPDF(pdf)) {
             assertThat(doc.getNumberOfPages()).isGreaterThan(0);
@@ -40,7 +46,7 @@ class SectorGuideTest {
     void everyTradeHasAGuideThatReadsLikeAGuide() throws IOException {
         for (String key : new String[]{"restaurant", "hotel", "retail", "beauty", "wholesale",
                 "pharmacy", "services", "tours", "property", "resort"}) {
-            ResponseEntity<byte[]> res = guides.sector(key);
+            ResponseEntity<byte[]> res = guides.sector(key, null);
             assertThat(res.getStatusCode().value()).as(key).isEqualTo(200);
             assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                     .as(key).contains("busynez-guide-" + key + ".pdf");
@@ -62,11 +68,11 @@ class SectorGuideTest {
 
     @Test
     void theGuideSpeaksTheTradesOwnWords() throws IOException {
-        String restaurant = words(guides.sector("restaurant").getBody());
+        String restaurant = words(guides.sector("restaurant", null).getBody());
         assertThat(restaurant).contains("Tables").contains("Kitchen screen").contains("Menu")
                 .contains("Guests").contains("How to start");
 
-        String property = words(guides.sector("property").getBody());
+        String property = words(guides.sector("property", null).getBody());
         assertThat(property).contains("Rent and tenants").contains("Meter readings").contains("Units rented out");
         assertThat(property).doesNotContain("Kitchen screen");
     }
@@ -74,7 +80,7 @@ class SectorGuideTest {
     @Test
     void aTradeThatIsNotOpenYetSaysSoInsteadOfSelling() throws IOException {
         for (String soon : new String[]{"pharmacy", "resort"}) {
-            String text = words(guides.sector(soon).getBody());
+            String text = words(guides.sector(soon, null).getBody());
             assertThat(text).as(soon)
                     .contains("This one is on the way")
                     .contains("How to be told when it opens")
@@ -85,26 +91,41 @@ class SectorGuideTest {
 
     @Test
     void aKindOfBusinessInsideATradeGetsItsOwnGuide() throws IOException {
-        ResponseEntity<byte[]> res = guides.subSector("retail", "minimart");
+        ResponseEntity<byte[]> res = guides.subSector("retail", "minimart", null);
         assertThat(res.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION)).contains("busynez-guide-retail-minimart.pdf");
         String text = words(res.getBody());
         assertThat(text).contains("Minimart").contains("Reach us");
 
         // A sub-sector nobody has heard of falls back to the trade's guide rather than failing.
-        assertThat(words(guides.subSector("retail", "nonesuch").getBody())).contains("Shops");
+        assertThat(words(guides.subSector("retail", "nonesuch", null).getBody())).contains("Shops");
     }
 
     @Test
     void anUnknownTradeIsToldPlainlyThatItIsUnknown() {
-        assertThatThrownBy(() -> guides.sector("nonesuch"))
+        assertThatThrownBy(() -> guides.sector("nonesuch", null))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("Unknown sector");
-        assertThatThrownBy(() -> guides.sector("../../etc/passwd"))
+        assertThatThrownBy(() -> guides.sector("../../etc/passwd", null))
                 .isInstanceOf(ApiException.class);
     }
 
     @Test
+    void theSameGuideComesOnBiggerPaperForPrinting() throws IOException {
+        ResponseEntity<byte[]> print = guides.sector("restaurant", "a4");
+        assertThat(print.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("busynez-guide-restaurant-to-print.pdf");
+        try (PDDocument a4 = Loader.loadPDF(print.getBody());
+             PDDocument phone = Loader.loadPDF(guides.sector("restaurant", null).getBody())) {
+            // The same page blown up: same words, same pages, bigger paper.
+            assertThat(a4.getPage(0).getMediaBox().getWidth())
+                    .isGreaterThan(phone.getPage(0).getMediaBox().getWidth());
+            assertThat(a4.getNumberOfPages()).isEqualTo(phone.getNumberOfPages());
+            assertThat(flat(new PDFTextStripper().getText(a4))).isEqualTo(flat(new PDFTextStripper().getText(phone)));
+        }
+    }
+
+    @Test
     void theSameGuideIsOnlyMadeOnce() {
-        assertThat(guides.sector("hotel").getBody()).isSameAs(guides.sector("hotel").getBody());
+        assertThat(guides.sector("hotel", null).getBody()).isSameAs(guides.sector("hotel", null).getBody());
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,6 +28,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Open to everyone (/api/public/**): nobody should have to sign up to read what the system does for them.
  * Each guide is made once and kept in memory afterwards - the packs only change when we deploy - and the
  * browser is told it may keep it for a day.
+ *
+ * ?paper=a4 gives the same guide on the bigger paper, for an owner printing copies for their staff.
+ * Anything else, or nothing at all, gives the phone-sized one.
  */
 @RestController
 @RequestMapping("/api/public/guide")
@@ -45,17 +49,19 @@ public class SectorGuideController {
 
     /** The guide for a whole trade, e.g. /api/public/guide/restaurant.pdf */
     @GetMapping("/{sector}.pdf")
-    public ResponseEntity<byte[]> sector(@PathVariable String sector) {
-        return pdf(sector, null);
+    public ResponseEntity<byte[]> sector(@PathVariable String sector,
+                                         @RequestParam(required = false) String paper) {
+        return pdf(sector, null, paper);
     }
 
     /** The guide for one kind of business inside a trade, e.g. /api/public/guide/retail/minimart.pdf */
     @GetMapping("/{sector}/{sub}.pdf")
-    public ResponseEntity<byte[]> subSector(@PathVariable String sector, @PathVariable String sub) {
-        return pdf(sector, sub);
+    public ResponseEntity<byte[]> subSector(@PathVariable String sector, @PathVariable String sub,
+                                            @RequestParam(required = false) String paper) {
+        return pdf(sector, sub, paper);
     }
 
-    private ResponseEntity<byte[]> pdf(String sector, String sub) {
+    private ResponseEntity<byte[]> pdf(String sector, String sub, String paper) {
         String key = clean(sector);
         String subKey = sub == null ? null : clean(sub);
         if (key.isEmpty() || (subKey != null && subKey.isEmpty())) {
@@ -65,14 +71,15 @@ public class SectorGuideController {
             // Unknown sub-sector: give the trade's own guide rather than nothing at all.
             subKey = null;
         }
-        String cacheKey = key + (subKey == null ? "" : "/" + subKey);
+        boolean a4 = "a4".equalsIgnoreCase(paper == null ? "" : paper.trim());
+        String cacheKey = key + (subKey == null ? "" : "/" + subKey) + (a4 ? "+a4" : "");
         byte[] bytes = made.get(cacheKey);
         if (bytes == null) {
             JsonNode pack = sectors.publicView(key, subKey);
-            bytes = SectorGuidePdf.render(pack, copy, sectors.comingSoon(key, subKey));
+            bytes = SectorGuidePdf.render(pack, copy, sectors.comingSoon(key, subKey), a4);
             made.put(cacheKey, bytes);
         }
-        String name = "busynez-guide-" + cacheKey.replace('/', '-') + ".pdf";
+        String name = "busynez-guide-" + cacheKey.replace('/', '-').replace("+a4", "-to-print") + ".pdf";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .cacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePublic())

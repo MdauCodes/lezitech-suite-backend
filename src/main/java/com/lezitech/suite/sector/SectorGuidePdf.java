@@ -27,26 +27,40 @@ import java.util.Map;
  * switches on (features) and, for a sub-sector, its seo headline and pitch. The wording that is the same for
  * every trade lives in guide.json. So a change to a pack changes its guide, and no document drifts.
  *
- * The page is A5, not A4: on a phone it fills the screen, so the text is readable without pinching, and it
- * still prints on A4 (two to a sheet, or scaled up by the printer).
+ * There are two papers, the same guide either way. A5 is the one offered first: on a phone it fills the
+ * screen, so the text is readable without pinching. A4 is for an owner printing copies for staff - it is
+ * the same page blown up, type and margins together, so the words break in the same places and nothing
+ * comes out as small print.
  */
 final class SectorGuidePdf {
 
     private static final PDType1Font BOLD = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
     private static final PDType1Font PLAIN = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     private static final PDType1Font ITALIC = new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
-    private static final PDRectangle PAGE = PDRectangle.A5;
-    private static final float MARGIN = 36;
-    private static final float WIDTH = PAGE.getWidth() - 2 * MARGIN;
+    /** Everything below is written in A5 points; on A4 the whole page is multiplied by this. */
+    private static final float A5_MARGIN = 36;
 
     private final PDDocument doc = new PDDocument();
     private final float[] brand;
+    private final PDRectangle paper;
+    private final float k;
+    private final float margin;
+    private final float width;
     private PDPageContentStream out;
     private float y;
     private int pageNo;
 
-    private SectorGuidePdf(String colour) {
+    private SectorGuidePdf(String colour, boolean a4) {
         this.brand = rgb(colour);
+        this.paper = a4 ? PDRectangle.A4 : PDRectangle.A5;
+        this.k = paper.getWidth() / PDRectangle.A5.getWidth();
+        this.margin = A5_MARGIN * k;
+        this.width = paper.getWidth() - 2 * margin;
+    }
+
+    /** Down the page by a distance written in A5 points. */
+    private void down(float v) {
+        y -= v * k;
     }
 
     /** "#c2410c" as the three parts PDFBox wants; a quiet grey if the pack has no colour. */
@@ -99,19 +113,19 @@ final class SectorGuidePdf {
             footer();
             out.close();
         }
-        PDPage p = new PDPage(PAGE);
+        PDPage p = new PDPage(paper);
         doc.addPage(p);
         out = new PDPageContentStream(doc, p);
         pageNo++;
-        y = PAGE.getHeight() - MARGIN;
+        y = paper.getHeight() - margin;
     }
 
     /** The same quiet line on the foot of every page, so a printed page still says where it came from. */
     private void footer() throws IOException {
         out.setNonStrokingColor(0.45f, 0.45f, 0.45f);
         out.beginText();
-        out.setFont(PLAIN, 7.5f);
-        out.newLineAtOffset(MARGIN, MARGIN - 16);
+        out.setFont(PLAIN, 7.5f * k);
+        out.newLineAtOffset(margin, margin - 16 * k);
         out.showText(safe("Busynez by LeziTech   busynez.site   page " + pageNo));
         out.endText();
         out.setNonStrokingColor(0f, 0f, 0f);
@@ -119,13 +133,13 @@ final class SectorGuidePdf {
 
     private void text(PDType1Font f, float size, String s, float x) throws IOException {
         out.beginText();
-        out.setFont(f, size);
+        out.setFont(f, size * k);
         out.newLineAtOffset(x, y);
         out.showText(safe(s));
         out.endText();
     }
 
-    private List<String> wrap(PDType1Font f, float size, String s, float width) throws IOException {
+    private List<String> wrap(PDType1Font f, float size, String s, float room) throws IOException {
         List<String> lines = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
         for (String w : safe(s).split(" ")) {
@@ -133,7 +147,7 @@ final class SectorGuidePdf {
                 continue;
             }
             String next = cur.isEmpty() ? w : cur + " " + w;
-            if (f.getStringWidth(next) / 1000 * size > width && !cur.isEmpty()) {
+            if (f.getStringWidth(next) / 1000 * size * k > room && !cur.isEmpty()) {
                 lines.add(cur.toString());
                 cur = new StringBuilder(w);
             } else {
@@ -148,12 +162,12 @@ final class SectorGuidePdf {
 
     /** A paragraph, wrapped to the page width, starting at an indent. */
     private void para(PDType1Font f, float size, String s, float indent, float gap) throws IOException {
-        for (String l : wrap(f, size, s, WIDTH - indent)) {
+        for (String l : wrap(f, size, s, width - indent * k)) {
             need(size + 3);
-            text(f, size, l, MARGIN + indent);
-            y -= size + 3;
+            text(f, size, l, margin + indent * k);
+            down(size + 3);
         }
-        y -= gap;
+        down(gap);
     }
 
     private void para(String s) throws IOException {
@@ -161,7 +175,7 @@ final class SectorGuidePdf {
     }
 
     private void need(float h) throws IOException {
-        if (y - h < MARGIN + 6) {
+        if (y - h * k < margin + 6 * k) {
             page();
         }
     }
@@ -169,23 +183,23 @@ final class SectorGuidePdf {
     /** A section heading in the trade's own colour, with a rule under it. */
     private void heading(String s) throws IOException {
         need(52);
-        y -= 10;
+        down(10);
         out.setNonStrokingColor(brand[0], brand[1], brand[2]);
-        text(BOLD, 12.5f, s, MARGIN);
-        y -= 6;
+        text(BOLD, 12.5f, s, margin);
+        down(6);
         out.setStrokingColor(brand[0], brand[1], brand[2]);
-        out.setLineWidth(0.8f);
-        out.moveTo(MARGIN, y);
-        out.lineTo(MARGIN + WIDTH, y);
+        out.setLineWidth(0.8f * k);
+        out.moveTo(margin, y);
+        out.lineTo(margin + width, y);
         out.stroke();
         out.setNonStrokingColor(0f, 0f, 0f);
-        y -= 13;
+        down(13);
     }
 
     /** A bullet: the dot stays put and the words wrap under themselves. */
     private void bullet(String s) throws IOException {
         need(16);
-        text(PLAIN, 10, "-", MARGIN);
+        text(PLAIN, 10, "-", margin);
         para(PLAIN, 10, s, 12, 2);
     }
 
@@ -193,7 +207,7 @@ final class SectorGuidePdf {
     private void step(int n, String s) throws IOException {
         need(18);
         out.setNonStrokingColor(brand[0], brand[1], brand[2]);
-        text(BOLD, 10, n + ".", MARGIN);
+        text(BOLD, 10, n + ".", margin);
         out.setNonStrokingColor(0f, 0f, 0f);
         para(PLAIN, 10, s, 16, 4);
     }
@@ -201,8 +215,8 @@ final class SectorGuidePdf {
     /** A named thing and what it is for: the name in bold, the sentence under it. */
     private void named(String name, String what) throws IOException {
         need(26);
-        text(BOLD, 10, name, MARGIN);
-        y -= 13;
+        text(BOLD, 10, name, margin);
+        down(13);
         para(PLAIN, 9.5f, what, 10, 5);
     }
 
@@ -223,22 +237,23 @@ final class SectorGuidePdf {
      *                   sub-sector was asked for
      * @param copy       guide.json: the wording shared by every trade
      * @param comingSoon true for the packs that cannot be signed up for yet (pharmacies, resorts)
+     * @param a4         true for the bigger paper an owner prints for staff; false for the phone-sized one
      */
-    static byte[] render(JsonNode pack, JsonNode copy, boolean comingSoon) {
+    static byte[] render(JsonNode pack, JsonNode copy, boolean comingSoon, boolean a4) {
         String sub = pack.path("subSector").asText("");
         String trade = sub.isEmpty() ? pack.path("name").asText("your business") : sub;
         JsonNode terms = pack.path("terms");
-        SectorGuidePdf p = new SectorGuidePdf(pack.path("color").asText("#1f2937"));
+        SectorGuidePdf p = new SectorGuidePdf(pack.path("color").asText("#1f2937"), a4);
         try {
             p.page();
 
             // The cover, on the same page as the start of the guide: nobody wants to swipe past an empty page.
             p.out.setNonStrokingColor(p.brand[0], p.brand[1], p.brand[2]);
-            p.text(BOLD, 11, "BUSYNEZ", MARGIN);
+            p.text(BOLD, 11, "BUSYNEZ", p.margin);
             p.out.setNonStrokingColor(0f, 0f, 0f);
-            p.y -= 14;
-            p.text(PLAIN, 9.5f, "A guide for " + trade.toLowerCase(Locale.ROOT), MARGIN);
-            p.y -= 26;
+            p.down(14);
+            p.text(PLAIN, 9.5f, "A guide for " + trade.toLowerCase(Locale.ROOT), p.margin);
+            p.down(26);
             p.para(BOLD, 19, sub.isEmpty() ? pack.path("name").asText("") : sub, 0, 4);
             String strap = pack.path("seo").path("headline").asText("");
             p.para(ITALIC, 11, strap.isEmpty() ? pack.path("tagline").asText("") : strap, 0, 10);
@@ -363,7 +378,7 @@ final class SectorGuidePdf {
             p.bullet("Call: " + contact.path("call").asText());
             p.bullet("Email: " + contact.path("email").asText());
             p.bullet("Online: " + contact.path("website").asText());
-            p.y -= 4;
+            p.down(4);
             p.para(ITALIC, 10, copy.path("closing").asText(), 0, 0);
 
             p.footer();
