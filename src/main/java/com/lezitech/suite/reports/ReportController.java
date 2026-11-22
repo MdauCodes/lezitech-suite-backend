@@ -219,10 +219,11 @@ public class ReportController {
                 HAVING coalesce(sum(s.qty), 0) <= i.reorder_level
                 ORDER BY coalesce(sum(s.qty), 0) - i.reorder_level, i.name LIMIT 50"""));
         out.put("purchases", db.one("Purchases", """
-                SELECT coalesce(sum(total), 0) AS amount, count(*) AS orders FROM purchase_orders
-                WHERE status = 'RECEIVED' AND received_at >= :from AND received_at < :to""", range));
+                SELECT coalesce(sum((SELECT sum(coalesce(l.received_qty, l.qty) * l.unit_cost) FROM purchase_lines l WHERE l.po_id = po.id)), 0) AS amount,
+                       count(*) AS orders FROM purchase_orders po
+                WHERE po.status = 'RECEIVED' AND po.received_at >= :from AND po.received_at < :to""", range));
         out.put("bySupplier", db.list("""
-                SELECT coalesce(sp.name, 'No supplier') AS name, sum(po.total) AS amount, count(*) AS orders
+                SELECT coalesce(sp.name, 'No supplier') AS name, coalesce(sum((SELECT sum(coalesce(l.received_qty, l.qty) * l.unit_cost) FROM purchase_lines l WHERE l.po_id = po.id)), 0) AS amount, count(*) AS orders
                 FROM purchase_orders po LEFT JOIN suppliers sp ON sp.id = po.supplier_id
                 WHERE po.status = 'RECEIVED' AND po.received_at >= :from AND po.received_at < :to
                 GROUP BY 1 ORDER BY amount DESC LIMIT 20""", range));

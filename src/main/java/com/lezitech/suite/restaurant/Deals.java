@@ -45,6 +45,9 @@ public class Deals {
     static final DateTimeFormatter SAY = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
 
     private final Db db;
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private com.lezitech.suite.sales.OrderService orders;
 
     public Deals(Db db) {
         this.db = db;
@@ -208,7 +211,9 @@ public class Deals {
         if (!"OPEN".equals(status)) {
             return;
         }
-        db.exec("DELETE FROM order_lines WHERE order_id = :id AND deal_id IS NOT NULL", "id", orderId);
+        for (Map<String, Object> dl : db.list("SELECT id FROM order_lines WHERE order_id = :id AND deal_id IS NOT NULL", "id", orderId)) {
+            orders.removeLine(UUID.fromString(dl.get("id").toString()), orderId, "");
+        }
         List<Map<String, Object>> deals = active().stream().filter(d -> List.of("BUNDLE", "BOGO").contains(d.get("kind"))).toList();
         if (deals.isEmpty()) {
             return;

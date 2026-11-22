@@ -510,9 +510,12 @@ public class MpesaService {
             }
             UUID line = (UUID) rows.get(0).get("fee_line_id");
             UUID order = (UUID) rows.get(0).get("order_id");
-            int gone = jdbc.update("DELETE FROM order_lines l USING orders o WHERE l.id = ? AND o.id = l.order_id AND o.status = 'OPEN'", line);
+            boolean open = !jdbc.queryForList("SELECT 1 FROM order_lines l JOIN orders o ON o.id = l.order_id WHERE l.id = ? AND o.status = 'OPEN'", line).isEmpty();
+            if (open) {
+                orders.removeLine(line, order, " because the payment did not go through", true);
+            }
             jdbc.update("UPDATE mpesa_requests SET fee_line_id = NULL WHERE id = ?", requestId);
-            if (gone > 0) {
+            if (open) {
                 orders.recalc(order);
             }
             return null;

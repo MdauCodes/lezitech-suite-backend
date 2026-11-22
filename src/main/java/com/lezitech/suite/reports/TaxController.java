@@ -89,8 +89,8 @@ public class TaxController {
                 GROUP BY 1 ORDER BY 1""".replace("{unit}", unit), range);
         List<Map<String, Object>> buys = db.list("""
                 SELECT to_char(date_trunc('{unit}', p.received_at AT TIME ZONE 'Africa/Nairobi'), 'YYYY-MM-DD') AS period,
-                       coalesce(sum(l.qty * l.unit_cost), 0) AS bought,
-                       coalesce(sum(round(l.qty * l.unit_cost * i.tax_rate / (100 + i.tax_rate), 2)), 0) AS input_vat
+                       coalesce(sum(coalesce(l.received_qty, l.qty) * l.unit_cost), 0) AS bought,
+                       coalesce(sum(round(coalesce(l.received_qty, l.qty) * l.unit_cost * i.tax_rate / (100 + i.tax_rate), 2)), 0) AS input_vat
                 FROM purchase_orders p JOIN purchase_lines l ON l.po_id = p.id JOIN items i ON i.id = l.item_id
                 WHERE p.status = 'RECEIVED' AND p.received_at >= :from AND p.received_at < :to
                 GROUP BY 1 ORDER BY 1""".replace("{unit}", unit), range);

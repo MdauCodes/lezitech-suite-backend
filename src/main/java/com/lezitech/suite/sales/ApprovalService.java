@@ -46,14 +46,37 @@ public class ApprovalService {
                 || (access != null && access.mayDiscount(TenantContext.tenantId(), TenantContext.caller().role()))) {
             return null;
         }
+        return pinApproval(b, what);
+    }
+
+    /**
+     * Like {@link #require} but a job that may give discounts gets no free pass: only an owner or
+     * manager, or a manager's PIN, will do. For cancelling bills and selling below cost.
+     * Returns the approving manager's name when a PIN was used, otherwise null.
+     */
+    public String requireManager(Body b, String what) {
+        if (isManager(TenantContext.caller().role())) {
+            return null;
+        }
+        return pinApproval(b, what);
+    }
+
+    private String pinApproval(Body b, String what) {
         Map<String, Object> approval = b == null ? Map.of() : b.map("approval");
         Body a = new Body(approval);
         if (a.has("userId") && a.has("pin")) {
-            String account = "approve:" + a.str("userId");
+            UUID managerId;
+            try {
+                managerId = UUID.fromString(a.str("userId").trim());
+            } catch (IllegalArgumentException e) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "APPROVAL_NEEDED", "That manager PIN is not right");
+            }
+            // Keyed on the parsed id, so every spelling of the same id (capital or small letters) shares one count.
+            String account = "approve:" + managerId;
             throttle.check(account, null);
             List<Map<String, Object>> rows = jdbc.queryForList(
                     "SELECT role, pin_hash, name FROM users WHERE id = ? AND tenant_id = ? AND active",
-                    UUID.fromString(a.str("userId")), TenantContext.tenantId());
+                    managerId, TenantContext.tenantId());
             if (!rows.isEmpty() && isManager((String) rows.get(0).get("role")) && rows.get(0).get("pin_hash") != null
                     && encoder.matches(a.str("pin"), (String) rows.get(0).get("pin_hash"))) {
                 throttle.succeeded(account);

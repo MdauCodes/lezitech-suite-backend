@@ -133,7 +133,7 @@ public class KitchenService {
             notice(orderId, "SUBSTITUTE_OFFERED", "Sorry, " + name + " is " + why + ". Would " + sub.get("name") + " do instead?", false);
             log(orderId, name + " " + why + "; offered " + sub.get("name") + " instead", BigDecimal.ZERO);
         } else {
-            removeLine(lineId, orderId);
+            removeLine(lineId, orderId, " because the kitchen could not make it (" + why + ")");
             notice(orderId, "ITEM_REMOVED", "Sorry, " + name + " is " + why + ". It has been taken off your bill.", true);
             log(orderId, name + " " + why + "; taken off the bill", (BigDecimal) l.get("lineTotal"));
         }
@@ -150,7 +150,7 @@ public class KitchenService {
             throw ApiException.conflict("This has already been answered");
         }
         UUID orderId = UUID.fromString(l.get("orderId").toString());
-        removeLine(lineId, orderId);
+        removeLine(lineId, orderId, " when the diner answered the swap question");
         if (accept) {
             Map<String, Object> line = new java.util.LinkedHashMap<>();
             line.put("itemId", l.get("substituteItemId").toString());
@@ -177,8 +177,8 @@ public class KitchenService {
         }
     }
 
-    private void removeLine(UUID lineId, UUID orderId) {
-        db.exec("DELETE FROM order_lines WHERE id = :id", "id", lineId);
+    private void removeLine(UUID lineId, UUID orderId, String why) {
+        orders.removeLine(lineId, orderId, why);
         orders.recalc(orderId);
     }
 

@@ -214,11 +214,25 @@ public class OrderService {
                 BigDecimal shelf = packSize != null ? price : (BigDecimal) item.get("price");
                 BigDecimal lowest = packSize != null ? null : (BigDecimal) item.get("wholesalePrice");
                 boolean belowLowest = lowest != null ? asked.compareTo(lowest) < 0 : asked.compareTo(price) < 0;
-                boolean needsPin = asked.compareTo(price) < 0 && (belowLowest || !bargain);
+                // Below what the item cost (a pack costs its pieces together): always a manager's call, on top of any other reason.
+                BigDecimal unitCost = item.get("cost") == null ? BigDecimal.ZERO : (BigDecimal) item.get("cost");
+                BigDecimal cost = packSize != null ? unitCost.multiply(packSize) : unitCost;
+                boolean belowCost = cost.signum() > 0 && asked.compareTo(cost) < 0;
+                boolean needsPin = (asked.compareTo(price) < 0 && (belowLowest || !bargain)) || belowCost;
                 String by = null;
                 if (!trusted && needsPin) {
-                    by = approvals.require(approvalSource, belowLowest && lowest != null
-                            ? "selling " + name + " below its lowest price (" + lowest.toPlainString() + ")" : "a price change on " + name);
+                    String needed = belowCost
+                            ? "selling " + name + " below what it cost (" + cost.toPlainString() + ")"
+                            : belowLowest && lowest != null
+                            ? "selling " + name + " below its lowest price (" + lowest.toPlainString() + ")" : "a price change on " + name;
+                    by = belowCost ? approvals.requireManager(approvalSource, needed) : approvals.require(approvalSource, needed);
+                }
+                if (!trusted && belowCost) {
+                    activity.record("BELOW_COST", com.lezitech.suite.activity.ActivityLog.CONCERN,
+                            name + " sold at " + asked.toPlainString() + ", below what it cost (" + cost.toPlainString() + ") × "
+                                    + qty.stripTrailingZeros().toPlainString(),
+                            orderId, UUID.fromString(item.get("id").toString()), cost.subtract(asked).multiply(qty), by,
+                            Map.of("cost", cost, "sold", asked, "qty", qty));
                 }
                 if (!trusted && asked.compareTo(shelf) != 0) {
                     boolean down = asked.compareTo(shelf) < 0;
@@ -284,6 +298,45 @@ public class OrderService {
             }
         }
         recalc(orderId);
+    }
+
+    /**
+     * The one way to take a line (and its parts) off a bill. Anything worth money leaves an ITEM_REMOVED
+     * note in the activity log; a line worth nothing (a combo part, a deal line) goes quietly.
+     * {@code why} is the wording after the bill number, e.g. " after the bill was printed"; when empty it is worked out here.
+     */
+    public void removeLine(UUID lineId, UUID orderId, String why) {
+        removeLine(lineId, orderId, why, false);
+    }
+
+    /** {@code routine}: a charge the system itself added and withdrew (a payment fee), noted but never raised as a concern. */
+    public void removeLine(UUID lineId, UUID orderId, String why, boolean routine) {
+        Map<String, Object> l = db.find("""
+                SELECT l.name, l.qty, l.item_id, l.kitchen_status,
+                       l.line_total + coalesce((SELECT sum(c.line_total) FROM order_lines c WHERE c.parent_line_id = l.id), 0) AS worth
+                FROM order_lines l WHERE l.id = :id AND l.order_id = :order""", "id", lineId, "order", orderId).orElse(null);
+        if (l == null) {
+            return;
+        }
+        Map<String, Object> o = db.one("Order", "SELECT number, bill_printed_at FROM orders WHERE id = :id", "id", orderId);
+        db.exec("DELETE FROM order_lines WHERE id = :id OR parent_line_id = :id", "id", lineId);
+        BigDecimal worth = (BigDecimal) l.get("worth");
+        if (worth == null || worth.signum() <= 0) {
+            return;
+        }
+        boolean printed = o.get("billPrintedAt") != null;
+        boolean cooking = !"PENDING".equals(l.get("kitchenStatus"));
+        String reason = why != null && !why.isBlank() ? why
+                : printed ? " after the bill was printed" : cooking ? " after the kitchen started it" : "";
+        String severity = !routine && (printed || cooking) ? com.lezitech.suite.activity.ActivityLog.CONCERN
+                : com.lezitech.suite.activity.ActivityLog.NOTICE;
+        BigDecimal qty = (BigDecimal) l.get("qty");
+        // A charge the system itself withdrew (a failed payment's fee) is noted, but it is not a staff member
+        // taking goods off a bill, so it must not make an ordinary bill need a manager to cancel.
+        activity.record(routine ? "LINE_DROPPED" : "ITEM_REMOVED", severity,
+                "Took " + qty.stripTrailingZeros().toPlainString() + " × " + l.get("name") + " off #" + o.get("number")
+                        + reason + " (KES " + worth.setScale(0, RoundingMode.HALF_UP) + ")",
+                orderId, l.get("itemId") == null ? null : UUID.fromString(l.get("itemId").toString()), worth, null, Map.of("qty", qty));
     }
 
     /** Prices are VAT-inclusive (the norm on Kenyan shelves); tax is the VAT portion. */
@@ -595,6 +648,11 @@ public class OrderService {
      * A completed sale is refunded instead: see {@link #refund}.
      */
     public void voidOrder(UUID orderId, String reason) {
+        voidOrder(orderId, reason, null);
+    }
+
+    /** Same, noting which manager approved it (null when a manager did it themselves, or the system). */
+    public void voidOrder(UUID orderId, String reason, String approvedBy) {
         Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id FOR UPDATE", "id", orderId);
         String status = (String) o.get("status");
         if ("VOID".equals(status) || "REFUNDED".equals(status)) {
@@ -616,7 +674,7 @@ public class OrderService {
                         : com.lezitech.suite.activity.ActivityLog.NOTICE,
                 "Cancelled #" + o.get("number") + " worth " + ((BigDecimal) o.get("total")).toPlainString()
                         + (printed ? " after the bill was printed" : wentToKitchen ? " after it went to the kitchen" : "") + ": " + reason,
-                orderId, null, (BigDecimal) o.get("total"), null, Map.of("reason", reason));
+                orderId, null, (BigDecimal) o.get("total"), approvedBy, Map.of("reason", reason));
         db.exec("UPDATE orders SET status = 'VOID', closed_at = now(), note = concat_ws(' · ', note, :reason) WHERE id = :id",
                 "id", orderId, "reason", "Cancelled: " + reason);
         db.exec("UPDATE order_lines SET kitchen_status = 'SERVED' WHERE order_id = :id", "id", orderId);

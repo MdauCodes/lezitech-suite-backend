@@ -1,5 +1,6 @@
 package com.lezitech.suite.purchasing;
 
+import com.lezitech.suite.activity.ActivityLog;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.common.Db;
@@ -27,10 +28,12 @@ public class PurchaseController {
 
     private final Db db;
     private final StockService stock;
+    private final ActivityLog activity;
 
-    public PurchaseController(Db db, StockService stock) {
+    public PurchaseController(Db db, StockService stock, ActivityLog activity) {
         this.db = db;
         this.stock = stock;
+        this.activity = activity;
     }
 
     @GetMapping
@@ -103,16 +106,65 @@ public class PurchaseController {
 
     /** Goods arrived: stock goes up, batches are recorded, item cost updates, and we owe the supplier. */
     @PostMapping("/{id}/receive")
-    public Map<String, Object> receive(@PathVariable UUID id) {
+    public Map<String, Object> receive(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
-        Map<String, Object> p = db.one("Purchase order", "SELECT * FROM purchase_orders WHERE id = :id", "id", id);
+        Map<String, Object> p = db.one("Purchase order", "SELECT * FROM purchase_orders WHERE id = :id FOR UPDATE", "id", id);
         if ("RECEIVED".equals(p.get("status"))) {
             throw ApiException.conflict("Already received");
         }
         UUID loc = UUID.fromString(p.get("locationId").toString());
-        for (Map<String, Object> l : db.list("SELECT * FROM purchase_lines WHERE po_id = :id", "id", id)) {
+        List<Map<String, Object>> lines = db.list("SELECT * FROM purchase_lines WHERE po_id = :id", "id", id);
+        // What actually arrived, by line. A line not named arrived in full.
+        Map<String, BigDecimal> arrived = new LinkedHashMap<>();
+        if (raw != null && raw.get("lines") != null) {
+            for (Map<String, Object> r : new Body(raw).list("lines")) {
+                Body rb = new Body(r);
+                String lineId = rb.str("id");
+                Map<String, Object> match = null;
+                for (Map<String, Object> l : lines) {
+                    if (l.get("id").toString().equalsIgnoreCase(lineId)) {
+                        match = l;
+                    }
+                }
+                if (match == null) {
+                    throw ApiException.bad("One of the lines you marked is not on this order");
+                }
+                BigDecimal got = rb.num("received");
+                String what = db.value("SELECT name FROM items WHERE id = :i", String.class, "i", match.get("itemId"));
+                if (got.signum() < 0) {
+                    throw ApiException.bad("The amount received for " + what + " cannot be less than nothing");
+                }
+                if (got.compareTo((BigDecimal) match.get("qty")) > 0) {
+                    throw ApiException.bad("You ordered " + ((BigDecimal) match.get("qty")).stripTrailingZeros().toPlainString() + " of " + what
+                            + ", so you cannot receive more than that. Change the order first if more came");
+                }
+                arrived.put(match.get("id").toString(), got);
+            }
+        }
+        boolean nothingArrived = !lines.isEmpty();
+        for (Map<String, Object> l : lines) {
+            if (arrived.getOrDefault(l.get("id").toString(), (BigDecimal) l.get("qty")).signum() != 0) {
+                nothingArrived = false;
+            }
+        }
+        BigDecimal owed = BigDecimal.ZERO;
+        BigDecimal shortValue = BigDecimal.ZERO;
+        List<String> shortNames = new java.util.ArrayList<>();
+        for (Map<String, Object> l : lines) {
             UUID itemId = UUID.fromString(l.get("itemId").toString());
-            BigDecimal qty = (BigDecimal) l.get("qty");
+            BigDecimal ordered = (BigDecimal) l.get("qty");
+            BigDecimal qty = arrived.getOrDefault(l.get("id").toString(), ordered);
+            BigDecimal unitCost = (BigDecimal) l.get("unitCost");
+            db.exec("UPDATE purchase_lines SET received_qty = :got WHERE id = :lid", "got", qty, "lid", l.get("id"));
+            owed = owed.add(qty.multiply(unitCost));
+            BigDecimal missing = ordered.subtract(qty);
+            if (missing.signum() > 0) {
+                shortValue = shortValue.add(missing.multiply(unitCost));
+                shortNames.add(db.value("SELECT name FROM items WHERE id = :i", String.class, "i", itemId) + " by " + missing.stripTrailingZeros().toPlainString());
+            }
+            if (qty.signum() == 0) {
+                continue;
+            }
             // A line in packs: stock is kept in pieces, the pack's price is its buying price.
             BigDecimal packSize = Boolean.TRUE.equals(l.get("inPacks"))
                     ? db.value("SELECT buy_size FROM items WHERE id = :itemId AND kind = 'PRODUCT'", BigDecimal.class, "itemId", itemId) : null;
@@ -147,9 +199,20 @@ public class PurchaseController {
             stock.move(itemId, loc, qty, "RECEIVE", "PO " + id.toString().substring(0, 8), null);
             db.exec("UPDATE items SET cost = :cost WHERE id = :itemId", "itemId", itemId, "cost", l.get("unitCost"));
         }
-        db.exec("UPDATE purchase_orders SET status = 'RECEIVED', received_at = now() WHERE id = :id", "id", id);
-        if (p.get("supplierId") != null) {
-            db.exec("UPDATE suppliers SET balance = balance + :total WHERE id = :s", "s", p.get("supplierId"), "total", p.get("total"));
+        if (!nothingArrived) {
+            db.exec("UPDATE purchase_orders SET status = 'RECEIVED', received_at = now() WHERE id = :id", "id", id);
+        }
+        if (p.get("supplierId") != null && !nothingArrived) {
+            db.exec("UPDATE suppliers SET balance = balance + :total WHERE id = :s", "s", p.get("supplierId"), "total", owed);
+        }
+        if (!shortNames.isEmpty()) {
+            activity.record("SHORT_DELIVERY", ActivityLog.CONCERN, "Delivery came short: " + String.join(", ", shortNames),
+                    null, null, shortValue, null, Map.of("purchaseOrderId", id.toString()));
+        }
+        if (nothingArrived) {
+            Map<String, Object> out = new LinkedHashMap<>(get(id));
+            out.put("message", "Nothing was recorded as arrived, so the order is still open. When the goods come, receive them then.");
+            return out;
         }
         return get(id);
     }

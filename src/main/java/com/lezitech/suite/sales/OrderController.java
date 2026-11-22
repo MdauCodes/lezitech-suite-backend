@@ -133,16 +133,18 @@ public class OrderController {
         Map<String, Object> o = db.one("Order", "SELECT number, bill_printed_at FROM orders WHERE id = :id", "id", id);
         boolean printed = o.get("billPrintedAt") != null;
         boolean cooking = !"PENDING".equals(line.get("kitchenStatus"));
-        if (off.signum() > 0 && (printed || cooking) && line.get("parentLineId") == null && line.get("dealId") == null) {
+        String why = printed ? " after the bill was printed" : cooking ? " after the kitchen started it" : "";
+        if (qty.signum() <= 0) {
+            // Taking the whole line off goes through the one shared way, which writes it down.
+            orders.removeLine(lineId, id, why);
+        } else if (off.signum() > 0 && line.get("parentLineId") == null && line.get("dealId") == null) {
             BigDecimal value = off.multiply((BigDecimal) line.get("unitPrice"));
-            activity.record("ITEM_REMOVED", com.lezitech.suite.activity.ActivityLog.CONCERN,
+            activity.record("ITEM_REMOVED", printed || cooking ? com.lezitech.suite.activity.ActivityLog.CONCERN : com.lezitech.suite.activity.ActivityLog.NOTICE,
                     "Took " + off.stripTrailingZeros().toPlainString() + " × " + line.get("name") + " off #" + o.get("number")
-                            + (printed ? " after the bill was printed" : " after the kitchen started it") + " (KES " + value.setScale(0, java.math.RoundingMode.HALF_UP) + ")",
+                            + why + " (KES " + value.setScale(0, java.math.RoundingMode.HALF_UP) + ")",
                     id, line.get("itemId") == null ? null : UUID.fromString(line.get("itemId").toString()), value, null, Map.of("qty", off));
         }
-        if (qty.signum() <= 0) {
-            db.exec("DELETE FROM order_lines WHERE id = :lineId OR parent_line_id = :lineId", "lineId", lineId);
-        } else {
+        if (qty.signum() > 0) {
             db.exec("""
                     UPDATE order_lines SET qty = :qty, note = :note, discount = :discount,
                            line_total = round(unit_price * :qty - :discount, 2) WHERE id = :lineId""",
@@ -249,7 +251,13 @@ public class OrderController {
         if (!"OPEN".equals(o.get("status")) || hasKitchenWork) {
             TenantContext.requireRole("MANAGER");
         }
-        orders.voidOrder(id, new Body(raw).str("reason", "No reason given"));
+        // An empty bill can be cancelled by anybody; once anything is on it, a manager must approve.
+        Body body = new Body(raw);
+        String approvedBy = null;
+        if (everHadLines(id)) {
+            approvedBy = approvals.requireManager(body, "cancelling this bill");
+        }
+        orders.voidOrder(id, body.str("reason", "No reason given"), approvedBy);
         return orders.detail(id);
     }
 
@@ -262,9 +270,18 @@ public class OrderController {
     }
 
     @DeleteMapping("/{id}")
-    public void deleteEmpty(@PathVariable UUID id) {
+    public void deleteEmpty(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         orders.requireOpen(id);
+        if (everHadLines(id)) {
+            approvals.requireManager(new Body(raw == null ? Map.of() : raw), "deleting this bill");
+        }
         db.exec("DELETE FROM orders WHERE id = :id AND NOT EXISTS (SELECT 1 FROM order_lines WHERE order_id = :id)", "id", id);
+    }
+
+    /** True if the bill has lines now, or ever had one taken off it (so emptying it first doesn't dodge the check). */
+    private boolean everHadLines(UUID id) {
+        return Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM order_lines WHERE order_id = :id)", Boolean.class, "id", id))
+                || Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM activity_log WHERE order_id = :id AND kind = 'ITEM_REMOVED')", Boolean.class, "id", id));
     }
 
     private static String blank(String s) {
