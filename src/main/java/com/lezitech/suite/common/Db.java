@@ -80,6 +80,8 @@ public class Db {
             p.addValue("t", caller.tenantId());
             p.addValue("u", caller.userId());
         }
+        // NOTE: a caller pair named "t" or "u" overwrites the tenant/user filled in above. Never pass those
+        // names: a query that fences on :u (e.g. "this is my own row") would then trust the request instead.
         for (int i = 0; i < kv.length; i += 2) {
             Object v = kv[i + 1];
             if (v instanceof String s && UUID_TEXT.matcher(s).matches()) {

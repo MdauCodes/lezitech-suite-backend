@@ -53,7 +53,7 @@ public class AccessPolicy {
             new Area(Pattern.compile("/api/(items|categories)(/.*)?"), "items", false),
             new Area(Pattern.compile("/api/customers(/.*)?"), "customers", false));
 
-    public record Job(Set<String> modules, Boolean refunds, Boolean discounts) {
+    public record Job(Set<String> modules, Boolean refunds, Boolean discounts, Boolean cancels) {
     }
 
     private record Cached(Map<String, Job> jobs, long at) {
@@ -100,7 +100,8 @@ public class AccessPolicy {
                     }
                 }
                 out.put(e.getKey(), new Job(mods, v.has("refunds") ? v.get("refunds").asBoolean() : null,
-                        v.has("discounts") ? v.get("discounts").asBoolean() : null));
+                        v.has("discounts") ? v.get("discounts").asBoolean() : null,
+                        v.has("cancels") ? v.get("cancels").asBoolean() : null));
             });
         } catch (Exception e) {
             // unreadable settings: defaults apply
@@ -145,6 +146,15 @@ public class AccessPolicy {
         return j != null && j.discounts() != null ? j.discounts() : "MANAGER".equals(role);
     }
 
+    /** True = this job cancels bills itself; false = it must ask a manager. Asking is the default. */
+    public boolean mayCancelBill(UUID tenant, String role) {
+        if ("OWNER".equals(role)) {
+            return true;
+        }
+        Job j = job(tenant, role);
+        return j != null && j.cancels() != null ? j.cancels() : "MANAGER".equals(role);
+    }
+
     /** Checks what the owner sends in Settings before it is saved. */
     public static Map<String, Object> clean(Object raw, Set<String> roles) {
         Map<String, Object> out = new LinkedHashMap<>();
@@ -169,6 +179,9 @@ public class AccessPolicy {
             }
             if (job.get("discounts") instanceof Boolean d) {
                 j.put("discounts", d);
+            }
+            if (job.get("cancels") instanceof Boolean c) {
+                j.put("cancels", c);
             }
             out.put(role, j);
         });

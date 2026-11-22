@@ -34,6 +34,10 @@ public class OrderController {
     private final ApprovalService approvals;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.activity.ActivityLog activity;
+    @org.springframework.beans.factory.annotation.Autowired
+    private ManagerRequestService requests;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.config.AccessPolicy access;
 
     public OrderController(Db db, OrderService orders, ApprovalService approvals) {
         this.db = db;
@@ -251,14 +255,31 @@ public class OrderController {
         if (!"OPEN".equals(o.get("status")) || hasKitchenWork) {
             TenantContext.requireRole("MANAGER");
         }
-        // An empty bill can be cancelled by anybody; once anything is on it, a manager must approve.
+        // An empty bill can be cancelled by anybody; once anything is on it, a manager must approve --
+        // unless the owner has given this job "cancel a bill without asking a manager" in Settings.
         Body body = new Body(raw);
         String approvedBy = null;
-        if (everHadLines(id)) {
+        if (everHadLines(id) && !access.mayCancelBill(TenantContext.tenantId(), TenantContext.caller().role())) {
             approvedBy = approvals.requireManager(body, "cancelling this bill");
         }
         orders.voidOrder(id, body.str("reason", "No reason given"), approvedBy);
         return orders.detail(id);
+    }
+
+    /** A member of staff who may not cancel bills asks a manager to. The bill itself is not touched. */
+    @PostMapping("/{id}/ask-cancel")
+    public Map<String, Object> askCancel(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        String reason = new Body(raw).str("reason", "").trim();
+        if (reason.isEmpty()) {
+            throw ApiException.bad("Say why this bill should be cancelled");
+        }
+        if (reason.length() > 200) {
+            reason = reason.substring(0, 200);
+        }
+        Map<String, Object> o = db.one("Order", "SELECT number FROM orders WHERE id = :id", "id", id);
+        String who = TenantContext.caller().name() == null ? "Staff" : TenantContext.caller().name();
+        requests.raise("CANCEL_BILL", id, null, reason, who + " asks to cancel bill #" + o.get("number") + ": " + reason);
+        return Map.of("asked", true, "message", "A manager has been asked. The bill stays open until they answer.");
     }
 
     /** Quotation accepted: it becomes an open sale/invoice ready for payment or account. */
@@ -272,7 +293,7 @@ public class OrderController {
     @DeleteMapping("/{id}")
     public void deleteEmpty(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         orders.requireOpen(id);
-        if (everHadLines(id)) {
+        if (everHadLines(id) && !access.mayCancelBill(TenantContext.tenantId(), TenantContext.caller().role())) {
             approvals.requireManager(new Body(raw == null ? Map.of() : raw), "deleting this bill");
         }
         db.exec("DELETE FROM orders WHERE id = :id AND NOT EXISTS (SELECT 1 FROM order_lines WHERE order_id = :id)", "id", id);

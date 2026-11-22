@@ -59,6 +59,10 @@ public class Delivery {
     private final MpesaService mpesa;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.notify.WebPush push;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.config.AccessPolicy access;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.ManagerRequestService requests;
 
     public Delivery(Db db, JdbcTemplate jdbc, ObjectMapper json, OrderService orders, TableOrderService tableOrders, MpesaService mpesa) {
         this.db = db;
@@ -659,9 +663,17 @@ public class Delivery {
         }
         UUID orderId = UUID.fromString(d.get("orderId").toString());
         db.exec("UPDATE deliveries SET status = 'FAILED', failed_reason = :r WHERE id = :id", "id", id, "r", reason);
-        Map<String, Object> o = db.one("Order", "SELECT status, paid FROM orders WHERE id = :id", "id", orderId);
+        Map<String, Object> o = db.one("Order", "SELECT status, paid, number FROM orders WHERE id = :id", "id", orderId);
         if ("OPEN".equals(o.get("status")) && ((BigDecimal) o.get("paid")).signum() == 0) {
-            orders.voidOrder(orderId, "Delivery not made: " + reason);
+            TenantContext.Caller me = TenantContext.caller();
+            if (access.mayCancelBill(me.tenantId(), me.role())) {
+                orders.voidOrder(orderId, "Delivery not made: " + reason);
+            } else {
+                // This job may not cancel bills: ask a manager and leave the bill as it is.
+                String who = me.name() == null || me.name().isBlank() ? "A rider" : me.name();
+                requests.raise("CANCEL_BILL", orderId, id, "Delivery not made: " + reason,
+                        who + " couldn't deliver bill #" + o.get("number") + " and asks to cancel it: " + reason);
+            }
         }
         return view(id);
     }
