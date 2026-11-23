@@ -51,6 +51,8 @@ public class AdminController {
     private final com.lezitech.suite.auth.TokenVersions versions;
     private final AdminService admin;
     @org.springframework.beans.factory.annotation.Autowired
+    private AdminInvites invites;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.PlatformSettings platform;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.PlanFeatures planFeatures;
@@ -536,10 +538,17 @@ public class AdminController {
     @GetMapping("/team")
     public List<Map<String, Object>> team() {
         AdminContext.require("read");
-        return jdbc.queryForList("SELECT id, email, name, role, active, last_login_at, created_at FROM platform_admins ORDER BY role, name")
+        return jdbc.queryForList("""
+                SELECT id, email, name, role, active, last_login_at, created_at, invite_pending, blocked_at,
+                       (SELECT max(i.created_at) FROM admin_invites i WHERE i.admin_id = platform_admins.id) AS invite_sent_at
+                FROM platform_admins ORDER BY role, name""")
                 .stream().map(this::clean).toList();
     }
 
+    /**
+     * Adds a colleague with no password: the row is switched off with a password nobody knows, and they are emailed a
+     * one-off link to choose their own (AdminInvites). Until they do, they cannot sign in.
+     */
     @PostMapping("/team")
     public Map<String, Object> addAdmin(@RequestBody Map<String, Object> raw) {
         AdminContext.require("team");
@@ -548,14 +557,46 @@ public class AdminController {
         if (!ADMIN_ROLES.contains(role)) {
             throw ApiException.bad("Unknown role");
         }
-        String password = b.str("password");
-        if (password.length() < 10) {
-            throw ApiException.bad("Use at least 10 characters for control-panel passwords");
+        String email = b.str("email").trim().toLowerCase();
+        String name = b.str("name").trim();
+        if (name.isEmpty() || !email.matches("[^@\\s]+@[^@\\s]+[.][^@\\s]+")) {
+            throw ApiException.bad("Type their name and a real email address");
         }
-        jdbc.update("INSERT INTO platform_admins (email, name, password_hash, role) VALUES (?, ?, ?, ?)",
-                b.str("email").toLowerCase(), b.str("name"), encoder.encode(password), role);
-        admin.audit("team.add", null, Map.of("email", b.str("email"), "role", role));
-        return Map.of("ok", true);
+        Integer same = jdbc.queryForObject("SELECT count(*) FROM platform_admins WHERE email = ?", Integer.class, email);
+        if (same != null && same > 0) {
+            throw ApiException.bad("Someone on the team already has that email");
+        }
+        UUID id;
+        try {
+            id = jdbc.queryForObject(
+                    "INSERT INTO platform_admins (email, name, password_hash, role, active, invite_pending) VALUES (?, ?, ?, ?, false, true) RETURNING id",
+                    UUID.class, email, name, invites.unusablePasswordHash(), role);
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw ApiException.bad("Someone on the team already has that email");
+        }
+        admin.audit("team.add", null, Map.of("email", email, "role", role));
+        String sent = invites.send(id);
+        admin.audit("team.invite_send", null, Map.of("email", email, "result", sent));
+        return Map.of("ok", true, "id", id.toString(), "invite", sent);
+    }
+
+    /** Send the invite again (the first email went missing or the link ran out). Refused once they have accepted. */
+    @PostMapping("/team/{id}/invite")
+    public Map<String, Object> resendInvite(@PathVariable UUID id) {
+        AdminContext.require("team");
+        List<Map<String, Object>> rows = jdbc.queryForList("SELECT email, invite_pending, blocked_at FROM platform_admins WHERE id = ?", id);
+        if (rows.isEmpty()) {
+            throw ApiException.notFound("Teammate");
+        }
+        if (rows.get(0).get("blocked_at") != null) {
+            throw ApiException.bad("They are switched off. Switch them on first if you want them to join.");
+        }
+        if (!Boolean.TRUE.equals(rows.get(0).get("invite_pending"))) {
+            throw ApiException.bad("They have already set their password, so there is nothing to send again");
+        }
+        String sent = invites.send(id);
+        admin.audit("team.invite_send", null, Map.of("email", rows.get(0).get("email"), "result", sent));
+        return Map.of("ok", true, "invite", sent);
     }
 
     @PutMapping("/team/{id}")
@@ -573,8 +614,17 @@ public class AdminController {
         if (!role.equals(before.get("role")) || b.bool("active", true) != Boolean.TRUE.equals(before.get("active"))) {
             versions.bump(id, true);
         }
-        jdbc.update("UPDATE platform_admins SET role = ?, active = ?, name = coalesce(?, name) WHERE id = ?",
-                role, b.bool("active", true), b.str("name", null), id);
+        boolean on = b.bool("active", true);
+        // Off is durable: blocked_at records the refusal, and every door checks it — the resend, the link and
+        // accepting one. invite_pending is left alone on purpose: it only ever means "has not accepted yet", so
+        // switching someone back on returns them to waiting and the invite can be sent again. Clearing it here
+        // would leave an unblocked colleague who never accepted with no way in at all.
+        jdbc.update("UPDATE platform_admins SET role = ?, active = ?, name = coalesce(?, name), "
+                        + "blocked_at = CASE WHEN ? THEN NULL ELSE coalesce(blocked_at, now()) END WHERE id = ?",
+                role, on, b.str("name", null), on, id);
+        if (!on) {
+            invites.cancel(id);
+        }
         admin.audit("team.update", null, Map.of("admin", id.toString(), "role", role, "active", b.bool("active", true)));
         return Map.of("ok", true);
     }
