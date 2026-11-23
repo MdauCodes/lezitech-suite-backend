@@ -4,6 +4,7 @@ import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.common.Db;
 import com.lezitech.suite.sales.OrderService;
+import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,8 @@ public class StayService {
 
     private final Db db;
     private final OrderService orders;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.ManagerRequestService requests;
     private final RoomRates rates;
 
     public StayService(Db db, OrderService orders, RoomRates rates) {
@@ -184,19 +187,40 @@ public class StayService {
         return folio;
     }
 
-    public void cancel(UUID id, String status) {
+    /**
+     * Call off a reservation that has not checked in. The reservation itself is always called off; its unpaid
+     * bill goes only if this job may cancel bills, otherwise a manager is asked and the bill is left alone.
+     * Returns the words to show the person who did it -- what happened to the bill is the part they need.
+     */
+    public String cancel(UUID id, String status) {
         Map<String, Object> s = stay(id);
         if (!"RESERVED".equals(s.get("status")) && !"HELD".equals(s.get("status"))) {
             throw ApiException.conflict("Only reservations not yet checked in can be cancelled");
         }
         db.exec("UPDATE stays SET status = :status WHERE id = :id", "id", id, "status", status);
-        if (s.get("folioId") != null) {
-            UUID folio = UUID.fromString(s.get("folioId").toString());
-            BigDecimal paid = db.value("SELECT paid FROM orders WHERE id = :folio", BigDecimal.class, "folio", folio);
-            if (paid == null || paid.signum() == 0) {
-                orders.voidOrder(folio, "Reservation " + status.toLowerCase().replace('_', ' '));
-            }
+        if (s.get("folioId") == null) {
+            return "The reservation is called off.";
         }
+        UUID folio = UUID.fromString(s.get("folioId").toString());
+        BigDecimal paid = db.value("SELECT paid FROM orders WHERE id = :folio", BigDecimal.class, "folio", folio);
+        if (paid != null && paid.signum() != 0) {
+            // Money was taken: the bill stays open so someone decides about giving it back. Nobody is asked,
+            // because cancelling it would push the guest's money back out, which is a refund and a separate
+            // decision -- but the front desk must be told the money is still sitting there.
+            return "The reservation is called off. The guest has already paid "
+                    + paid.stripTrailingZeros().toPlainString()
+                    + " on this booking, and that money is still on the bill: a manager decides whether to give it back.";
+        }
+        String words = status.toLowerCase().replace('_', ' ');
+        String who = TenantContext.callerOrNull() == null || TenantContext.caller().name() == null
+                ? "The front desk" : TenantContext.caller().name();
+        String room = db.value("SELECT name FROM spaces WHERE id = :id", String.class, "id", s.get("spaceId"));
+        boolean gone = requests.cancelOrAsk(folio, "Reservation " + words,
+                who + " called off the reservation for " + (room == null ? "a room" : "room " + room)
+                        + " (" + words + ") and asks to cancel its bill");
+        return gone
+                ? "The reservation is called off."
+                : "The reservation is called off. A manager has been asked about its bill, which stays until they answer.";
     }
 
     public void move(UUID id, UUID spaceId, LocalDate in, LocalDate out) {

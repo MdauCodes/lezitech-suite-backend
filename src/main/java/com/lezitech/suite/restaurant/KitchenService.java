@@ -27,6 +27,8 @@ public class KitchenService {
     private final Db db;
     private final OrderService orders;
     private final ActivityLog activity;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.ManagerRequestService requests;
 
     public KitchenService(Db db, OrderService orders, ActivityLog activity) {
         this.db = db;
@@ -133,6 +135,7 @@ public class KitchenService {
             notice(orderId, "SUBSTITUTE_OFFERED", "Sorry, " + name + " is " + why + ". Would " + sub.get("name") + " do instead?", false);
             log(orderId, name + " " + why + "; offered " + sub.get("name") + " instead", BigDecimal.ZERO);
         } else {
+            requests.requireNoOpenAsk(orderId, "taking anything off it");
             removeLine(lineId, orderId, " because the kitchen could not make it (" + why + ")");
             notice(orderId, "ITEM_REMOVED", "Sorry, " + name + " is " + why + ". It has been taken off your bill.", true);
             log(orderId, name + " " + why + "; taken off the bill", (BigDecimal) l.get("lineTotal"));

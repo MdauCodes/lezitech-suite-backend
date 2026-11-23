@@ -35,6 +35,8 @@ public class Market {
     private final OrderService orders;
     private final LeaseLedger ledger;
     private final ActivityLog activity;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.ManagerRequestService requests;
 
     public Market(Db db, OrderService orders, LeaseLedger ledger, ActivityLog activity) {
         this.db = db;
@@ -127,7 +129,10 @@ public class Market {
         return r;
     }
 
-    /** Waive a daily stall's charge for a day (e.g. the trader was sick). Only if nothing was paid on it. */
+    /**
+     * Waive a daily stall's charge for a day (e.g. the trader was sick). Only if nothing was paid on it.
+     * A collector asks a manager unless the owner has trusted their job to do it alone.
+     */
     public Map<String, Object> excuse(UUID leaseId, LocalDate day, String reason) {
         if (reason == null || reason.isBlank()) {
             throw ApiException.bad("Say why the day is excused");
@@ -137,8 +142,16 @@ public class Market {
         if (((BigDecimal) o.get("paid")).signum() > 0 || !"OPEN".equals(o.get("status"))) {
             throw ApiException.conflict("Something was already paid for that day; it can't be excused");
         }
-        orders.voidOrder(UUID.fromString(o.get("id").toString()), "Excused: " + reason.trim());
-        return Map.of("excused", true);
+        String stall = db.value("""
+                SELECT sp.name FROM leases l JOIN spaces sp ON sp.id = l.space_id WHERE l.id = :l""", String.class, "l", leaseId);
+        String who = TenantContext.callerOrNull() == null || TenantContext.caller().name() == null
+                ? "A collector" : TenantContext.caller().name();
+        boolean done = requests.cancelOrAsk(UUID.fromString(o.get("id").toString()), "Excused: " + reason.trim(),
+                who + " asks to excuse " + (stall == null ? "a stall" : stall) + " for " + day + ": " + reason.trim());
+        return done
+                ? Map.of("excused", true, "message", "That day is excused. The trader is not charged for it.")
+                : Map.of("excused", false, "asked", true,
+                        "message", "A manager has been asked. The day stays charged until they answer.");
     }
 
     /** A one-off ticket for a casual trader (only if the landlord allows them). Returns the ticket number. */

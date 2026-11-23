@@ -4,6 +4,7 @@ import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.common.Db;
 import com.lezitech.suite.sales.OrderService;
+import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -33,6 +34,8 @@ public class TripController {
 
     private final Db db;
     private final OrderService orders;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.ManagerRequestService requests;
 
     public TripController(Db db, OrderService orders) {
         this.db = db;
@@ -154,18 +157,31 @@ public class TripController {
         return db.one("Booking", "SELECT * FROM trip_bookings WHERE id = :bookingId", "bookingId", bookingId);
     }
 
+    /**
+     * Call off a booking. The booking itself is always cancelled; its unpaid bill goes only if this job may
+     * cancel bills, otherwise a manager is asked and the bill is left alone.
+     */
     @PostMapping("/bookings/{bookingId}/cancel")
     public Map<String, Object> cancel(@PathVariable UUID bookingId) {
         Map<String, Object> bk = db.one("Booking", "SELECT * FROM trip_bookings WHERE id = :bookingId", "bookingId", bookingId);
         db.exec("UPDATE trip_bookings SET status = 'CANCELLED' WHERE id = :bookingId", "bookingId", bookingId);
         db.exec("UPDATE trips SET status = 'OPEN' WHERE id = :trip AND status = 'FULL'", "trip", bk.get("tripId"));
+        boolean billDealtWith = true;
         if (bk.get("orderId") != null) {
             UUID order = UUID.fromString(bk.get("orderId").toString());
             BigDecimal paid = db.value("SELECT paid FROM orders WHERE id = :order", BigDecimal.class, "order", order);
             if (paid == null || paid.signum() == 0) {
-                orders.voidOrder(order, "Booking cancelled");
+                String who = TenantContext.callerOrNull() == null || TenantContext.caller().name() == null
+                        ? "A member of staff" : TenantContext.caller().name();
+                billDealtWith = requests.cancelOrAsk(order, "Booking cancelled",
+                        who + " cancelled " + bk.get("leadName") + "'s trip booking and asks to cancel its bill");
             }
         }
-        return db.one("Booking", "SELECT * FROM trip_bookings WHERE id = :bookingId", "bookingId", bookingId);
+        Map<String, Object> out = new java.util.LinkedHashMap<>(
+                db.one("Booking", "SELECT * FROM trip_bookings WHERE id = :bookingId", "bookingId", bookingId));
+        out.put("message", billDealtWith
+                ? "The booking is cancelled."
+                : "The booking is cancelled. A manager has been asked about its bill, which stays until they answer.");
+        return out;
     }
 }

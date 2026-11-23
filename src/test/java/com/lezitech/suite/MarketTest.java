@@ -70,10 +70,19 @@ class MarketTest extends IntegrationTest {
         assertThat(stall(round, daily).get("owed").decimalValue()).isEqualByComparingTo("150");
         assertThat(stall(round, daily).get("chargeStatus").asText()).isEqualTo("OPEN");
 
-        // 100 in cash pays the two older days; today is excused (trader sick) and isn't charged again.
+        // 100 in cash pays the two older days. Today the trader is sick, so the collector asks a manager to
+        // excuse it: the day stays charged until the manager answers, and then isn't charged again.
         assertThat(post("/market/collect", collector, Map.of("leaseId", daily, "amount", 100)).status()).isEqualTo(200);
         assertThat(post("/market/excuse", collector, Map.of("leaseId", daily, "reason", "")).status()).isEqualTo(400);
-        assertThat(post("/market/excuse", collector, Map.of("leaseId", daily, "reason", "Sick")).status()).isEqualTo(200);
+        Res asked = post("/market/excuse", collector, Map.of("leaseId", daily, "reason", "Sick"));
+        assertThat(asked.status()).as(asked.body().toString()).isEqualTo(200);
+        assertThat(asked.at("/excused").asBoolean()).isFalse();
+        round = get("/market/round", collector).body();
+        assertThat(stall(round, daily).get("owed").decimalValue()).isEqualByComparingTo("50");
+        assertThat(stall(round, daily).get("chargeStatus").asText()).isEqualTo("OPEN");
+        String manager = staff(owner, "MANAGER");
+        String request = get("/approvals/waiting", manager).at("/requests/0/id").asText();
+        assertThat(post("/approvals/" + request + "/allow", manager, Map.of()).status()).isEqualTo(200);
         round = get("/market/round", collector).body();
         assertThat(stall(round, daily).get("owed").decimalValue()).isEqualByComparingTo("0");
         assertThat(stall(round, daily).get("chargeStatus").asText()).isEqualTo("VOID");

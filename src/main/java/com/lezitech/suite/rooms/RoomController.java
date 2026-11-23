@@ -261,8 +261,10 @@ public class RoomController {
 
     @PostMapping("/stays/{id}/cancel")
     public Map<String, Object> cancel(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
-        stays.cancel(id, new Body(raw).bool("noShow", false) ? "NO_SHOW" : "CANCELLED");
-        return stay(id);
+        String said = stays.cancel(id, new Body(raw).bool("noShow", false) ? "NO_SHOW" : "CANCELLED");
+        Map<String, Object> out = new java.util.LinkedHashMap<>(stay(id));
+        out.put("message", said);
+        return out;
     }
 
     private static LocalDate today() {

@@ -5,7 +5,9 @@
 CREATE TABLE manager_requests (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    order_id        uuid REFERENCES orders(id) ON DELETE CASCADE,
+    -- SET NULL, not CASCADE: if the bill goes some other way, the ask and its words stay on the record
+    -- rather than disappearing out of the manager's list unanswered.
+    order_id        uuid REFERENCES orders(id) ON DELETE SET NULL,
     delivery_id     uuid,                          -- set when the ask came from a delivery that failed
     kind            varchar(24) NOT NULL,          -- CANCEL_BILL (more kinds later)
     message         varchar(300) NOT NULL,         -- in words the manager and the staff member both understand
@@ -32,4 +34,5 @@ ALTER TABLE manager_requests FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_fence ON manager_requests
     USING (tenant_id = nullif(current_setting('app.tenant', true), '')::uuid)
     WITH CHECK (tenant_id = nullif(current_setting('app.tenant', true), '')::uuid);
-GRANT SELECT, INSERT, UPDATE ON manager_requests TO suite_app;
+-- DELETE as well: clearing a workspace's sample data takes the asks about those sample bills with it.
+GRANT SELECT, INSERT, UPDATE, DELETE ON manager_requests TO suite_app;

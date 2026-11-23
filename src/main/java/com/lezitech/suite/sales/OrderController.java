@@ -131,6 +131,12 @@ public class OrderController {
         if (((BigDecimal) line.get("unitPrice")).multiply(qty).compareTo(newDiscount) < 0) {
             throw com.lezitech.suite.common.ApiException.bad("The discount is bigger than the price");
         }
+        // While a manager is being asked whether to cancel this bill, nothing may take value off it -- otherwise
+        // the bill is worth nothing by the time they answer. Adding to it, or serving it, carries on as normal.
+        if (qty.compareTo((BigDecimal) line.get("qty")) < 0
+                || newDiscount.compareTo((BigDecimal) line.get("discount")) > 0) {
+            requests.requireNoOpenAsk(id, "taking anything off it");
+        }
         // R8: taking items off after the bill was printed or the kitchen started is a warning sign.
         BigDecimal before = (BigDecimal) line.get("qty");
         BigDecimal off = before.subtract(qty.max(BigDecimal.ZERO));
@@ -216,6 +222,8 @@ public class OrderController {
     @PostMapping("/{id}/split")
     public Map<String, Object> split(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         Map<String, Object> o = orders.requireOpen(id);
+        // Moving the lines to a fresh bill would leave the asked-about one worth nothing.
+        requests.requireNoOpenAsk(id, "moving items off it");
         @SuppressWarnings("unchecked")
         List<String> lineIds = (List<String>) raw.getOrDefault("lineIds", List.of());
         if (lineIds.isEmpty()) {
@@ -235,6 +243,8 @@ public class OrderController {
 
     @PostMapping("/{id}/charge-to-stay")
     public Map<String, Object> chargeToStay(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        // Moving the lines away and deleting the bill would erase an ask a manager has not answered.
+        requests.requireNoOpenAsk(id, "moving it onto a room bill");
         UUID folio = orders.chargeToStay(id, UUID.fromString(new Body(raw).str("stayId")));
         return orders.detail(folio);
     }
@@ -293,6 +303,7 @@ public class OrderController {
     @DeleteMapping("/{id}")
     public void deleteEmpty(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         orders.requireOpen(id);
+        requests.requireNoOpenAsk(id, "deleting it");
         if (everHadLines(id) && !access.mayCancelBill(TenantContext.tenantId(), TenantContext.caller().role())) {
             approvals.requireManager(new Body(raw == null ? Map.of() : raw), "deleting this bill");
         }

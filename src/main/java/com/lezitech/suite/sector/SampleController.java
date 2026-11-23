@@ -59,6 +59,10 @@ public class SampleController {
         Object[] u = {"u", until};
         int n = 0;
         // Sample bills first (hotel stays, trip bookings, rent), then what they belonged to.
+        // Asks about sample bills go with them, so no manager is left with something they can't answer.
+        db.exec("""
+                DELETE FROM manager_requests WHERE tenant_id = :t AND order_id IN
+                (SELECT id FROM orders WHERE tenant_id = :t AND created_at <= cast(:u as timestamptz))""", u);
         n += db.exec("DELETE FROM orders WHERE tenant_id = :t AND created_at <= cast(:u as timestamptz)", u);
         n += db.exec("DELETE FROM trip_bookings WHERE tenant_id = :t AND created_at <= cast(:u as timestamptz)", u);
         n += db.exec("DELETE FROM trips WHERE tenant_id = :t AND created_at <= cast(:u as timestamptz)", u);
