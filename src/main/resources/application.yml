@@ -58,7 +58,9 @@ suite:
     demo-logins: ${ADMIN_DEMO_LOGINS:${EMBEDDED_DB:true}}
   operator-key: ${OPERATOR_KEY:local-operator-key}
   # Where the web app lives (links in emails) and LeziTech's WhatsApp number shown to customers.
-  app-url: ${APP_URL:http://localhost:5320}
+  # The default is the live address, so a missing APP_URL can never put a local address in a real email.
+  # For local work set APP_URL=http://localhost:5320.
+  app-url: ${APP_URL:https://app.busynez.site}
   support-whatsapp: ${SUPPORT_WHATSAPP:}
   # The number people call (WhatsApp is the line above). Empty: 0794206566.
   support-call: ${SUPPORT_CALL:}
