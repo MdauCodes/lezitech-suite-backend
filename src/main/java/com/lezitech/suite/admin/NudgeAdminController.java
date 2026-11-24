@@ -54,10 +54,10 @@ public class NudgeAdminController {
         return Map.of("ok", true);
     }
 
-    /** Run the reminder check now instead of waiting for the hourly run. */
+    /** Start the reminder check now (it carries on in the background) instead of waiting for the hourly run. */
     @PostMapping("/run")
     public Map<String, Object> runNow() {
         AdminContext.require("trials");
-        return Map.of("emailed", nudges.run());
+        return Map.of("queued", nudges.runInBackground());
     }
 }

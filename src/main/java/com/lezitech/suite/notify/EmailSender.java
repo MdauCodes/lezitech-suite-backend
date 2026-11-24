@@ -129,7 +129,7 @@ public interface EmailSender {
 
         protected void post(String url, Map<String, String> headers, Map<String, Object> body) {
             try {
-                HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(20))
+                HttpRequest.Builder b = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10))
                         .header("Content-Type", "application/json").header("Accept", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
                 headers.forEach(b::header);

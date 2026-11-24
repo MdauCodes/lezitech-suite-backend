@@ -53,7 +53,31 @@ public class TrialNudgeService {
 
     @Scheduled(fixedDelayString = "${suite.nudges.every-ms:3600000}", initialDelay = 60000)
     public int run() {
-        int sent = 0;
+        return process(dueNow());
+    }
+
+    private static final java.util.concurrent.atomic.AtomicBoolean RUNNING = new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** Start the reminder check in the background and return at once with how many workspaces are being looked at. */
+    public int runInBackground() {
+        List<Map<String, Object>> due = dueNow();
+        if (!due.isEmpty() && RUNNING.compareAndSet(false, true)) {
+            Thread t = new Thread(() -> {
+                try {
+                    process(due);
+                } catch (RuntimeException e) {
+                    log.warn("Background reminder run failed: {}", e.toString());
+                } finally {
+                    RUNNING.set(false);
+                }
+            }, "trial-nudges");
+            t.setDaemon(true);
+            t.start();
+        }
+        return due.size();
+    }
+
+    private List<Map<String, Object>> dueNow() {
         List<Map<String, Object>> due = jdbc.queryForList("""
                 SELECT t.id, t.name, t.phone, t.trial_ends_at,
                        (SELECT u.email FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS email,
@@ -61,6 +85,11 @@ public class TrialNudgeService {
                 FROM tenants t
                 WHERE t.status = 'TRIAL' AND NOT t.is_demo AND NOT t.in_setup
                   AND t.trial_ends_at <= now() + interval '4 days' AND t.trial_ends_at > now() - interval '1 day'""");
+        return due;
+    }
+
+    private int process(List<Map<String, Object>> due) {
+        int sent = 0;
         java.time.LocalDate today = java.time.LocalDate.now(NAIROBI);
         for (Map<String, Object> t : due) {
             Instant ends = ((Timestamp) t.get("trial_ends_at")).toInstant();
