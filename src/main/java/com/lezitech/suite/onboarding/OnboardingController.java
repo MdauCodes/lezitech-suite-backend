@@ -203,6 +203,14 @@ public class OnboardingController {
                 ORDER BY (r.status = 'NEW') DESC, r.created_at DESC LIMIT 300""", s, s, s, k, k).stream().map(this::clean).toList();
     }
 
+    /** How many setup requests are not finished yet, for the number on the control-panel menu. */
+    @GetMapping("/api/admin/counts")
+    public Map<String, Object> counts() {
+        AdminContext.require("setup");
+        Integer open = jdbc.queryForObject("SELECT count(*) FROM setup_requests WHERE status IN ('NEW', 'CONTACTED', 'IN_SETUP')", Integer.class);
+        return Map.of("openSetupRequests", open == null ? 0 : open);
+    }
+
     @PutMapping("/api/admin/setup-requests/{id}")
     public Map<String, Object> update(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         AdminContext.require("setup");
