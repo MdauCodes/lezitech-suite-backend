@@ -2247,6 +2247,7 @@
                 "price": 650,
                 "cost": 520,
                 "unit": "kg",
+                "byWeight": true,
                 "stock": 60,
                 "reorder": 15
               },
@@ -2255,6 +2256,7 @@
                 "price": 800,
                 "cost": 640,
                 "unit": "kg",
+                "byWeight": true,
                 "stock": 20,
                 "reorder": 5
               },
@@ -2263,6 +2265,7 @@
                 "price": 750,
                 "cost": 600,
                 "unit": "kg",
+                "byWeight": true,
                 "stock": 15,
                 "reorder": 5
               }
@@ -2277,6 +2280,7 @@
                 "price": 850,
                 "cost": 700,
                 "unit": "kg",
+                "byWeight": true,
                 "stock": 30,
                 "reorder": 8
               },
@@ -2305,6 +2309,7 @@
                 "price": 400,
                 "cost": 280,
                 "unit": "kg",
+                "byWeight": true,
                 "stock": 10
               },
               {

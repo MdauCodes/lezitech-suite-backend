@@ -105,7 +105,7 @@ public class RestaurantController {
     @GetMapping("/kitchen")
     public List<Map<String, Object>> kitchen(@RequestParam(required = false) String station) {
         List<Map<String, Object>> lines = db.list("""
-                SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.options, l.note, l.course, l.station, l.kitchen_status, l.sent_at,
+                SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.unit_name, l.options, l.note, l.course, l.station, l.kitchen_status, l.sent_at,
                        l.rejected_reason, s.name AS substitute_name,
                        o.number, o.channel, o.estimated_ready_at, o.customer_label, o.self_order, o.pickup_code,
                        t.label AS table_label, u.name AS waiter_name,

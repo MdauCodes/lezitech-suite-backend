@@ -122,6 +122,9 @@ public class OrderController {
             approvals.requireManager(b, "changing a dish the kitchen already has");
         }
         BigDecimal qty = b.num("qty", (BigDecimal) line.get("qty"));
+        if ("kg".equals(line.get("unitName")) && qty.stripTrailingZeros().scale() > 3) {
+            throw com.lezitech.suite.common.ApiException.bad("Weigh to 3 decimals at most, for example 0.750 kg");
+        }
         BigDecimal newDiscount = b.num("discount", (BigDecimal) line.get("discount"));
         if (newDiscount.signum() < 0) {
             throw com.lezitech.suite.common.ApiException.bad("A discount can't be below zero");
@@ -163,7 +166,7 @@ public class OrderController {
         if (qty.signum() > 0) {
             db.exec("""
                     UPDATE order_lines SET qty = :qty, note = :note, discount = :discount,
-                           line_total = round(unit_price * :qty - :discount, 2) WHERE id = :lineId""",
+                           line_total = round(unit_price * :qty - :discount, CASE WHEN unit_name = 'kg' THEN 0 ELSE 2 END) WHERE id = :lineId""",
                     "lineId", lineId, "qty", qty, "note", b.str("note", (String) line.get("note")),
                     "discount", b.num("discount", (BigDecimal) line.get("discount")));
         }

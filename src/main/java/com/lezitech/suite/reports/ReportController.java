@@ -119,7 +119,7 @@ public class ReportController {
                  AND (o.closed_at AT TIME ZONE 'Africa/Nairobi')::date = d::date
                 GROUP BY d ORDER BY d""", "since", Timestamp.from(LocalDate.now(NAIROBI).minusDays(14).atStartOfDay(NAIROBI).toInstant())));
         out.put("topItems", db.list("""
-                SELECT l.name, sum(l.qty) AS qty, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
+                SELECT l.name, max(l.unit_name) AS unit, sum(l.qty) AS qty, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
                 WHERE """ + SOLD + " AND o.closed_at >= :month GROUP BY l.name ORDER BY amount DESC LIMIT 8", "month", month));
         out.put("recent", db.list("""
                 SELECT o.id, o.number, o.kind, o.status, o.total, o.closed_at, o.created_at, c.name AS customer_name, t.label AS table_label
@@ -168,7 +168,7 @@ public class ReportController {
                 SELECT to_char((o.closed_at AT TIME ZONE 'Africa/Nairobi')::date, 'YYYY-MM-DD') AS day, sum(o.total) AS sales, count(*) AS orders
                 FROM orders o WHERE """ + window + " GROUP BY 1 ORDER BY 1", range));
         out.put("byItem", db.list("""
-                SELECT l.name, sum(l.qty) AS qty, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
+                SELECT l.name, max(l.unit_name) AS unit, sum(l.qty) AS qty, sum(l.line_total) AS amount FROM order_lines l JOIN orders o ON o.id = l.order_id
                 WHERE """ + window + " GROUP BY l.name ORDER BY amount DESC LIMIT 50", range));
         out.put("byMethod", db.list("""
                 SELECT p.method, sum(p.amount) AS amount, count(*) FILTER (WHERE p.kind = 'PAYMENT') AS count

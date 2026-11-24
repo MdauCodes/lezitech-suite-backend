@@ -160,6 +160,7 @@ public class OrderService {
             String station = null;
             // A whole pack (a carton of 24): one line, its own price, and that many pieces off stock.
             BigDecimal packSize = null;
+            boolean byWeight = false; // sold by weight: the quantity is kilos
             if (l.has("itemId")) {
                 item = db.one("Item", "SELECT * FROM items WHERE id = :id", "id", l.str("itemId"));
                 name = (String) item.get("name");
@@ -170,6 +171,10 @@ public class OrderService {
                     throw ApiException.bad(name + " is a kitchen ingredient, not something to sell");
                 }
                 price = (BigDecimal) item.get("price");
+                byWeight = ByWeight.is(item);
+                if (byWeight) {
+                    qty = ByWeight.checkedKg(qty, name);
+                }
                 if (wholesale && item.get("wholesalePrice") != null) {
                     BigDecimal min = (BigDecimal) item.get("wholesaleMinQty");
                     if (min == null || qty.compareTo(min) >= 0) {
@@ -208,7 +213,8 @@ public class OrderService {
                             Map.of("qty", qty, "price", price));
                 }
             }
-            if (l.has("unitPrice") && item != null && l.num("unitPrice").compareTo(price) != 0) {
+            // A by-weight item is always sold at its price per kg; a price typed at the till is ignored.
+            if (l.has("unitPrice") && item != null && !byWeight && l.num("unitPrice").compareTo(price) != 0) {
                 // A price typed at the till. Down to the lowest price is the cashier's call (if the owner allows);
                 // anything below it needs a manager's PIN. Both are written to the activity log.
                 BigDecimal asked = l.num("unitPrice");
@@ -272,20 +278,20 @@ public class OrderService {
                         "Discount of " + discount.toPlainString() + " on " + name + (underLowest ? ", taking it below its lowest price" : ""),
                         orderId, item == null ? null : UUID.fromString(item.get("id").toString()), discount, by, Map.of("qty", qty));
             }
-            BigDecimal lineTotal = unit.multiply(qty).subtract(discount).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lineTotal = unit.multiply(qty).subtract(discount).setScale(byWeight ? 0 : 2, RoundingMode.HALF_UP);
             if (lineTotal.signum() < 0) {
                 throw ApiException.bad("The discount on " + name + " is bigger than its price");
             }
             UUID lineId = db.insert("""
                     INSERT INTO order_lines (tenant_id, order_id, item_id, name, qty, unit_price, tax_rate, discount, line_total,
-                                             options, note, course, station, staff_id, happy_deal_id, kitchen_status, pack_size)
+                                             options, note, course, station, staff_id, happy_deal_id, kitchen_status, pack_size, unit_name)
                     VALUES (:t, :order, :item, :name, :qty, :unit, :tax, :discount, :total, cast(:options as jsonb), :note,
-                            :course, :station, :staff, :happy, :ks, :pack) RETURNING id""",
+                            :course, :station, :staff, :happy, :ks, :pack, :unitName) RETURNING id""",
                     "order", orderId, "item", item == null ? null : UUID.fromString(item.get("id").toString()), "name", name,
                     "qty", qty, "unit", unit, "tax", tax, "discount", discount, "total", lineTotal,
                     "options", db.toJson(options), "note", l.str("note", null), "course", l.integer("course", 1),
                     "station", combo ? null : station, "staff", l.has("staffId") ? staffIdOrBad(l.str("staffId")) : null,
-                    "happy", happyDeal, "ks", combo ? "SERVED" : "PENDING", "pack", packSize);
+                    "happy", happyDeal, "ks", combo ? "SERVED" : "PENDING", "pack", packSize, "unitName", byWeight ? "kg" : null);
             // R6: a combo's parts go to the kitchen and bar (and use up stock and recipes) as KES 0 lines under it.
             for (UUID part : parts) {
                 Map<String, Object> pi = db.one("Item", "SELECT name, station, tax_rate FROM items WHERE id = :id", "id", part);
