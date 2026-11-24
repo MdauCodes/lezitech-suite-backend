@@ -75,4 +75,51 @@ class FirstStepsTest extends IntegrationTest {
         assertThat(post("/orders", owner, Map.of("kind", "QUOTE")).status()).isEqualTo(200);
         assertThat(done(get("/first-steps", owner).body(), "quote")).isTrue();
     }
+
+    private java.util.List<String> keys(JsonNode steps) {
+        java.util.List<String> k = new java.util.ArrayList<>();
+        steps.get("steps").forEach(x -> k.add(x.get("key").asText()));
+        return k;
+    }
+
+    @Test
+    void aHotelAddsRoomsThenTakesABookingAndNeverEndsOnAShopSale() {
+        String owner = token(signup("hotel"));
+        JsonNode start = get("/first-steps", owner).body();
+        assertThat(keys(start)).containsSubsequence("rooms", "details", "mpesa", "staff", "booking", "till").doesNotContain("sale");
+        assertThat(start.toString()).contains("Add your rooms").contains("Take your first room booking");
+        assertThat(done(start, "rooms")).isFalse();
+        assertThat(done(start, "booking")).isFalse();
+
+        assertThat(post("/spaces", owner, Map.of("name", "Room 901", "rate", 4000)).status()).isEqualTo(200);
+        java.time.LocalDate in = java.time.LocalDate.now().plusDays(30);
+        String room = get("/rooms/available?checkIn=" + in + "&checkOut=" + in.plusDays(2), owner).body().get(0).get("id").asText();
+        assertThat(post("/stays", owner, Map.of("spaceId", room, "checkIn", in.toString(), "checkOut", in.plusDays(2).toString(),
+                "guestName", "Achieng", "phone", "0712000111", "rate", 5000)).status()).isEqualTo(200);
+        JsonNode later = get("/first-steps", owner).body();
+        assertThat(done(later, "rooms")).isTrue();
+        assertThat(done(later, "booking")).isTrue();
+    }
+
+    @Test
+    void aTourOperatorAddsATripThenTakesABooking() {
+        String owner = token(signup("tours"));
+        JsonNode start = get("/first-steps", owner).body();
+        assertThat(keys(start)).containsSubsequence("trip", "booking").doesNotContain("till", "sale");
+        assertThat(start.toString()).contains("Add your first trip").contains("Take your first booking");
+        assertThat(done(start, "trip")).isFalse();
+
+        Res trip = post("/trips", owner, Map.of("itemId", item(owner, "").get("id").asText(), "startsOn", java.time.LocalDate.now().plusDays(21).toString(), "seats", 4));
+        assertThat(done(get("/first-steps", owner).body(), "trip")).isTrue();
+        assertThat(done(get("/first-steps", owner).body(), "booking")).isFalse();
+        assertThat(post("/trips/" + trip.at("/id").asText() + "/bookings", owner, Map.of("leadName", "The Smiths", "pax", 2)).status()).isEqualTo(200);
+        assertThat(done(get("/first-steps", owner).body(), "booking")).isTrue();
+    }
+
+    @Test
+    void aServicesBusinessHasNoTillStepAndEndsOnItsFirstPayment() {
+        JsonNode start = get("/first-steps", token(signup("services"))).body();
+        assertThat(keys(start)).containsSubsequence("items", "details", "mpesa", "staff", "quote", "sale").doesNotContain("till");
+        assertThat(start.toString()).contains("Send your first quote").contains("Get your first payment").doesNotContain("Open your till");
+    }
 }

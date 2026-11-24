@@ -57,7 +57,17 @@ public class FirstStepsController {
         String own = until == null ? "true" : "created_at > cast(:u as timestamptz)";
         Object[] p = {"u", until};
         List<Map<String, Object>> steps = new ArrayList<>();
-        if (property) {
+        boolean hotel = "hotel".equals(sector), tours = "tours".equals(sector), services = "services".equals(sector);
+        boolean hasTill = false;
+        try {
+            for (var m : sectors.get(sector, (String) t.get("subSector")).path("modules")) {
+                hasTill |= "pos".equals(m.asText());
+            }
+        } catch (RuntimeException ignored) { /* unknown sector: no till step */ }
+        if (hotel) {
+            steps.add(step("rooms", "Add your rooms", "Guests are booked into a room, so every room needs a name and a price per night.", "/rooms", "Add my rooms",
+                    yes("SELECT exists(SELECT 1 FROM spaces WHERE " + own + ")", p)));
+        } else if (property) {
             steps.add(step("units", "Add your own units or stalls", "So every rent bill, notice and repair belongs to the right place.", "/property", "Add my units",
                     yes("SELECT exists(SELECT 1 FROM spaces WHERE " + own + ")", p)));
             steps.add(step("tenants", "Add a tenant and their lease", "Busynez then bills their rent every month and reminds them by email.", "/property", "Add a tenant and lease",
@@ -75,6 +85,10 @@ public class FirstStepsController {
                     "Type them one by one or copy them from Excel. The till sells what's here.", "/items",
                     menu ? "Add my menu" : "Add my " + lower,
                     yes("SELECT exists(SELECT 1 FROM items WHERE kind NOT IN ('INGREDIENT', 'BATCH') AND " + own + ")", p)));
+            if (tours) {
+                steps.add(step("trip", "Add your first trip", "A trip is a date, a vehicle and seats for one of your packages. Guests book seats on it.", "/trips", "Add my first trip",
+                        yes("SELECT exists(SELECT 1 FROM trips WHERE " + own + ")", p)));
+            }
         }
         // The logo only: a KRA PIN is never required (many small businesses don't have or need one on receipts).
         steps.add(step("details", "Add your logo", "It appears on receipts, bills and the emails your customers get. Have a KRA PIN? You can add it there too, but you don't need one.", "/settings", "Add my logo",
@@ -91,10 +105,22 @@ public class FirstStepsController {
                 quotes |= "quotes".equals(m.asText());
             }
         } catch (RuntimeException ignored) { /* unknown sector: no extra steps */ }
-        if (!property) {
+        if (hotel) {
+            steps.add(step("booking", "Take your first room booking", "Pick a room and the dates. Busynez keeps the room chart so no room is booked twice.", "/rooms", "Add my first booking",
+                    yes("SELECT exists(SELECT 1 FROM stays WHERE " + own + ")", p)));
+            if (hasTill) {
+                steps.add(step("till", "Open your till for the day", "For the food and drinks you sell. Count the cash in the drawer to start, so Busynez can tell you at closing whether the cash matches.", "/pos", "Open the till",
+                        yes("SELECT exists(SELECT 1 FROM shifts WHERE tenant_id = :t)")));
+            }
+        } else if (tours) {
+            steps.add(step("booking", "Take your first booking", "Add a guest to one of your trips. Busynez counts the seats left and keeps the passenger list.", "/trips", "Add my first booking",
+                    yes("SELECT exists(SELECT 1 FROM trip_bookings WHERE " + own + ")", p)));
+        } else if (!property) {
             // Each day starts by counting the cash in the drawer: said here first, so it isn't a surprise at the first sale.
-            steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Counting at the start is what lets Busynez tell you at closing time whether the cash matches what was sold.", "/pos", "Open the till",
-                    yes("SELECT exists(SELECT 1 FROM shifts WHERE tenant_id = :t)")));
+            if (!services) {
+                steps.add(step("till", "Open your till for the day", "Count the cash in the drawer to start. Counting at the start is what lets Busynez tell you at closing time whether the cash matches what was sold.", "/pos", "Open the till",
+                        yes("SELECT exists(SELECT 1 FROM shifts WHERE tenant_id = :t)")));
+            }
             if (bookings) {
                 steps.add(step("booking", "Take your first booking", "Clients book a time with you, and Busynez keeps the day's diary so nobody is double-booked.", "/bookings", "Add my first booking",
                         yes("SELECT exists(SELECT 1 FROM appointments WHERE " + own + ")", p)));
@@ -102,8 +128,11 @@ public class FirstStepsController {
                 steps.add(step("quote", "Send your first quote", "Tell a customer the price before the work starts. When they say yes, turn it into a bill in one tap.", "/quotes", "Send my first quote",
                         yes("SELECT exists(SELECT 1 FROM orders WHERE kind = 'QUOTE' AND " + own + ")", p)));
             }
-            steps.add(step("sale", "Make your first real sale", "Sell something and take the money. That's Busynez working for you.", "/pos", "Make a sale",
-                    yes("SELECT exists(SELECT 1 FROM orders WHERE status IN ('PAID', 'CREDIT') AND kind = 'SALE' AND " + own + ")", p)));
+            steps.add(services
+                    ? step("sale", "Get your first payment", "When a customer pays, record it here. That's Busynez working for you.", "/pos", "Take a payment",
+                            yes("SELECT exists(SELECT 1 FROM orders WHERE status IN ('PAID', 'CREDIT') AND kind = 'SALE' AND " + own + ")", p))
+                    : step("sale", "Make your first real sale", "Sell something and take the money. That's Busynez working for you.", "/pos", "Make a sale",
+                            yes("SELECT exists(SELECT 1 FROM orders WHERE status IN ('PAID', 'CREDIT') AND kind = 'SALE' AND " + own + ")", p)));
         }
         if (until != null || t.get("removed") != null) {
             steps.add(step("samples", "Remove the samples", "Once your own are in, clear the examples in one tap so reports show only your business.", "/items", "Remove the samples",
