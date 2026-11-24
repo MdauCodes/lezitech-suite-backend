@@ -61,6 +61,8 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(WRITES, "/api/stock/use", "record stock used in-house", "MANAGER", "ACCOUNTANT", "STOREKEEPER", "RECEPTION", "STYLIST", "KITCHEN", "WAITER", "CASHIER", "TECHNICIAN"),
             // Counting on a stock-take: any of these can count lines; starting and finishing is checked in the controller.
             rule(ANY, "/api/stock/counts(/.*)?", "count stock", "MANAGER", "ACCOUNTANT", "STOREKEEPER", "CASHIER", "KITCHEN", "RECEPTION"),
+            rule(READS, "/api/carcasses(/.*)?", "see carcasses", "MANAGER", "ACCOUNTANT", "STOREKEEPER"),
+            rule(WRITES, "/api/carcasses(/.*)?", "receive or cut up carcasses", "MANAGER", "STOREKEEPER"),
             rule(ANY, "/api/(stock|purchases)(/.*)?", "see or change stock and buying", "MANAGER", "ACCOUNTANT", "STOREKEEPER"),
             // Staff ask a manager; only managers see and settle the waiting list (checked again in the controller).
             rule(READS, "/api/approvals/waiting", "see what is waiting for a manager", "MANAGER"),

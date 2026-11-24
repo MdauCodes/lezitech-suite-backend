@@ -2228,7 +2228,8 @@
       "features": {
         "barcode": false,
         "credit": true,
-        "allowNegativeStock": true
+        "allowNegativeStock": true,
+        "carcass": true
       },
       "kpis": [
         "sales_today",

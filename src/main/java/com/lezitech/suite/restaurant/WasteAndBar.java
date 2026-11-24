@@ -28,7 +28,7 @@ import java.util.UUID;
 @Service
 public class WasteAndBar {
 
-    public static final Set<String> REASONS = Set.of("BURNT", "EXPIRED", "DROPPED", "SPILLED", "RETURNED", "STAFF_MEAL", "OTHER");
+    public static final Set<String> REASONS = Set.of("BURNT", "EXPIRED", "DROPPED", "SPILLED", "RETURNED", "STAFF_MEAL", "TRIM", "OTHER");
     /** Waste worth more than this goes to the Activity log for the owner. */
     static final BigDecimal BIG_WASTE = new BigDecimal("1000");
     private static final ZoneId NAIROBI = ZoneId.of("Africa/Nairobi");
@@ -72,7 +72,7 @@ public class WasteAndBar {
             TenantContext.requireRole("MANAGER");
         }
         UUID itemId = UUID.fromString(b.str("itemId"));
-        Map<String, Object> item = db.one("Item", "SELECT name, kind, unit, cost, track_stock FROM items WHERE id = :id", "id", itemId);
+        Map<String, Object> item = db.one("Item", "SELECT name, kind, unit, cost, track_stock, sold_by_weight FROM items WHERE id = :id", "id", itemId);
         BigDecimal qty = b.num("qty", null);
         if (qty == null || qty.signum() <= 0) {
             throw ApiException.bad("Say how much was wasted");
@@ -112,7 +112,8 @@ public class WasteAndBar {
                 INSERT INTO waste_entries (tenant_id, item_id, qty, reason, note, value, user_id)
                 VALUES (:t, :item, :qty, :reason, :note, :value, :u) RETURNING id""",
                 "item", itemId, "qty", qty, "reason", reason, "note", note, "value", value);
-        if (value.compareTo(BIG_WASTE) > 0) {
+        // Meat sold by the kg always goes to the Activity log, whatever it is worth.
+        if (value.compareTo(BIG_WASTE) > 0 || Boolean.TRUE.equals(item.get("soldByWeight"))) {
             activity.record("WASTE", ActivityLog.CONCERN, "Waste: " + qty.stripTrailingZeros().toPlainString() + " " + item.get("unit") + " "
                     + item.get("name") + " (" + reason.toLowerCase().replace('_', ' ') + "), worth " + value.toPlainString() + " at cost",
                     null, itemId, value, null, Map.of("note", note == null ? "" : note));
