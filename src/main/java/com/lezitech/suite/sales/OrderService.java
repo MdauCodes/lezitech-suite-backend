@@ -109,6 +109,7 @@ public class OrderService {
 
     /** Lines sent by the till: price changes, custom prices and line discounts need a manager. */
     public void addLinesFromTill(UUID orderId, Body b) {
+        requireNotCatering(orderId, "add dishes");
         addLines(orderId, b.list("lines"), b, false);
     }
 
@@ -368,6 +369,13 @@ public class OrderService {
         db.exec("UPDATE orders SET bill_printed_at = coalesce(bill_printed_at, now()), bill_prints = bill_prints + 1 WHERE id = :id", "id", orderId);
     }
 
+    /** A catering bill is changed on the Catering page only, so its dishes, prices and discounts can't drift from the order. */
+    public void requireNotCatering(UUID orderId, String what) {
+        if (Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM catering_orders WHERE order_id = :id)", Boolean.class, "id", orderId))) {
+            throw ApiException.conflict("This bill belongs to a catering order, so you can't " + what + " here. Change it from the Catering page.");
+        }
+    }
+
     /** Whole-bill discount: needs a manager (or their PIN), stays within the limit, never makes the bill negative. */
     public void setDiscount(UUID orderId, BigDecimal discount, Body approvalSource) {
         if (discount.signum() < 0) {
@@ -377,6 +385,7 @@ public class OrderService {
         if (current != null && discount.compareTo(current) == 0) {
             return;
         }
+        requireNotCatering(orderId, "give a discount");
         BigDecimal subtotal = db.value("SELECT coalesce(sum(line_total), 0) FROM order_lines WHERE order_id = :id", BigDecimal.class, "id", orderId);
         if (discount.signum() > 0) {
             String by = approvals.require(approvalSource, "a discount");

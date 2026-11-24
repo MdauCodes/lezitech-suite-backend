@@ -211,6 +211,10 @@ public class Deals {
         if (!"OPEN".equals(status)) {
             return;
         }
+        // A catering bill is priced as agreed with the customer; bundles and buy-one-get-one never rewrite it.
+        if (Boolean.TRUE.equals(db.value("SELECT exists(SELECT 1 FROM catering_orders WHERE order_id = :id)", Boolean.class, "id", orderId))) {
+            return;
+        }
         for (Map<String, Object> dl : db.list("SELECT id FROM order_lines WHERE order_id = :id AND deal_id IS NOT NULL", "id", orderId)) {
             orders.removeLine(UUID.fromString(dl.get("id").toString()), orderId, "");
         }

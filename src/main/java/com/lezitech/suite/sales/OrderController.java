@@ -114,6 +114,7 @@ public class OrderController {
     @PatchMapping("/{id}/lines/{lineId}")
     public Map<String, Object> updateLine(@PathVariable UUID id, @PathVariable UUID lineId, @RequestBody Map<String, Object> raw) {
         orders.requireOpen(id);
+        orders.requireNotCatering(id, "change dishes");
         Body b = new Body(raw);
         Map<String, Object> line = db.one("Line", "SELECT * FROM order_lines WHERE id = :lineId AND order_id = :id", "id", id, "lineId", lineId);
         if (!"PENDING".equals(line.get("kitchenStatus"))) {

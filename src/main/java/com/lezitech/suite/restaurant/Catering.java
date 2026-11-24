@@ -4,10 +4,14 @@ import com.lezitech.suite.activity.ActivityLog;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.common.Db;
+import com.lezitech.suite.sales.ApprovalService;
 import com.lezitech.suite.sales.ManagerRequestService;
 import com.lezitech.suite.sales.OrderService;
 import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -21,6 +25,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -47,8 +52,14 @@ public class Catering {
     private final OrderService orders;
     private final ManagerRequestService requests;
     private final ActivityLog activity;
+    private final ApprovalService approvals;
+    private final TransactionTemplate nested;
 
-    public Catering(Db db, OrderService orders, ManagerRequestService requests, ActivityLog activity) {
+    public Catering(Db db, OrderService orders, ManagerRequestService requests, ActivityLog activity, ApprovalService approvals,
+                    PlatformTransactionManager txm) {
+        this.approvals = approvals;
+        this.nested = new TransactionTemplate(txm);
+        this.nested.setPropagationBehavior(TransactionDefinition.PROPAGATION_NESTED);
         this.db = db;
         this.orders = orders;
         this.requests = requests;
@@ -122,6 +133,13 @@ public class Catering {
             if (price.signum() < 0) {
                 throw ApiException.bad("A price can't be below zero");
             }
+            if (price.compareTo((BigDecimal) item.get("price")) != 0) {
+                // A price other than the menu's is a manager's call, as at the till (or a manager's PIN).
+                String by = approvals.require(b, "a catering price different from the menu price of " + item.get("name"));
+                activity.record("CATERING_PRICE", ActivityLog.NOTICE, item.get("name") + " priced at " + plain(price) + " instead of "
+                        + plain((BigDecimal) item.get("price")) + " on a catering order", null, UUID.fromString(item.get("id").toString()),
+                        price, by, Map.of("menu", item.get("price"), "agreed", price));
+            }
             boolean per = l.bool("perPerson", false);
             BigDecimal lineTotal = qty.multiply(per ? BigDecimal.valueOf(people) : BigDecimal.ONE).multiply(price).setScale(2, RoundingMode.HALF_UP);
             total = total.add(lineTotal);
@@ -149,7 +167,13 @@ public class Catering {
         activity.record("CATERING_BOOKED", ActivityLog.INFO, "Catering order for " + name + " on " + DAY.format(at.atZone(NAIROBI))
                 + ", " + people + " people, KES " + plain(total));
         if (deposit.signum() > 0) {
-            pay(id, new Body(Map.of("amount", deposit, "method", b.str("depositMethod", "CASH"), "reference", b.str("depositReference", "Deposit"))));
+            Map<String, Object> dep = new HashMap<>();
+            dep.put("amount", deposit);
+            dep.put("method", b.str("depositMethod", "CASH"));
+            if (b.has("depositReference")) {
+                dep.put("reference", b.str("depositReference"));
+            }
+            pay(id, new Body(dep));
         }
         return view(id);
     }
@@ -158,13 +182,19 @@ public class Catering {
 
     public Map<String, Object> view(UUID id) {
         Map<String, Object> c = new LinkedHashMap<>(db.one("Catering order", """
-                SELECT c.*, o.number AS bill_number, o.status AS bill_status, coalesce(o.paid, 0) AS bill_paid,
+                SELECT c.*, o.total AS bill_total, o.number AS bill_number, o.status AS bill_status, coalesce(o.paid, 0) AS bill_paid,
                        extract(epoch FROM c.event_at) AS event_epoch
                 FROM catering_orders c LEFT JOIN orders o ON o.id = c.order_id WHERE c.id = :id""", "id", id));
         Instant at = epoch(c.get("eventEpoch"));
         c.put("day", DAY.format(at.atZone(NAIROBI)));
         c.put("time", TIME.format(at.atZone(NAIROBI)));
         c.put("date", at.atZone(NAIROBI).toLocalDate().toString());
+        c.put("timeOfDay", at.atZone(NAIROBI).toLocalTime().withSecond(0).withNano(0).toString());
+        // Once the bill exists it is the one source of truth for the total: the till's own rules (rounding) apply to it.
+        if (c.get("billTotal") != null) {
+            c.put("total", c.get("billTotal"));
+        }
+        c.remove("billTotal");
         if ("VOID".equals(c.get("billStatus")) || "REFUNDED".equals(c.get("billStatus"))) {
             c.put("status", "CANCELLED");
         }
@@ -187,11 +217,19 @@ public class Catering {
     }
 
     /** What the customer's link shows: no staff-only fields. */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> publicView(UUID id) {
         Map<String, Object> v = view(id);
-        for (String k : List.of("createdBy", "tenantId", "orderId", "billStatus", "sentToKitchenAt", "pendingAsk", "id")) {
+        for (String k : List.of("createdBy", "tenantId", "orderId", "billStatus", "sentToKitchenAt", "pendingAsk", "id", "notes", "createdAt", "timeOfDay")) {
             v.remove(k);
         }
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (Object l : (List<?>) v.get("lines")) {
+            Map<String, Object> m = new LinkedHashMap<>((Map<String, Object>) l);
+            m.remove("itemId");
+            lines.add(m);
+        }
+        v.put("lines", lines);
         return v;
     }
 
@@ -250,7 +288,13 @@ public class Catering {
         if (name.isEmpty() || phone == null) {
             throw ApiException.bad("Type the customer's name and a phone number");
         }
-        Instant at = ZonedDateTime.of(LocalDate.parse(b.str("date", (String) cur.get("date"))), LocalTime.parse(b.str("time", "12:00")), NAIROBI).toInstant();
+        Instant at;
+        try {
+            at = ZonedDateTime.of(LocalDate.parse(b.str("date", (String) cur.get("date"))),
+                    LocalTime.parse(b.str("time", (String) cur.get("timeOfDay"))), NAIROBI).toInstant();
+        } catch (java.time.format.DateTimeParseException e) {
+            throw ApiException.bad("Choose the day and time of the event");
+        }
         db.exec("UPDATE catering_orders SET name = :name, phone = :phone, event_at = :at, place = :place, notes = :notes WHERE id = :id",
                 "id", id, "name", name, "phone", phone, "at", Timestamp.from(at),
                 "place", clip(b.has("place") ? b.str("place", "").trim() : (String) cur.get("place"), 300),
@@ -285,12 +329,21 @@ public class Catering {
         if (!method.equals("CASH") && (ref == null || ref.isBlank())) {
             throw ApiException.bad("Type the " + (method.equals("MPESA") ? "M-Pesa" : "card") + " code so the payment can be matched later");
         }
+        if (!method.equals("CASH")) {
+            Boolean used = db.value("SELECT exists(SELECT 1 FROM payments WHERE method = :m AND amount > 0 AND lower(reference) = lower(:r))",
+                    Boolean.class, "m", method, "r", ref);
+            if (Boolean.TRUE.equals(used)) {
+                throw ApiException.conflict("That " + (method.equals("MPESA") ? "M-Pesa" : "card") + " code was already used for another payment");
+            }
+        }
         UUID bill = ensureBill(id);
+        requests.requireNoOpenAsk(bill, "taking a payment");
         if (amount.compareTo(balance) < 0) {
             orders.depositByServer(bill, method, amount, ref);
         } else {
             orders.pay(bill, new Body(Map.of("payments", List.of(Map.of("method", method, "amount", amount, "reference", ref)))));
         }
+        db.exec("UPDATE catering_orders SET total = (SELECT total FROM orders WHERE id = :o) WHERE id = :id", "id", id, "o", bill);
         activity.record("CATERING_PAYMENT", ActivityLog.INFO, "Took KES " + plain(amount) + " by " + method
                 + " for the catering order of " + v.get("name"), bill, null, amount, null, Map.of("method", method));
         return view(id);
@@ -325,6 +378,10 @@ public class Catering {
         UUID bill = orders.createTrusted(new Body(body));
         db.exec("UPDATE orders SET customer_phone = :p WHERE id = :o", "o", bill, "p", c.get("phone"));
         db.exec("UPDATE catering_orders SET order_id = :o WHERE id = :id", "id", id, "o", bill);
+        // Opening the bill ran the till's deals before it was marked as a catering bill: take any deal lines off and price it as agreed.
+        db.exec("DELETE FROM order_lines WHERE order_id = :o AND deal_id IS NOT NULL", "o", bill);
+        orders.recalc(bill);
+        db.exec("UPDATE catering_orders SET total = (SELECT total FROM orders WHERE id = :o) WHERE id = :id", "id", id, "o", bill);
         return bill;
     }
 
@@ -393,8 +450,15 @@ public class Catering {
                   AND (c.event_at AT TIME ZONE 'Africa/Nairobi')::date <= (now() AT TIME ZONE 'Africa/Nairobi')::date
                   AND c.event_at > now() - interval '1 day'""")) {
             UUID id = UUID.fromString(r.get("id").toString());
-            if (!"CANCELLED".equals(view(id).get("status"))) {
-                toKitchen(id);
+            try {
+                // A savepoint per order: one that can't be sent doesn't stop the others.
+                nested.executeWithoutResult(t -> {
+                    if (!"CANCELLED".equals(view(id).get("status"))) {
+                        toKitchen(id);
+                    }
+                });
+            } catch (RuntimeException e) {
+                org.slf4j.LoggerFactory.getLogger(Catering.class).warn("Sending catering order {} to the kitchen: {}", id, e.toString());
             }
         }
     }
