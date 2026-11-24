@@ -191,6 +191,9 @@ public class OrderService {
                         happyDeal = happy.dealId();
                     }
                 }
+                if (l.bool("asPack", false) && byWeight) {
+                    throw ApiException.bad(name + " is sold by weight, not by the pack");
+                }
                 if (l.bool("asPack", false)) {
                     BigDecimal size = (BigDecimal) item.get("buySize");
                     if (size == null || size.signum() <= 0 || !"PRODUCT".equals(item.get("kind"))) {

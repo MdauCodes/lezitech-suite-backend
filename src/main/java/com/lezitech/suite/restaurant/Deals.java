@@ -228,7 +228,8 @@ public class Deals {
                 SELECT l.item_id, i.category_id, l.qty, l.unit_price, l.discount, extract(epoch FROM l.created_at) AS at_epoch,
                        coalesce((SELECT sum((o->>'price')::numeric) FROM jsonb_array_elements(l.options) o), 0) AS extras
                 FROM order_lines l JOIN items i ON i.id = l.item_id
-                WHERE l.order_id = :id AND l.parent_line_id IS NULL AND l.deal_id IS NULL AND l.line_total > 0 AND i.kind <> 'COMBO'""", "id", orderId)) {
+                WHERE l.order_id = :id AND l.parent_line_id IS NULL AND l.deal_id IS NULL AND l.line_total > 0 AND i.kind <> 'COMBO'
+                  AND l.unit_name IS DISTINCT FROM 'kg'""", "id", orderId)) {
             int n = ((BigDecimal) l.get("qty")).intValue();
             BigDecimal each = ((BigDecimal) l.get("unitPrice")).subtract((BigDecimal) l.get("extras"));
             Instant at = Instant.ofEpochMilli(Math.round(((Number) l.get("atEpoch")).doubleValue() * 1000));

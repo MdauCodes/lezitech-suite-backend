@@ -98,4 +98,27 @@ class ByWeightTest extends IntegrationTest {
         setUp("restaurant", "grill");
         assertThat(item(owner, "Goat choma (per kg)").get("soldByWeight").asBoolean()).isTrue();
     }
+
+    @Test
+    void editingAWeightIsCappedAndDealsAndPacksLeaveWeightAlone() {
+        setUp("retail", "butchery");
+        String id = item(owner, "Steak").get("id").asText();
+        Res bill = sell(owner, id, 2, Map.of());
+        String orderId = bill.at("/id").asText();
+        String lineId = bill.at("/lines/0/id").asText();
+        // Changing the weight on the bill: 3 decimals and 1000 kg at most.
+        assertThat(call("PATCH", "/orders/" + orderId + "/lines/" + lineId, owner, Map.of("qty", 1001)).status()).isEqualTo(400);
+        assertThat(call("PATCH", "/orders/" + orderId + "/lines/" + lineId, owner, Map.of("qty", 1.2345)).status()).isEqualTo(400);
+        Res ok = call("PATCH", "/orders/" + orderId + "/lines/" + lineId, owner, Map.of("qty", 1.5));
+        assertThat(ok.status()).isEqualTo(200);
+        assertThat(ok.at("/total").decimalValue()).isEqualByComparingTo("1200");
+
+        // A "buy one get one" deal counts pieces, so it never touches kilos: 2 kg is still 2 x 800.
+        assertThat(post("/menu-tools/deals", owner, Map.of("name", "Steak 1+1", "kind", "BOGO", "buy", 1, "get", 1,
+                "items", List.of(Map.of("itemId", id)))).status()).isEqualTo(200);
+        assertThat(sell(owner, id, 2, Map.of()).at("/total").decimalValue()).isEqualByComparingTo("1600");
+
+        // Not sold by the pack.
+        assertThat(sell(owner, id, 1, Map.of("asPack", true)).status()).isEqualTo(400);
+    }
 }

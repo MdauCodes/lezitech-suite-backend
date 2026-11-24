@@ -122,7 +122,7 @@ public class KitchenService {
      */
     public void reject(UUID lineId, String reason, UUID substituteId, boolean markFinished, com.lezitech.suite.common.Body approval) {
         Map<String, Object> l = db.one("Line", """
-                SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.line_total, l.kitchen_status, o.status, o.self_order
+                SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.unit_name, l.line_total, l.kitchen_status, o.status, o.self_order
                 FROM order_lines l JOIN orders o ON o.id = l.order_id WHERE l.id = :id""", "id", lineId);
         if (!"OPEN".equals(l.get("status")) || !List.of("NEW", "PREPARING").contains(l.get("kitchenStatus"))) {
             throw ApiException.conflict("Only dishes not yet ready can be swapped or taken off");
@@ -144,9 +144,13 @@ public class KitchenService {
         }
         if (substituteId != null) {
             Map<String, Object> sub = db.find("""
-                    SELECT name, price FROM items WHERE id = :id AND active AND kind <> 'SERVICE'
+                    SELECT name, price, sold_by_weight FROM items WHERE id = :id AND active AND kind <> 'SERVICE'
                       AND (unavailable_until IS NULL OR unavailable_until <= now())""", "id", substituteId)
                     .orElseThrow(() -> ApiException.bad("That dish can't be offered instead"));
+            // A swap keeps the quantity, so it can't go between something sold by weight and something sold by the piece.
+            if (Boolean.TRUE.equals(sub.get("soldByWeight")) != "kg".equals(l.get("unitName"))) {
+                throw ApiException.bad("Offer something sold the same way: by weight for by weight, by the piece for by the piece");
+            }
             db.exec("""
                     UPDATE order_lines SET kitchen_status = 'ON_HOLD', substitute_item_id = :sub, substitute_status = 'OFFERED',
                            rejected_reason = :why WHERE id = :id""", "sub", substituteId, "why", why, "id", lineId);
