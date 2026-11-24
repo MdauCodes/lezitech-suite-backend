@@ -200,7 +200,11 @@ class VoidAndCostApprovalTest extends IntegrationTest {
             String bill = ticket.get("orderId").asText();
             int before = get("/activity?kind=ITEM_REMOVED", owner).at("/entries").size();
             for (JsonNode l : ticket.get("lines")) {
-                Res r = post("/kitchen/lines/" + l.get("id").asText() + "/reject", cashier, Map.of("reason", "finished"));
+                // The kitchen has these dishes, so a cashier taking one off needs a manager's PIN.
+                Res alone = post("/kitchen/lines/" + l.get("id").asText() + "/reject", cashier, Map.of("reason", "finished"));
+                assertThat(alone.status()).as(alone.body().toString()).isEqualTo(403);
+                Res r = post("/kitchen/lines/" + l.get("id").asText() + "/reject", cashier,
+                        Map.of("reason", "finished", "approval", Map.of("userId", managerId, "pin", "1234")));
                 assertThat(r.status()).as(r.body().toString()).isEqualTo(200);
             }
             // Each dish taken off through the kitchen screen left a note, flagged because the kitchen had it.

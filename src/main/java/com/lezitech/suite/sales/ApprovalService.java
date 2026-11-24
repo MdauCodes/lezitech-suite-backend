@@ -88,6 +88,41 @@ public class ApprovalService {
         throw new ApiException(HttpStatus.FORBIDDEN, "APPROVAL_NEEDED", "A manager must approve " + what);
     }
 
+
+    /**
+     * Value is coming off a bill. While it is still being typed, taking things off is ordinary correcting and
+     * anyone may do it -- a waiter fixing a mistyped order must not be stopped. Once the kitchen has started
+     * the dish, or the customer has been shown the bill, the goods exist and the figure is real, so a manager
+     * agrees: their PIN at the till, or the owner has given this job the right to do it alone.
+     *
+     * @param lineCooking the kitchen has this line in hand (anything but PENDING)
+     * @return the approving manager's name when a PIN was used, otherwise null
+     */
+    public String requireManagerForValueOff(UUID orderId, boolean lineCooking, Body b, String what) {
+        if (!seriousYet(orderId, lineCooking)) {
+            return null;
+        }
+        if (access != null && access.mayCancelBill(TenantContext.tenantId(), TenantContext.caller().role())) {
+            return null;
+        }
+        return requireManager(b, what);
+    }
+
+    /** True once the kitchen has started it or the bill has been printed: the moment it stops being a draft. */
+    private boolean seriousYet(UUID orderId, boolean lineCooking) {
+        if (lineCooking) {
+            return true;
+        }
+        try {
+            return Boolean.TRUE.equals(jdbc.queryForObject(
+                    "SELECT bill_printed_at IS NOT NULL FROM orders WHERE id = ? AND tenant_id = ?",
+                    Boolean.class, orderId, TenantContext.tenantId()));
+        } catch (Exception e) {
+            // Can't tell: treat it as serious rather than waving it through.
+            return true;
+        }
+    }
+
     /** Discounts (line + bill) may not exceed the workspace's limit; only the owner can go past it. */
     public void checkDiscountLimit(BigDecimal discount, BigDecimal grossBeforeDiscount) {
         if (discount.signum() <= 0 || "OWNER".equals(TenantContext.caller().role())) {

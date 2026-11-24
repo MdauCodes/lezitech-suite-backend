@@ -1,4 +1,4 @@
--- V65: things a junior member of staff asks a manager to do, e.g. "please cancel this bill".
+-- V68: things a junior member of staff asks a manager to do, e.g. "please cancel this bill".
 -- A waiter, cashier or rider cannot cancel a bill themselves, so they ask. The bill is left exactly as it is
 -- until a manager answers from their "Waiting for you" list. The manager can allow it (the bill is then
 -- cancelled), or refuse it with a few words so the staff member knows what to do next.

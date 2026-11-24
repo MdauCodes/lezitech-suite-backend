@@ -160,7 +160,7 @@ public class RestaurantController {
     public Map<String, Object> reject(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         Body b = new Body(raw);
         kitchen.reject(id, b.str("reason", null), b.has("substituteItemId") ? UUID.fromString(b.str("substituteItemId")) : null,
-                b.bool("markFinished", false));
+                b.bool("markFinished", false), b);
         return Map.of("ok", true);
     }
 

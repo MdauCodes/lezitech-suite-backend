@@ -23,6 +23,7 @@ class NightSummaryTest extends IntegrationTest {
         String owner = token(s);
         String cashier = staff(owner, "CASHIER");
         String waiter = staff(owner, "WAITER");
+        staff(owner, "MANAGER");
         JsonNode dish = null;
         for (JsonNode i : get("/items", owner).body()) {
             if (dish == null && "MENU".equals(i.get("kind").asText()) && i.get("options").isEmpty()) {
@@ -39,11 +40,14 @@ class NightSummaryTest extends IntegrationTest {
         String b = post("/orders", cashier, Map.of("lines", List.of(Map.of("itemId", dishId, "qty", 1)))).at("/id").asText();
         post("/orders/" + b + "/pay", cashier, Map.of("payments", List.of(Map.of("method", "MPESA", "amount", price, "reference", "QX12AB34CD"))));
 
-        // A waiter prints a bill, then takes an item off it: a warning sign.
+        // A waiter prints a bill, then takes an item off it: a warning sign, and one a manager has to agree to
+        // now that the customer has seen the bill.
         String c = post("/orders", waiter, Map.of("lines", List.of(Map.of("itemId", dishId, "qty", 3)))).at("/id").asText();
         assertThat(post("/orders/" + c + "/printed", waiter, Map.of()).status()).isEqualTo(200);
         String line = get("/orders/" + c, owner).at("/lines/0/id").asText();
-        assertThat(call("PATCH", "/orders/" + c + "/lines/" + line, waiter, Map.of("qty", 2)).status()).isEqualTo(200);
+        assertThat(call("PATCH", "/orders/" + c + "/lines/" + line, waiter, Map.of("qty", 2)).status()).isEqualTo(403);
+        assertThat(call("PATCH", "/orders/" + c + "/lines/" + line, waiter,
+                Map.of("qty", 2, "approval", Map.of("userId", userId(owner, "MANAGER"), "pin", "1234"))).status()).isEqualTo(200);
 
         // The cashier closes the till KES 100 short.
         String shift = get("/shifts/current", cashier).at("/id").asText();

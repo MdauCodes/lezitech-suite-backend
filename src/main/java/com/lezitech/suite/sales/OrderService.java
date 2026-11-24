@@ -757,6 +757,11 @@ public class OrderService {
             throw ApiException.bad("That's already the room folio");
         }
         db.exec("UPDATE order_lines SET order_id = :folio WHERE order_id = :id", "folio", folio, "id", orderId);
+        // If the customer had already seen the bill, the room folio knows it: otherwise moving a printed bill
+        // onto a fresh folio would be a way to take items off it for nothing.
+        db.exec("""
+                UPDATE orders SET bill_printed_at = coalesce(bill_printed_at, (SELECT bill_printed_at FROM orders WHERE id = :id))
+                WHERE id = :folio""", "id", orderId, "folio", folio);
         db.exec("DELETE FROM orders WHERE id = :id", "id", orderId);
         recalc(folio);
         return folio;

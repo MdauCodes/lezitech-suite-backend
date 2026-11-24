@@ -117,7 +117,8 @@ public class OrderController {
         Body b = new Body(raw);
         Map<String, Object> line = db.one("Line", "SELECT * FROM order_lines WHERE id = :lineId AND order_id = :id", "id", id, "lineId", lineId);
         if (!"PENDING".equals(line.get("kitchenStatus"))) {
-            TenantContext.requireRole("MANAGER");
+            // A manager, or a manager's PIN at the till: the kitchen already has this dish.
+            approvals.requireManager(b, "changing a dish the kitchen already has");
         }
         BigDecimal qty = b.num("qty", (BigDecimal) line.get("qty"));
         BigDecimal newDiscount = b.num("discount", (BigDecimal) line.get("discount"));
@@ -133,9 +134,13 @@ public class OrderController {
         }
         // While a manager is being asked whether to cancel this bill, nothing may take value off it -- otherwise
         // the bill is worth nothing by the time they answer. Adding to it, or serving it, carries on as normal.
-        if (qty.compareTo((BigDecimal) line.get("qty")) < 0
-                || newDiscount.compareTo((BigDecimal) line.get("discount")) > 0) {
+        boolean takingOff = qty.compareTo((BigDecimal) line.get("qty")) < 0
+                || newDiscount.compareTo((BigDecimal) line.get("discount")) > 0;
+        if (takingOff) {
             requests.requireNoOpenAsk(id, "taking anything off it");
+            // Correcting a draft is free; once the kitchen has it or the bill is printed, a manager agrees.
+            approvals.requireManagerForValueOff(id, !"PENDING".equals(line.get("kitchenStatus")), b,
+                    "taking items off this bill");
         }
         // R8: taking items off after the bill was printed or the kitchen started is a warning sign.
         BigDecimal before = (BigDecimal) line.get("qty");
@@ -224,6 +229,7 @@ public class OrderController {
         Map<String, Object> o = orders.requireOpen(id);
         // Moving the lines to a fresh bill would leave the asked-about one worth nothing.
         requests.requireNoOpenAsk(id, "moving items off it");
+
         @SuppressWarnings("unchecked")
         List<String> lineIds = (List<String>) raw.getOrDefault("lineIds", List.of());
         if (lineIds.isEmpty()) {
@@ -236,6 +242,11 @@ public class OrderController {
             db.exec("UPDATE order_lines SET order_id = :newId WHERE id = :lineId AND order_id = :id",
                     "newId", newId, "lineId", UUID.fromString(lineId), "id", id);
         }
+        // The new bill inherits "the customer has seen this", so splitting is not a way to move items somewhere
+        // they can be taken off for nothing. Splitting itself stays free: it is ordinary work on a busy floor.
+        db.exec("""
+                UPDATE orders SET bill_printed_at = coalesce(bill_printed_at, (SELECT bill_printed_at FROM orders WHERE id = :id))
+                WHERE id = :newId""", "id", id, "newId", newId);
         orders.recalc(id);
         orders.recalc(newId);
         return orders.detail(newId);

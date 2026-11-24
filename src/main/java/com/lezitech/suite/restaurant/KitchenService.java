@@ -4,6 +4,7 @@ import com.lezitech.suite.activity.ActivityLog;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Db;
 import com.lezitech.suite.sales.OrderService;
+import com.lezitech.suite.tenant.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,8 @@ public class KitchenService {
     private final ActivityLog activity;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.sales.ManagerRequestService requests;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.sales.ApprovalService approvals;
 
     public KitchenService(Db db, OrderService orders, ActivityLog activity) {
         this.db = db;
@@ -109,6 +112,15 @@ public class KitchenService {
      * Without one, the dish comes off the bill and the diner and waiter are told. Optionally mark the item finished.
      */
     public void reject(UUID lineId, String reason, UUID substituteId, boolean markFinished) {
+        reject(lineId, reason, substituteId, markFinished, null);
+    }
+
+    /**
+     * {@code approval}: the body, which may carry a manager's PIN. The kitchen saying it cannot make a dish is
+     * the kitchen's own job and needs nobody's say-so. For anyone else this is value coming off a bill the
+     * kitchen has already started, so a manager agrees -- otherwise this screen is a way round the till's rule.
+     */
+    public void reject(UUID lineId, String reason, UUID substituteId, boolean markFinished, com.lezitech.suite.common.Body approval) {
         Map<String, Object> l = db.one("Line", """
                 SELECT l.id, l.order_id, l.item_id, l.name, l.qty, l.line_total, l.kitchen_status, o.status, o.self_order
                 FROM order_lines l JOIN orders o ON o.id = l.order_id WHERE l.id = :id""", "id", lineId);
@@ -116,6 +128,12 @@ public class KitchenService {
             throw ApiException.conflict("Only dishes not yet ready can be swapped or taken off");
         }
         UUID orderId = UUID.fromString(l.get("orderId").toString());
+        // Before anything happens: offering a swap ends with the dish coming off the bill when the diner says
+        // no, so the swap is gated too, not just the straight removal.
+        requests.requireNoOpenAsk(orderId, "taking anything off it");
+        if (!"KITCHEN".equals(TenantContext.caller().role())) {
+            approvals.requireManagerForValueOff(orderId, true, approval, "taking a dish off this bill");
+        }
         String name = (String) l.get("name");
         String why = reason == null || reason.isBlank() ? "finished" : reason.trim();
         if (why.length() > 150) {
@@ -135,7 +153,6 @@ public class KitchenService {
             notice(orderId, "SUBSTITUTE_OFFERED", "Sorry, " + name + " is " + why + ". Would " + sub.get("name") + " do instead?", false);
             log(orderId, name + " " + why + "; offered " + sub.get("name") + " instead", BigDecimal.ZERO);
         } else {
-            requests.requireNoOpenAsk(orderId, "taking anything off it");
             removeLine(lineId, orderId, " because the kitchen could not make it (" + why + ")");
             notice(orderId, "ITEM_REMOVED", "Sorry, " + name + " is " + why + ". It has been taken off your bill.", true);
             log(orderId, name + " " + why + "; taken off the bill", (BigDecimal) l.get("lineTotal"));
