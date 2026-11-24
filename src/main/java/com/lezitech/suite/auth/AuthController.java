@@ -275,10 +275,28 @@ public class AuthController {
         Body b = new Body(raw);
         String account = "login:" + b.str("email").toLowerCase();
         throttle.check(account, req);
+        String email = b.str("email").toLowerCase();
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT id, tenant_id, name, role, password_hash, active FROM users WHERE email = ?",
-                b.str("email").toLowerCase());
-        if (rows.isEmpty() || rows.get(0).get("password_hash") == null
+                "SELECT id, tenant_id, name, role, password_hash, active FROM users WHERE email = ?", email);
+        if (rows.isEmpty()) {
+            // Nobody in the business list. A control-panel person may have used this page by mistake: tell them where to go,
+            // but only when the password is right, and never hand out a token. One bcrypt match either way.
+            String adminAccount = "admin:" + email;
+            throttle.check(adminAccount, req);
+            List<Map<String, Object>> admins = jdbc.queryForList(
+                    "SELECT password_hash FROM platform_admins WHERE email = ? AND active AND NOT invite_pending AND blocked_at IS NULL", email);
+            boolean found = !admins.isEmpty() && admins.get(0).get("password_hash") != null;
+            String hash = found ? (String) admins.get(0).get("password_hash") : dummyHash();
+            if (encoder.matches(b.str("password"), hash) && found) {
+                throttle.succeeded(adminAccount);
+                throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "USE_CONTROL_PANEL",
+                        "This is a control-panel account. Sign in on the control-panel page.");
+            }
+            throttle.failed(account, req);
+            throttle.failed(adminAccount, null);
+            throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
+        }
+        if (rows.get(0).get("password_hash") == null
                 || !encoder.matches(b.str("password"), (String) rows.get(0).get("password_hash"))) {
             throttle.failed(account, req);
             throw new ApiException(org.springframework.http.HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
@@ -289,6 +307,18 @@ public class AuthController {
             throw ApiException.forbidden("This account has been switched off by the owner");
         }
         return session((UUID) u.get("id"), (UUID) u.get("tenant_id"), (String) u.get("role"), (String) u.get("name"));
+    }
+
+    private volatile String dummyHash;
+
+    /** A fixed hash nobody can match, so "no such email" costs the same bcrypt work as a real one. */
+    private String dummyHash() {
+        String h = dummyHash;
+        if (h == null) {
+            h = encoder.encode("no-one-has-this-password-" + UUID.randomUUID());
+            dummyHash = h;
+        }
+        return h;
     }
 
     /** Hand the till to another staff member with their 4-digit PIN (cf. Odoo pos_hr cashier switch). */
