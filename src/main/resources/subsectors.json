@@ -986,6 +986,7 @@
       "features": {
         "tables": false,
         "deposits": true,
+        "catering": true,
         "loyalty": true
       },
       "kpis": [

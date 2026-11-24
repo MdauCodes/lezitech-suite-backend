@@ -97,6 +97,7 @@
     "wholesalePricing": "Different prices for big buyers and small buyers.",
     "credit": "{customers} who pay later, with a limit and a statement.",
     "loyalty": "Points for your regulars.",
+    "catering": "Catering orders for events and offices: the menu, a deposit, and the balance to pay.",
     "appointments": "Online bookings, with free times shown per {staff|lower}.",
     "commissions": "Each {staff|lower}'s share worked out for you.",
     "storeFeedsShops": "A store that supplies your shops, with transfers recorded.",
