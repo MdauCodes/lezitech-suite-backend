@@ -240,16 +240,29 @@ public class AdminController {
         AdminContext.require("read");
         Map<String, Object> out = new LinkedHashMap<>();
         String real = " FROM tenants WHERE NOT is_demo ";
-        out.put("workspaces", jdbc.queryForObject("SELECT count(*)" + real, Long.class));
-        out.put("onTrial", jdbc.queryForObject("SELECT count(*)" + real + "AND status = 'TRIAL' AND trial_ends_at > now()", Long.class));
-        out.put("trialExpired", jdbc.queryForObject("SELECT count(*)" + real + "AND status = 'TRIAL' AND trial_ends_at <= now()", Long.class));
-        out.put("paying", jdbc.queryForObject("SELECT count(*)" + real + "AND status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now())", Long.class));
-        out.put("suspended", jdbc.queryForObject("SELECT count(*)" + real + "AND status = 'SUSPENDED'", Long.class));
-        out.put("endingIn48h", jdbc.queryForObject("SELECT count(*)" + real + "AND status = 'TRIAL' AND trial_ends_at BETWEEN now() AND now() + interval '48 hours'", Long.class));
-        out.put("activeToday", jdbc.queryForObject("SELECT count(*)" + real + "AND last_active_at > now() - interval '24 hours'", Long.class));
-        out.put("signups7d", jdbc.queryForObject("SELECT count(*)" + real + "AND created_at > now() - interval '7 days'", Long.class));
-        out.put("pendingRequests", jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE status = 'PENDING'", Long.class));
-        out.put("demoWorkspaces", jdbc.queryForObject("SELECT count(*) FROM tenants WHERE is_demo", Long.class));
+        // One pass over the workspaces for every headline number.
+        Map<String, Object> c = jdbc.queryForMap("""
+                SELECT count(*) FILTER (WHERE NOT is_demo) AS workspaces,
+                       count(*) FILTER (WHERE NOT is_demo AND status = 'TRIAL' AND trial_ends_at > now()) AS on_trial,
+                       count(*) FILTER (WHERE NOT is_demo AND status = 'TRIAL' AND trial_ends_at <= now()) AS trial_expired,
+                       count(*) FILTER (WHERE NOT is_demo AND status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now())) AS paying,
+                       count(*) FILTER (WHERE NOT is_demo AND status = 'SUSPENDED') AS suspended,
+                       count(*) FILTER (WHERE NOT is_demo AND status = 'TRIAL' AND trial_ends_at BETWEEN now() AND now() + interval '48 hours') AS ending48,
+                       count(*) FILTER (WHERE NOT is_demo AND last_active_at > now() - interval '24 hours') AS active_today,
+                       count(*) FILTER (WHERE NOT is_demo AND created_at > now() - interval '7 days') AS signups7,
+                       count(*) FILTER (WHERE is_demo) AS demos,
+                       (SELECT count(*) FROM subscription_requests WHERE status = 'PENDING') AS pending
+                FROM tenants""");
+        out.put("workspaces", c.get("workspaces"));
+        out.put("onTrial", c.get("on_trial"));
+        out.put("trialExpired", c.get("trial_expired"));
+        out.put("paying", c.get("paying"));
+        out.put("suspended", c.get("suspended"));
+        out.put("endingIn48h", c.get("ending48"));
+        out.put("activeToday", c.get("active_today"));
+        out.put("signups7d", c.get("signups7"));
+        out.put("pendingRequests", c.get("pending"));
+        out.put("demoWorkspaces", c.get("demos"));
         // Monthly recurring revenue from paying workspaces at list price.
         long mrr = 0;
         for (Map<String, Object> r : jdbc.queryForList("SELECT plan, count(*) AS n" + real + "AND status = 'ACTIVE' GROUP BY plan")) {
@@ -285,24 +298,35 @@ public class AdminController {
         AdminContext.require("read");
         String st = status == null || status.isBlank() ? null : status;
         return jdbc.queryForList("""
-                SELECT t.id, t.slug, t.name, t.sector, t.sub_sector, t.status, t.plan, t.trial_ends_at, t.paid_until, t.created_at,
-                       t.last_active_at, t.phone, t.brand_color, t.logo_url, t.is_demo,
-                       CASE WHEN t.in_setup THEN 'SETUP'
-                            WHEN t.status = 'TRIAL' AND t.trial_ends_at <= now() THEN 'EXPIRED'
-                            WHEN t.status = 'ACTIVE' AND t.paid_until < now() THEN 'LAPSED' ELSE t.status END AS state,
-                       (SELECT email FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' ORDER BY created_at LIMIT 1) AS owner_email,
-                       (SELECT count(*) FROM users u WHERE u.tenant_id = t.id) AS users,
-                       (SELECT max(last_login_at) FROM users u WHERE u.tenant_id = t.id) AS last_login_at,
-                       (SELECT plan || ' ' || billing_cycle FROM subscription_requests r WHERE r.tenant_id = t.id AND r.status = 'PENDING'
-                        ORDER BY created_at DESC LIMIT 1) AS pending_request
-                FROM tenants t
-                WHERE t.is_demo = ?
-                  AND (cast(? as text) IS NULL OR t.name ILIKE '%' || cast(? as text) || '%' OR t.slug ILIKE '%' || cast(? as text) || '%'
-                       OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE '%' || cast(? as text) || '%'))
-                  AND (cast(? as text) IS NULL OR t.sector = cast(? as text))
-                ORDER BY t.created_at DESC LIMIT 500""",
-                demo, blank(q), blank(q), blank(q), blank(q), blank(sector), blank(sector))
-                .stream().filter(t -> st == null || st.equals(t.get("state"))).map(this::clean).toList();
+                SELECT b.id, b.slug, b.name, b.sector, b.sub_sector, b.status, b.plan, b.trial_ends_at, b.paid_until, b.created_at,
+                       b.last_active_at, b.phone, b.brand_color, b.logo_url, b.is_demo, b.state,
+                       u.owner_email, u.users, u.last_login_at, r.pending_request
+                FROM (
+                    SELECT * FROM (
+                        SELECT t.id, t.slug, t.name, t.sector, t.sub_sector, t.status, t.plan, t.trial_ends_at, t.paid_until, t.created_at,
+                               t.last_active_at, t.phone, t.brand_color, t.logo_url, t.is_demo,
+                               CASE WHEN t.in_setup THEN 'SETUP'
+                                    WHEN t.status = 'TRIAL' AND t.trial_ends_at <= now() THEN 'EXPIRED'
+                                    WHEN t.status = 'ACTIVE' AND t.paid_until < now() THEN 'LAPSED' ELSE t.status END AS state
+                        FROM tenants t
+                        WHERE t.is_demo = ?
+                          AND (cast(? as text) IS NULL OR t.name ILIKE '%' || cast(? as text) || '%' OR t.slug ILIKE '%' || cast(? as text) || '%'
+                               OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE '%' || cast(? as text) || '%'))
+                          AND (cast(? as text) IS NULL OR t.sector = cast(? as text))
+                    ) x
+                    WHERE cast(? as text) IS NULL OR x.state = cast(? as text)
+                    ORDER BY x.created_at DESC LIMIT 500
+                ) b
+                LEFT JOIN LATERAL (
+                    SELECT count(*) AS users, max(last_login_at) AS last_login_at,
+                           (array_agg(email ORDER BY created_at) FILTER (WHERE role = 'OWNER'))[1] AS owner_email
+                    FROM users WHERE tenant_id = b.id) u ON true
+                LEFT JOIN LATERAL (
+                    SELECT plan || ' ' || billing_cycle AS pending_request FROM subscription_requests
+                    WHERE tenant_id = b.id AND status = 'PENDING' ORDER BY created_at DESC LIMIT 1) r ON true
+                ORDER BY b.created_at DESC""",
+                demo, blank(q), blank(q), blank(q), blank(q), blank(sector), blank(sector), st, st)
+                .stream().map(this::clean).toList();
     }
 
     @GetMapping("/tenants/{id}")
@@ -473,6 +497,12 @@ public class AdminController {
         AdminContext.require("read");
         List<String> disabled = disabledSectors();
         List<Map<String, Object>> out = new ArrayList<>();
+        Map<String, Map<String, Object>> counts = new java.util.HashMap<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT sector, count(*) AS workspaces, count(*) FILTER (WHERE status = 'ACTIVE') AS paying
+                FROM tenants WHERE NOT is_demo GROUP BY sector""")) {
+            counts.put((String) r.get("sector"), r);
+        }
         for (JsonNode p : sectors.all()) {
             String key = p.get("key").asText();
             Map<String, Object> row = new LinkedHashMap<>();
@@ -483,8 +513,9 @@ public class AdminController {
             row.put("modules", p.get("modules"));
             row.put("subSectors", p.get("subSectors"));
             row.put("enabled", !disabled.contains(key));
-            row.put("workspaces", jdbc.queryForObject("SELECT count(*) FROM tenants WHERE sector = ? AND NOT is_demo", Long.class, key));
-            row.put("paying", jdbc.queryForObject("SELECT count(*) FROM tenants WHERE sector = ? AND NOT is_demo AND status = 'ACTIVE'", Long.class, key));
+            Map<String, Object> n = counts.getOrDefault(key, Map.of());
+            row.put("workspaces", n.getOrDefault("workspaces", 0L));
+            row.put("paying", n.getOrDefault("paying", 0L));
             out.add(row);
         }
         return out;
