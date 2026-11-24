@@ -103,26 +103,26 @@ public class AdminService implements ApplicationRunner {
         @Transactional(readOnly = true)
         public Map<String, Object> usage() {
             Map<String, Object> u = new LinkedHashMap<>();
-            u.put("orders", db.value("SELECT count(*) FROM orders WHERE status <> 'VOID'", Long.class));
-            u.put("ordersLast7Days", db.value("SELECT count(*) FROM orders WHERE status <> 'VOID' AND created_at > now() - interval '7 days'", Long.class));
+            u.put("orders", db.value("SELECT count(*) FROM orders WHERE tenant_id = :t AND status <> 'VOID'", Long.class));
+            u.put("ordersLast7Days", db.value("SELECT count(*) FROM orders WHERE tenant_id = :t AND status <> 'VOID' AND created_at > now() - interval '7 days'", Long.class));
             u.put("sales30Days", db.value("""
-                    SELECT coalesce(sum(total), 0) FROM orders WHERE status IN ('PAID','CREDIT') AND kind <> 'QUOTE'
+                    SELECT coalesce(sum(total), 0) FROM orders WHERE tenant_id = :t AND status IN ('PAID','CREDIT') AND kind <> 'QUOTE'
                     AND closed_at > now() - interval '30 days'""", java.math.BigDecimal.class));
-            u.put("lastOrderAt", db.value("SELECT max(created_at)::text FROM orders", String.class));
-            u.put("items", db.value("SELECT count(*) FROM items WHERE active", Long.class));
-            u.put("customers", db.value("SELECT count(*) FROM customers", Long.class));
-            u.put("deals", db.value("SELECT count(*) FROM deals", Long.class));
-            u.put("stays", db.value("SELECT count(*) FROM stays", Long.class));
-            u.put("trips", db.value("SELECT count(*) FROM trips", Long.class));
-            u.put("leases", db.value("SELECT count(*) FROM leases WHERE status = 'ACTIVE'", Long.class));
-            u.put("locations", db.value("SELECT count(*) FROM locations", Long.class));
+            u.put("lastOrderAt", db.value("SELECT max(created_at)::text FROM orders WHERE tenant_id = :t", String.class));
+            u.put("items", db.value("SELECT count(*) FROM items WHERE tenant_id = :t AND active", Long.class));
+            u.put("customers", db.value("SELECT count(*) FROM customers WHERE tenant_id = :t", Long.class));
+            u.put("deals", db.value("SELECT count(*) FROM deals WHERE tenant_id = :t", Long.class));
+            u.put("stays", db.value("SELECT count(*) FROM stays WHERE tenant_id = :t", Long.class));
+            u.put("trips", db.value("SELECT count(*) FROM trips WHERE tenant_id = :t", Long.class));
+            u.put("leases", db.value("SELECT count(*) FROM leases WHERE tenant_id = :t AND status = 'ACTIVE'", Long.class));
+            u.put("locations", db.value("SELECT count(*) FROM locations WHERE tenant_id = :t", Long.class));
             // Did they replace the sample data with their own? A strong sign the trial will convert.
             u.put("ownItems", db.value("""
-                    SELECT count(*) FROM items i WHERE i.created_at > (SELECT min(created_at) + interval '2 minutes' FROM items)""", Long.class));
+                    SELECT count(*) FROM items i WHERE i.tenant_id = :t AND i.created_at > (SELECT min(created_at) + interval '2 minutes' FROM items WHERE tenant_id = :t)""", Long.class));
             u.put("dailyOrders", db.list("""
                     SELECT to_char(d, 'MM-DD') AS day, count(o.id) AS orders
                     FROM generate_series(current_date - 13, current_date, interval '1 day') d
-                    LEFT JOIN orders o ON o.created_at::date = d::date AND o.status <> 'VOID'
+                    LEFT JOIN orders o ON o.tenant_id = :t AND o.created_at::date = d::date AND o.status <> 'VOID'
                     GROUP BY d ORDER BY d"""));
             return u;
         }
