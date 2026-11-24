@@ -48,11 +48,17 @@ public class AdminInvites {
      */
     public static final Duration INVITE_TTL = Duration.ofDays(3);
     /**
-     * One hour for a password reset, not the invite's three days. An invite waits for someone who may be away; a reset
-     * is asked for by someone sitting at the screen, right now. A short life keeps a forgotten link in an old inbox
-     * from being a way into an account that can see every business.
+     * Fifteen minutes for a password-reset code. A reset is asked for by someone sitting at the screen, right now, and
+     * a code is short enough to be guessed, so it lives briefly and is spent after 5 wrong tries (MAX_ATTEMPTS).
      */
-    public static final Duration RESET_TTL = Duration.ofHours(1);
+    public static final Duration RESET_TTL = Duration.ofMinutes(15);
+    /** Wrong guesses allowed against one reset code before it is spent. */
+    static final int MAX_ATTEMPTS = 5;
+    /**
+     * Wrong guesses allowed against one person's reset codes in a day, counted in the database so a restart or a second
+     * server cannot reset it. Past this, no code works for them until the day is up.
+     */
+    static final int MAX_WRONG_PER_DAY = 20;
     static final String INVITE = "invite";
     static final String RESET = "reset";
     public static final int MIN_PASSWORD = 10;
@@ -84,6 +90,8 @@ public class AdminInvites {
     private final TokenVersions versions;
     private final ObjectMapper json;
     private final TransactionTemplate tx;
+    /** A real bcrypt hash to check against when there is no code to check, so every failure costs the same time. */
+    private final String dummyHash;
 
     public AdminInvites(JdbcTemplate jdbc, PasswordEncoder encoder, Mailer mailer, TokenVersions versions, ObjectMapper json,
                         PlatformTransactionManager txManager) {
@@ -93,6 +101,7 @@ public class AdminInvites {
         this.mailer = mailer;
         this.versions = versions;
         this.json = json;
+        this.dummyHash = encoder.encode("000000");
     }
 
     /** A password hash for an account that must not be signed into yet: the password it came from is thrown away. */
@@ -158,17 +167,20 @@ public class AdminInvites {
         Map<String, Object> a = jdbc.queryForMap("SELECT email, name FROM platform_admins WHERE id = ?", adminId);
 
         String name = first((String) a.get("name"));
-        String link = mailer.appUrl() + "/admin/invite/" + token;
         if (reset) {
-            String text = "Hi " + name + ",\n\nSomeone asked to reset your LeziTech control panel password. Open this link to choose a new one:\n\n"
-                    + link + "\n\nThe link works once and for 1 hour. Once you save, you are signed out everywhere else.\n"
+            // "token" is the 6-digit code here. It is emailed, never stored in plain form.
+            String text = "Hi " + name + ",\n\nSomeone asked to reset your LeziTech control panel password. Your code is:\n\n"
+                    + token + "\n\nType it on the reset page along with your new password. The code works once and for 15 minutes. "
+                    + "This email never asks you to click a link.\n"
                     + "If it was not you, ignore this email and nothing changes.\n\nLeziTech";
             String html = EmailLayout.p("Hi " + Mailer.esc(name) + ",")
-                    + EmailLayout.p("Someone asked to reset your LeziTech control panel password. Choose a new one to get back in.")
-                    + EmailLayout.button("Choose a new password", link, "#101415")
-                    + EmailLayout.p("The link works once and for 1 hour. If it was not you, ignore this email and nothing changes.");
-            return mailer.send((String) a.get("email"), (String) a.get("name"), "Reset your LeziTech control panel password", text, html);
+                    + EmailLayout.p("Someone asked to reset your LeziTech control panel password. Your code is:")
+                    + "<p style=\"margin:16px 0;font-size:34px;font-weight:700;letter-spacing:8px;font-family:Consolas,Menlo,monospace;color:#101415;\">" + token + "</p>"
+                    + EmailLayout.p("Type it on the reset page along with your new password. The code works once and for 15 minutes. This email never asks you to click a link.")
+                    + EmailLayout.p("If it was not you, ignore this email and nothing changes.");
+            return mailer.send((String) a.get("email"), (String) a.get("name"), "Your LeziTech control panel code", text, html);
         }
+        String link = mailer.appUrl() + "/admin/invite/" + token;
         String text = "Hi " + name + ",\n\nYou have been added to the LeziTech control panel. Open this link to choose your own password:\n\n"
                 + link + "\n\nThe link works once and for 3 days. Nobody else will ever know your password.\n"
                 + "If you were not expecting this, ignore this email and nothing happens.\n\nLeziTech";
@@ -187,14 +199,22 @@ public class AdminInvites {
         Integer recent = jdbc.queryForObject(
                 "SELECT count(*) FROM admin_invites WHERE admin_id = ? AND kind = ? AND created_at > now() - interval '1 hour'", Integer.class, adminId, kind);
         if (recent != null && recent >= MAX_PER_HOUR) {
-            throw ApiException.bad("We've sent a few " + (reset ? "links" : "invites") + " to " + a.get("email") + " already. Ask them to check spam, or try again in an hour.");
+            throw ApiException.bad("We've sent a few " + (reset ? "codes" : "invites") + " to " + a.get("email") + " already. Ask them to check spam, or try again in an hour.");
         }
-        byte[] b = new byte[32];
-        RANDOM.nextBytes(b);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(b);
         jdbc.update("UPDATE admin_invites SET used_at = now() WHERE admin_id = ? AND used_at IS NULL AND kind = ?", adminId, kind);
+        String token;
+        String stored;
+        if (reset) {
+            token = String.format("%06d", RANDOM.nextInt(1_000_000));
+            stored = encoder.encode(token);
+        } else {
+            byte[] b = new byte[32];
+            RANDOM.nextBytes(b);
+            token = Base64.getUrlEncoder().withoutPadding().encodeToString(b);
+            stored = hash(token);
+        }
         jdbc.update("INSERT INTO admin_invites (admin_id, token_hash, expires_at, kind) VALUES (?, ?, ?, ?)",
-                adminId, hash(token), Timestamp.from(Instant.now().plus(reset ? RESET_TTL : INVITE_TTL)), kind);
+                adminId, stored, Timestamp.from(Instant.now().plus(reset ? RESET_TTL : INVITE_TTL)), kind);
         return token;
     }
 
@@ -212,17 +232,64 @@ public class AdminInvites {
             throw ApiException.bad("Use at least " + MIN_PASSWORD + " characters for control-panel passwords");
         }
         UUID adminId = (UUID) row.get("admin_id");
-        if (RESET.equals(row.get("kind"))) {
-            // A reset only ever changes the password; it can never switch an account on.
-            jdbc.update("UPDATE platform_admins SET password_hash = ? WHERE id = ? AND blocked_at IS NULL", encoder.encode(password), adminId);
-        } else {
-            jdbc.update("UPDATE platform_admins SET password_hash = ?, active = true, invite_pending = false WHERE id = ? AND blocked_at IS NULL",
-                    encoder.encode(password), adminId);
-        }
+        jdbc.update("UPDATE platform_admins SET password_hash = ?, active = true, invite_pending = false WHERE id = ? AND blocked_at IS NULL",
+                encoder.encode(password), adminId);
         jdbc.update("UPDATE admin_invites SET used_at = now() WHERE admin_id = ? AND used_at IS NULL", adminId);
         versions.bump(adminId, true);
-        audit(adminId, (String) row.get("name"), RESET.equals(row.get("kind")) ? "team.reset_complete" : "team.invite_accept", Map.of("email", row.get("email"), "role", row.get("role")));
+        audit(adminId, (String) row.get("name"), "team.invite_accept", Map.of("email", row.get("email"), "role", row.get("role")));
         return Map.of("ok", true, "email", row.get("email"));
+    }
+
+    /**
+     * Finish a forgotten-password reset with the emailed code. Every failure (unknown email, no code, expired, spent,
+     * wrong, blocked, never accepted) gives the same error, and one bcrypt check always runs so timing matches.
+     * Only the password changes; an account is never switched on from here.
+     */
+    public Map<String, Object> resetWithCode(String rawEmail, String rawCode, String password) {
+        if (password == null || password.length() < MIN_PASSWORD) {
+            throw ApiException.bad("Use at least " + MIN_PASSWORD + " characters for control-panel passwords");
+        }
+        String email = rawEmail == null ? "" : rawEmail.trim().toLowerCase();
+        String code = rawCode == null ? "" : rawCode.trim();
+        Boolean ok = tx.execute(st -> {
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    SELECT i.id, i.token_hash, i.attempts, a.id AS admin_id, a.name, a.email,
+                           (SELECT coalesce(sum(j.attempts), 0) FROM admin_invites j WHERE j.admin_id = a.id AND j.kind = 'reset'
+                              AND j.created_at > now() - interval '24 hours') AS wrong_today
+                    FROM admin_invites i JOIN platform_admins a ON a.id = i.admin_id
+                    WHERE lower(a.email) = ? AND i.kind = 'reset' AND i.used_at IS NULL AND i.expires_at > now()
+                      AND a.blocked_at IS NULL AND a.active = true AND a.invite_pending = false
+                    ORDER BY i.created_at DESC LIMIT 1 FOR UPDATE OF i""", email);
+            if (rows.isEmpty()) {
+                encoder.matches(code, dummyHash);
+                return false;
+            }
+            Map<String, Object> r = rows.get(0);
+            if (((Number) r.get("wrong_today")).intValue() >= MAX_WRONG_PER_DAY) {
+                encoder.matches(code, dummyHash);
+                jdbc.update("UPDATE admin_invites SET used_at = now() WHERE id = ?", r.get("id"));
+                return false;
+            }
+            // Exactly one bcrypt check either way: a malformed code is checked against the dummy hash.
+            boolean formatOk = code.matches("\\d{6}");
+            boolean right = encoder.matches(code, formatOk ? (String) r.get("token_hash") : dummyHash) && formatOk;
+            UUID adminId = (UUID) r.get("admin_id");
+            if (!right) {
+                int attempts = ((Number) r.get("attempts")).intValue() + 1;
+                jdbc.update("UPDATE admin_invites SET attempts = ?, used_at = CASE WHEN ? >= ? THEN now() ELSE used_at END WHERE id = ?",
+                        attempts, attempts, MAX_ATTEMPTS, r.get("id"));
+                return false;
+            }
+            jdbc.update("UPDATE platform_admins SET password_hash = ? WHERE id = ? AND blocked_at IS NULL", encoder.encode(password), adminId);
+            jdbc.update("UPDATE admin_invites SET used_at = now() WHERE admin_id = ? AND used_at IS NULL", adminId);
+            versions.bump(adminId, true);
+            audit(adminId, (String) r.get("name"), "team.reset_complete", Map.of("email", r.get("email")));
+            return true;
+        });
+        if (!Boolean.TRUE.equals(ok)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "RESET_CODE_WRONG", "That code is not right or has expired. Ask for a new code.");
+        }
+        return Map.of("ok", true);
     }
 
     /** Cancel any link still waiting, e.g. when the person is switched off before they accept. */
@@ -239,7 +306,7 @@ public class AdminInvites {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT i.id, i.admin_id, i.used_at, i.expires_at, i.kind, a.name, a.active, a.email, a.role, a.invite_pending, a.blocked_at
                 FROM admin_invites i JOIN platform_admins a ON a.id = i.admin_id
-                WHERE i.token_hash = ?""" + (lock ? " FOR UPDATE OF i" : ""), hash(token));
+                WHERE i.token_hash = ? AND i.kind = 'invite'""" + (lock ? " FOR UPDATE OF i" : ""), hash(token));
         if (rows.isEmpty()) {
             throw unknown;
         }
@@ -248,24 +315,12 @@ public class AdminInvites {
             throw new ApiException(HttpStatus.GONE, "INVITE_BLOCKED",
                     "This invite is no longer valid. Ask the person who added you if you still need access.");
         }
-        // An invite is for someone who has not accepted; a reset is the opposite, so neither works as the other.
-        boolean right = RESET.equals(r.get("kind"))
-                ? !Boolean.TRUE.equals(r.get("invite_pending")) && Boolean.TRUE.equals(r.get("active"))
-                : Boolean.TRUE.equals(r.get("invite_pending"));
-        boolean reset = RESET.equals(r.get("kind"));
-        if (r.get("used_at") != null || !right) {
-            if (reset) {
-                throw new ApiException(HttpStatus.GONE, "INVITE_USED",
-                        "This link has already been used, or a newer one was sent. If you have set a new password, sign in. Otherwise choose Forgot your password? on the sign-in page.");
-            }
+        // Reset rows never reach here (the query takes invites only). An invite is for someone who has not accepted.
+        if (r.get("used_at") != null || !Boolean.TRUE.equals(r.get("invite_pending"))) {
             throw new ApiException(HttpStatus.GONE, "INVITE_USED",
                     "This link has already been used, or a newer one was sent. If you have set your password, sign in. Otherwise ask for a new invite.");
         }
         if (((Timestamp) r.get("expires_at")).toInstant().isBefore(Instant.now())) {
-            if (reset) {
-                throw new ApiException(HttpStatus.GONE, "INVITE_EXPIRED",
-                        "This link has expired. Choose Forgot your password? on the sign-in page to get a new one.");
-            }
             throw new ApiException(HttpStatus.GONE, "INVITE_EXPIRED",
                     "This link has expired. Ask the person who added you to send the invite again.");
         }

@@ -39,10 +39,10 @@ public class AdminInviteController {
         return invites.accept(token, new Body(raw).str("password", ""));
     }
 
-    /** Asking for a reset link: 5 an hour from one address, and the same answer for every email, team member or not. */
+    /** Asking for a reset code: 5 an hour from one address, and the same answer for every email, team member or not. */
     public static final RateLimit ASKS_PER_CLIENT = new RateLimit(5, 3_600_000);
 
-    /** Reset links for one email: 3 an hour from anywhere, so rotating addresses cannot be used to flood one inbox. */
+    /** Reset codes for one email: 3 an hour from anywhere, so rotating addresses cannot be used to flood one inbox. */
     public static final RateLimit ASKS_PER_EMAIL = new RateLimit(3, 3_600_000);
 
     @PostMapping("/api/public/admin-forgot")
@@ -57,6 +57,20 @@ public class AdminInviteController {
             invites.requestResetLater(email);
         }
         return Map.of("ok", true);
+    }
+
+    /** Code tries for one email: 10 an hour from anywhere (each code is also spent after 5 wrong guesses). */
+    public static final RateLimit RESETS_PER_EMAIL = new RateLimit(10, 3_600_000);
+
+    @PostMapping("/api/public/admin-reset")
+    public Map<String, Object> reset(@RequestBody Map<String, Object> raw, HttpServletRequest req) {
+        slow(req);
+        Body b = new Body(raw);
+        String email = b.str("email", "").trim().toLowerCase();
+        if (!RESETS_PER_EMAIL.allow(email.length() > 254 ? email.substring(0, 254) : email)) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many tries. Please wait a while and try again.");
+        }
+        return invites.resetWithCode(email, b.str("code", ""), b.str("password", ""));
     }
 
     private static void slow(HttpServletRequest req) {

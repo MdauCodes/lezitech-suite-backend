@@ -540,7 +540,7 @@ public class AdminController {
         AdminContext.require("read");
         return jdbc.queryForList("""
                 SELECT id, email, name, role, active, last_login_at, created_at, invite_pending, blocked_at,
-                       (SELECT max(i.created_at) FROM admin_invites i WHERE i.admin_id = platform_admins.id) AS invite_sent_at
+                       (SELECT max(i.created_at) FROM admin_invites i WHERE i.admin_id = platform_admins.id AND i.kind = 'invite') AS invite_sent_at
                 FROM platform_admins ORDER BY role, name""")
                 .stream().map(this::clean).toList();
     }
