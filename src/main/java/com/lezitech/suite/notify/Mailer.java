@@ -94,6 +94,11 @@ public class Mailer {
 
     /** Send now. Returns SENT, OFF, NO_EMAIL or FAILED (never throws). */
     public String send(String to, String toName, String subject, String text, String bodyHtml) {
+        return send(to, toName, subject, text, bodyHtml, null);
+    }
+
+    /** As above, with the inbox preview line (keep secrets such as codes out of it). */
+    public String send(String to, String toName, String subject, String text, String bodyHtml, String preheader) {
         if (sender == null) {
             return "OFF";
         }
@@ -101,7 +106,7 @@ public class Mailer {
             return "NO_EMAIL";
         }
         try {
-            sender.send(new EmailSender.Email(to, toName, subject, text, layout(bodyHtml)));
+            sender.send(new EmailSender.Email(to, toName, subject, text, layout(bodyHtml, preheader)));
             return "SENT";
         } catch (RuntimeException e) {
             log.warn("Email '{}' to {} failed: {}", subject, to, e.getMessage());
@@ -138,11 +143,15 @@ public class Mailer {
      * businesses' emails: our mark on top, the message in a white card, our contact details below.
      */
     public String layout(String bodyHtml) {
+        return layout(bodyHtml, null);
+    }
+
+    public String layout(String bodyHtml, String preheader) {
         String mark = "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" align=\"center\"><tr>"
                 + "<td width=\"44\" height=\"44\" align=\"center\" valign=\"middle\" bgcolor=\"#b8f24a\" style=\"width:44px;height:44px;border-radius:12px;"
                 + "background:#b8f24a;color:#101415;font:bold 22px Arial,Helvetica,sans-serif\">B</td></tr></table>";
         return EmailLayout.page(new EmailLayout.Look("Busynez", "#101415", "#f4f2ec", mark,
-                "Busynez by LeziTech" + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)), null), bodyHtml, null);
+                "Busynez by LeziTech" + (support.isBlank() ? "" : " · WhatsApp or call " + esc(support)), null), bodyHtml, preheader);
     }
 
     /**

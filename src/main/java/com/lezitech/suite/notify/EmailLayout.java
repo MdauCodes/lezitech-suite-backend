@@ -16,7 +16,8 @@ public final class EmailLayout {
 
     public static String page(Look l, String bodyHtml, String preheader) {
         return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                + "<meta name=\"x-apple-disable-message-reformatting\"><title>" + Mailer.esc(l.name()) + "</title></head>"
+                + "<meta name=\"x-apple-disable-message-reformatting\">"
+                + "<meta name=\"color-scheme\" content=\"light\"><meta name=\"supported-color-schemes\" content=\"light\"><title>" + Mailer.esc(l.name()) + "</title></head>"
                 + "<body style=\"margin:0;padding:0;background:" + l.page() + "\">"
                 // Shown as the preview line in the inbox, hidden in the email itself.
                 + (preheader == null ? "" : "<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;color:" + l.page() + "\">" + Mailer.esc(preheader) + "</div>")
@@ -50,6 +51,25 @@ public final class EmailLayout {
                     .append("</td><td style=\"padding:9px 14px;font:bold 14px Arial,Helvetica,sans-serif;color:#1d1d1b\">").append(Mailer.esc(r[1])).append("</td></tr>");
         }
         return s.append("</table>").toString();
+    }
+
+    /** One email ready to send: subject, plain text, the HTML for inside the card, and the inbox preview line (no secrets in it). */
+    public record Msg(String subject, String text, String html, String preheader) {
+    }
+
+    /** A one-time code in a centred box. The digits sit together so a tap or double-click copies the whole number. */
+    public static String code(String code, String note) {
+        return "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:18px 0\"><tr>"
+                + "<td align=\"center\" bgcolor=\"#f3f8e6\" style=\"background:#f3f8e6;border:1px solid #d9e8b8;border-radius:14px;padding:18px\">"
+                + "<div style=\"font:bold 34px Consolas,Menlo,'Courier New',monospace;letter-spacing:10px;color:#101415\">" + Mailer.esc(code) + "</div>"
+                + (note == null || note.isBlank() ? "" : "<div style=\"font:13px Arial,Helvetica,sans-serif;color:#5d6359;margin-top:8px\">" + Mailer.esc(note) + "</div>")
+                + "</td></tr></table>";
+    }
+
+    /** A small quiet note, e.g. "never share this code". */
+    public static String safety(String html) {
+        return "<div style=\"font:13px/1.5 Arial,Helvetica,sans-serif;color:#5d6359;background:#f7f6f2;border-left:3px solid #c9c4b6;padding:10px 14px;"
+                + "border-radius:8px;margin:18px 0 0\">" + html + "</div>";
     }
 
     public static String p(String html) {

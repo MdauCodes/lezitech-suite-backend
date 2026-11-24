@@ -1,6 +1,7 @@
 package com.lezitech.suite.auth;
 
 import com.lezitech.suite.common.ApiException;
+import com.lezitech.suite.notify.EmailLayout;
 import com.lezitech.suite.notify.Mailer;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,14 +72,24 @@ public class LoginCodes {
             return;
         }
         String code = issue(user, "RESET", RESET_TTL);
-        String name = first((String) rows.get(0).get("name"));
+        EmailLayout.Msg m = resetEmail(first((String) rows.get(0).get("name")), code, forPin);
+        mailer.send(email, (String) rows.get(0).get("name"), m.subject(), m.text(), m.html(), m.preheader());
+    }
+
+    private static final String SAFETY = "Busynez will never phone, text or WhatsApp you to ask for this code. Don't share it with anyone.";
+
+    /** The reset-code email (password or till PIN). The subject starts with the code on purpose; the inbox preview line has none. */
+    public static EmailLayout.Msg resetEmail(String name, String code, boolean forPin) {
         String what = forPin ? "till PIN" : "password";
-        mailer.send(email, (String) rows.get(0).get("name"), code + " is your Busynez code",
-                "Hi " + name + ",\n\nYour code to set a new Busynez " + what + " is " + code + ".\nIt works for 15 minutes.\n\n"
-                        + "If you didn't ask for this, ignore this email; your " + what + " stays the same.\n\nLeziTech",
-                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to set a new Busynez " + what + " is:</p>"
-                        + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
-                        + "<p>It works for 15 minutes. If you didn't ask for this, ignore this email; your " + what + " stays the same.</p>");
+        String text = "Hi " + name + ",\n\nYour code to set a new Busynez " + what + " is " + code + ".\nWorks once, for 15 minutes.\n\n"
+                + "Didn't ask for this? Ignore this email. Your " + what + " stays the same.\n\n" + SAFETY + "\n\nBusynez";
+        String html = EmailLayout.h(forPin ? "Your till PIN code" : "Your password code", "#101415")
+                + EmailLayout.p("Hi " + Mailer.esc(name) + ",")
+                + EmailLayout.p("Use this code to set a new Busynez " + what + ".")
+                + EmailLayout.code(code, "Works once, for 15 minutes")
+                + EmailLayout.p("Didn't ask for this? Ignore this email. Your " + what + " stays the same.")
+                + EmailLayout.safety(SAFETY);
+        return new EmailLayout.Msg(code + " is your Busynez code", text, html, "Use it to set a new " + what + ". It works for 15 minutes.");
     }
 
     /**
@@ -92,20 +103,31 @@ public class LoginCodes {
             throw ApiException.bad("We've sent a few codes to " + email + " already. Ask them to check spam, or try again in an hour.");
         }
         String code = issue(user, "WELCOME", WELCOME_TTL);
-        String name = first(fullName);
+        EmailLayout.Msg m = inviteEmail(first(fullName), code, email, business, slug, job, byName, appUrl);
+        return mailer.send(email, fullName, m.subject(), m.text(), m.html(), m.preheader());
+    }
+
+    /** The staff-joining email. The subject starts with the code on purpose; the inbox preview line has none. */
+    public static EmailLayout.Msg inviteEmail(String name, String code, String email, String business, String slug, String job, String byName, String appUrl) {
         String setPassword = appUrl + "/reset?email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8) + "&w=" + slug;
         String signIn = appUrl + "/w/" + slug;
         String role = job == null || job.isBlank() ? "" : " as " + job;
         String text = "Hi " + name + ",\n\n" + byName + " added you to " + business + " on Busynez" + role + ".\n\n"
                 + "1. Open " + setPassword + "\n2. Enter the code " + code + " (it works for 3 days) and choose your password.\n"
-                + "3. After that, sign in any time at " + signIn + " with " + email + ".\n\n" + business;
-        String html = "<p>Hi " + Mailer.esc(name) + ",</p><p>" + Mailer.esc(byName) + " added you to <b>" + Mailer.esc(business) + "</b> on Busynez"
-                + Mailer.esc(role) + ".</p><p>Your code to set your password:</p>"
-                + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
-                + "<p><a href=\"" + setPassword + "\" style=\"display:inline-block;background:#101415;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none\">Set my password</a></p>"
-                + "<p>The code works for 3 days. After that, sign in any time at <a href=\"" + signIn + "\">" + Mailer.esc(signIn) + "</a> with "
-                + Mailer.esc(email) + ".</p><p>" + Mailer.esc(business) + "</p>";
-        return mailer.send(email, fullName, code + " is your code to join " + business + " on Busynez", text, html);
+                + "3. After that, sign in any time at " + signIn + " with " + email + ".\n\n"
+                + "Weren't expecting this? Ignore this email and nothing happens.\n\n" + SAFETY + "\n\n" + business;
+        String html = EmailLayout.h("You've been added to " + business, "#101415")
+                + EmailLayout.p("Hi " + Mailer.esc(name) + ",")
+                + EmailLayout.p(Mailer.esc(byName) + " added you to <b>" + Mailer.esc(business) + "</b> on Busynez" + Mailer.esc(role)
+                + ". Use this code to choose your password.")
+                + EmailLayout.code(code, "Works for 3 days")
+                + EmailLayout.button("Set my password", setPassword, "#101415")
+                + EmailLayout.p("After that, sign in any time at <a href=\"" + Mailer.esc(signIn) + "\" style=\"color:#101415\">" + Mailer.esc(signIn) + "</a> with "
+                + Mailer.esc(email) + ".")
+                + EmailLayout.p("Weren't expecting this? Ignore this email and nothing happens.")
+                + EmailLayout.safety(SAFETY);
+        return new EmailLayout.Msg(code + " is your code to join " + business + " on Busynez", text, html,
+                byName + " added you to " + business + ". Choose your password to get started.");
     }
 
     /** "Confirm your email" from Home: a code to the address on the account. At most 4 an hour. */
@@ -116,13 +138,22 @@ public class LoginCodes {
             throw ApiException.bad("We've sent a few codes already. Check spam, or try again in an hour.");
         }
         String code = issue(user, "CONFIRM", RESET_TTL);
-        String name = first(fullName);
-        mailer.send(email, fullName, code + " confirms your Busynez email",
-                "Hi " + name + ",\n\nYour code to confirm this email for Busynez is " + code + ".\nIt works for 15 minutes.\n\n"
-                        + "Confirming means you can always get back into your account.\n\nLeziTech",
-                "<p>Hi " + Mailer.esc(name) + ",</p><p>Your code to confirm this email for Busynez is:</p>"
-                        + "<p style=\"font-size:28px;font-weight:bold;letter-spacing:6px;margin:8px 0\">" + code + "</p>"
-                        + "<p>It works for 15 minutes. Confirming means you can always get back into your account.</p>");
+        EmailLayout.Msg m = confirmEmail(first(fullName), code);
+        mailer.send(email, fullName, m.subject(), m.text(), m.html(), m.preheader());
+    }
+
+    /** The "confirm your email" email. The subject starts with the code on purpose; the inbox preview line has none. */
+    public static EmailLayout.Msg confirmEmail(String name, String code) {
+        String text = "Hi " + name + ",\n\nYour code to confirm this email for Busynez is " + code + ".\nWorks once, for 15 minutes.\n\n"
+                + "Confirming means you can always get back into your account.\n\n"
+                + "Didn't ask for this? Ignore this email and nothing changes.\n\n" + SAFETY + "\n\nBusynez";
+        String html = EmailLayout.h("Confirm your email", "#101415")
+                + EmailLayout.p("Hi " + Mailer.esc(name) + ",")
+                + EmailLayout.p("Use this code to confirm this email for Busynez. Then you can always get back into your account.")
+                + EmailLayout.code(code, "Works once, for 15 minutes")
+                + EmailLayout.p("Didn't ask for this? Ignore this email and nothing changes.")
+                + EmailLayout.safety(SAFETY);
+        return new EmailLayout.Msg(code + " confirms your Busynez email", text, html, "Use it to confirm this email. It works for 15 minutes.");
     }
 
     /** Check the code for this email and use it up. Returns the user id; a wrong code counts as a try. */

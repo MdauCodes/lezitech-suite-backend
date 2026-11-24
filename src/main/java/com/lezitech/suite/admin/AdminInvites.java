@@ -169,27 +169,41 @@ public class AdminInvites {
         String name = first((String) a.get("name"));
         if (reset) {
             // "token" is the 6-digit code here. It is emailed, never stored in plain form.
-            String text = "Hi " + name + ",\n\nSomeone asked to reset your LeziTech control panel password. Your code is:\n\n"
-                    + token + "\n\nType it on the reset page along with your new password. The code works once and for 15 minutes. "
-                    + "This email never asks you to click a link.\n"
-                    + "If it was not you, ignore this email and nothing changes.\n\nLeziTech";
-            String html = EmailLayout.p("Hi " + Mailer.esc(name) + ",")
-                    + EmailLayout.p("Someone asked to reset your LeziTech control panel password. Your code is:")
-                    + "<p style=\"margin:16px 0;font-size:34px;font-weight:700;letter-spacing:8px;font-family:Consolas,Menlo,monospace;color:#101415;\">" + token + "</p>"
-                    + EmailLayout.p("Type it on the reset page along with your new password. The code works once and for 15 minutes. This email never asks you to click a link.")
-                    + EmailLayout.p("If it was not you, ignore this email and nothing changes.");
-            return mailer.send((String) a.get("email"), (String) a.get("name"), "Your LeziTech control panel code", text, html);
+            EmailLayout.Msg m = resetEmail(name, token);
+            return mailer.send((String) a.get("email"), (String) a.get("name"), m.subject(), m.text(), m.html(), m.preheader());
         }
-        String link = mailer.appUrl() + "/admin/invite/" + token;
-        String text = "Hi " + name + ",\n\nYou have been added to the LeziTech control panel. Open this link to choose your own password:\n\n"
+        EmailLayout.Msg m = inviteEmail(name, mailer.appUrl() + "/admin/invite/" + token);
+        return mailer.send((String) a.get("email"), (String) a.get("name"), m.subject(), m.text(), m.html(), m.preheader());
+    }
+
+    /** The reset-code email. No code in the subject or the inbox preview line. */
+    public static EmailLayout.Msg resetEmail(String name, String code) {
+        String text = "Hi " + name + ",\n\nSomeone asked to reset your Busynez control panel password. Your code is:\n\n"
+                + code + "\n\nWorks once, for 15 minutes. Type it on the reset page along with your new password. "
+                + "This email never asks you to click a link.\n\n"
+                + "Didn't ask for this? Ignore this email. Your password stays the same.\n\n"
+                + "Busynez will never phone, text or WhatsApp you to ask for this code. Don't share it with anyone.\n\nBusynez";
+        String html = EmailLayout.h("Your control panel code", "#101415")
+                + EmailLayout.p("Hi " + Mailer.esc(name) + ",")
+                + EmailLayout.p("Someone asked to reset your Busynez control panel password. Type this code on the reset page, with your new password.")
+                + EmailLayout.code(code, "Works once, for 15 minutes")
+                + EmailLayout.p("Didn't ask for this? Ignore this email. Your password stays the same.")
+                + EmailLayout.safety("Busynez will never phone, text or WhatsApp you to ask for this code. Don't share it with anyone.");
+        return new EmailLayout.Msg("Your Busynez control panel code", text, html, "Use it on the reset page. It works once, for 15 minutes.");
+    }
+
+    /** The "choose your password" invite email for a new colleague. */
+    public static EmailLayout.Msg inviteEmail(String name, String link) {
+        String text = "Hi " + name + ",\n\nYou have been added to the Busynez control panel team. Open this link to choose your own password:\n\n"
                 + link + "\n\nThe link works once and for 3 days. Nobody else will ever know your password.\n"
-                + "If you were not expecting this, ignore this email and nothing happens.\n\nLeziTech";
-        String html = EmailLayout.p("Hi " + Mailer.esc(name) + ",")
-                + EmailLayout.p("You have been added to the LeziTech control panel. Choose your own password to get in.")
+                + "Weren't expecting this? Ignore this email and nothing happens.\n\nBusynez";
+        String html = EmailLayout.h("You're on the Busynez control panel team", "#101415")
+                + EmailLayout.p("Hi " + Mailer.esc(name) + ",")
+                + EmailLayout.p("You have been added to the Busynez control panel. Choose your own password to get in.")
                 + EmailLayout.button("Choose my password", link, "#101415")
-                + EmailLayout.p("The link works once and for 3 days. Nobody else will ever know your password. "
-                + "If you were not expecting this, ignore this email and nothing happens.");
-        return mailer.send((String) a.get("email"), (String) a.get("name"), "Choose your LeziTech control panel password", text, html);
+                + EmailLayout.p("The link works once and for 3 days. Nobody else will ever know your password.")
+                + EmailLayout.p("Weren't expecting this? Ignore this email and nothing happens.");
+        return new EmailLayout.Msg("Choose your Busynez control panel password", text, html, "Choose your own password to get in. The link works for 3 days.");
     }
 
     /** Inside one transaction (joins send()'s own): checks the hourly limit for this kind, cancels old links, stores the new one. */
