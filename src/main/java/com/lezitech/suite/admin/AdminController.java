@@ -310,12 +310,14 @@ public class AdminController {
         AdminContext.require("read");
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT id, slug, name, sector, sub_sector, products, status, plan, trial_ends_at, paid_until, created_at, last_active_at,
-                       phone, brand_color, logo_url, currency, is_demo, admin_note, display_key, in_setup, handed_over_at, settings::text AS settings FROM tenants WHERE id = ?""", id);
+                       phone, brand_color, logo_url, currency, is_demo, admin_note, display_key, in_setup, handed_over_at, settings::text AS settings,
+                       signup_source::text AS signup_source FROM tenants WHERE id = ?""", id);
         if (rows.isEmpty()) {
             throw ApiException.notFound("Workspace");
         }
         Map<String, Object> t = clean(rows.get(0));
         t.put("settings", json.readTree((String) rows.get(0).get("settings")));
+        t.put("signupSource", rows.get(0).get("signup_source") == null ? null : json.readTree((String) rows.get(0).get("signup_source")));
         t.put("products", List.of((Object[]) ((java.sql.Array) rows.get(0).get("products")).getArray()));
         t.put("users", jdbc.queryForList("""
                 SELECT id, name, email, role, job_title, active, last_login_at, created_at FROM users WHERE tenant_id = ? ORDER BY role = 'OWNER' DESC, name""", id)

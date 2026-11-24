@@ -79,6 +79,8 @@ public class AuthController {
         ObjectNode acq = com.lezitech.suite.growth.Acquisition.clean(json, raw.get("acquisition"));
         if (acq != null) {
             jdbc.update("UPDATE tenants SET acquisition = cast(? as jsonb) WHERE id = ?", acq.toString(), tenantId);
+            ObjectNode first = com.lezitech.suite.traffic.SignupSource.of(json, acq);
+            jdbc.update("UPDATE tenants SET signup_source = cast(? as jsonb) WHERE id = ?", first.toString(), tenantId);
         }
         Object ref = raw.get("referralCode") != null ? raw.get("referralCode") : acq == null ? null : acq.path("ref").asText(null);
         referrals.link(tenantId, ref == null ? null : ref.toString());
