@@ -136,4 +136,29 @@ class CarcassTest extends IntegrationTest {
         assertThat(post("/recipes/waste", owner, Map.of("itemId", steak, "qty", 0.5, "reason", "")).status()).isEqualTo(400);
         assertThat(get("/activity", owner).body().toString()).contains("Waste: 0.5 kg Steak");
     }
+
+    @Test
+    void wasteWeightIsLimitedToThreeDecimals() {
+        setUp();
+        String steak = item(owner, "Steak").get("id").asText();
+        Res r = post("/recipes/waste", owner, Map.of("itemId", steak, "qty", 0.1234, "reason", "TRIM"));
+        assertThat(r.status()).isEqualTo(400);
+        assertThat(r.body().toString()).contains("3 decimals");
+    }
+
+    @Test
+    void otherKindsOfBusinessHaveNoCarcassesAndTheirByWeightWasteIsNotAlwaysLogged() {
+        String email = "grill-" + UUID.randomUUID().toString().substring(0, 8) + "@test.local";
+        Res r = post("/auth/signup", null, Map.of("businessName", "Grill " + email.substring(6, 10), "sector", "restaurant", "subSector", "grill",
+                "name", "Owner", "email", email, "password", "password123", "withSamples", true));
+        String grill = token(r.body());
+        Res off = get("/carcasses", grill);
+        assertThat(off.status()).isEqualTo(403);
+        assertThat(off.body().toString()).contains("switched off");
+        assertThat(post("/carcasses", grill, Map.of("kind", "goat", "weightKg", 20, "cost", 10000)).status()).isEqualTo(403);
+        // Small by-weight waste outside a butchery behaves as before: no Activity log line.
+        String goat = item(grill, "Goat choma").get("id").asText();
+        assertThat(post("/recipes/waste", grill, Map.of("itemId", goat, "qty", 0.2, "reason", "BURNT")).status()).isEqualTo(200);
+        assertThat(get("/activity", grill).body().toString()).doesNotContain("Waste: 0.2 kg");
+    }
 }

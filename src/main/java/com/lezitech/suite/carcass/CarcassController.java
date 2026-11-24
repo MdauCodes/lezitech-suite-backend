@@ -44,8 +44,10 @@ public class CarcassController {
     private final Db db;
     private final StockService stock;
     private final ActivityLog activity;
+    private final CarcassFeature feature;
 
-    public CarcassController(Db db, StockService stock, ActivityLog activity) {
+    public CarcassController(Db db, StockService stock, ActivityLog activity, CarcassFeature feature) {
+        this.feature = feature;
         this.db = db;
         this.stock = stock;
         this.activity = activity;
@@ -71,6 +73,7 @@ public class CarcassController {
     /** Receive a carcass: {kind, supplier, weightKg, cost, date, note}. */
     @PostMapping
     public Map<String, Object> receive(@RequestBody Map<String, Object> raw) {
+        feature.require();
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Body b = new Body(raw);
         String kind = b.str("kind", "").trim();
@@ -102,6 +105,7 @@ public class CarcassController {
     /** Cut it up: {cuts: [{itemId, kg}], wasteKg}. Once only: stock goes up by each cut's kilos and cost is spread by weight. */
     @PostMapping("/{id}/cut")
     public Map<String, Object> cut(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        feature.require();
         TenantContext.requireRole("MANAGER", "STOREKEEPER");
         Map<String, Object> c = db.one("Carcass", "SELECT * FROM carcasses WHERE id = :id FOR UPDATE", "id", id);
         if (!"RECEIVED".equals(c.get("status"))) {
@@ -155,8 +159,9 @@ public class CarcassController {
             BigDecimal share = n == kgBy.size() ? left : cost.multiply(q).divide(cutTotal, 2, RoundingMode.HALF_UP).min(left);
             left = left.subtract(share);
             // Weighted average with what is already on the shelf (a negative count counts as nothing).
+            // Lock the item first so two carcasses cut at once can not both average from the same old cost.
+            BigDecimal oldCost = db.value("SELECT coalesce(cost, 0) FROM items WHERE id = :i FOR UPDATE", BigDecimal.class, "i", e.getKey());
             BigDecimal onHand = db.value("SELECT coalesce(sum(qty), 0) FROM stock_levels WHERE item_id = :i", BigDecimal.class, "i", e.getKey()).max(BigDecimal.ZERO);
-            BigDecimal oldCost = db.value("SELECT coalesce(cost, 0) FROM items WHERE id = :i", BigDecimal.class, "i", e.getKey());
             BigDecimal avg = onHand.multiply(oldCost).add(share).divide(onHand.add(q), 2, RoundingMode.HALF_UP);
             db.exec("INSERT INTO carcass_cuts (tenant_id, carcass_id, item_id, kg, cost_share) VALUES (:t, :c, :i, :kg, :share)",
                     "c", id, "i", e.getKey(), "kg", q, "share", share);
@@ -173,13 +178,15 @@ public class CarcassController {
 
     @GetMapping("/{id}")
     public Map<String, Object> get(@PathVariable UUID id) {
+        feature.require();
         TenantContext.requireRole("MANAGER", "STOREKEEPER", "ACCOUNTANT");
         return one(id);
     }
 
-    /** Every carcass, newest first, and this week's summary. */
+    /** The last 90 days of carcasses, newest first, and this week's summary. */
     @GetMapping
     public Map<String, Object> list() {
+        feature.require();
         TenantContext.requireRole("MANAGER", "STOREKEEPER", "ACCOUNTANT");
         List<Map<String, Object>> all = build(null);
         LocalDate from = LocalDate.now(NAIROBI).minusDays(6);
@@ -235,14 +242,16 @@ public class CarcassController {
         List<Map<String, Object>> cuts = db.list("""
                 SELECT k.carcass_id, k.item_id, k.kg, k.cost_share, i.name
                 FROM carcass_cuts k JOIN carcasses c ON c.id = k.carcass_id JOIN items i ON i.id = k.item_id
-                ORDER BY c.cut_at, c.created_at, i.name""");
+                WHERE c.received_on >= current_date - 90 OR c.id = cast(:one as uuid)
+                ORDER BY c.cut_at, c.created_at, i.name""", "one", only);
         Map<UUID, Map<String, BigDecimal>> sales = new HashMap<>();
         for (Map<String, Object> s : db.list("""
                 SELECT l.item_id, sum(l.qty) AS kg, sum(l.line_total) AS money
                 FROM order_lines l JOIN orders o ON o.id = l.order_id
                 WHERE o.status IN ('PAID','CREDIT') AND o.kind <> 'QUOTE' AND l.item_id IN (SELECT item_id FROM carcass_cuts)
-                  AND o.created_at >= (SELECT min(c.cut_at) FROM carcass_cuts k JOIN carcasses c ON c.id = k.carcass_id WHERE k.item_id = l.item_id)
-                GROUP BY l.item_id""")) {
+                  AND o.created_at >= (SELECT min(c.cut_at) FROM carcass_cuts k JOIN carcasses c ON c.id = k.carcass_id
+                                       WHERE k.item_id = l.item_id AND (c.received_on >= current_date - 90 OR c.id = cast(:one as uuid)))
+                GROUP BY l.item_id""", "one", only)) {
             sales.put(UUID.fromString(s.get("itemId").toString()), new HashMap<>(Map.of("kg", (BigDecimal) s.get("kg"), "money", (BigDecimal) s.get("money"))));
         }
         Map<UUID, List<Map<String, Object>>> byCarcass = new HashMap<>();
@@ -272,7 +281,7 @@ public class CarcassController {
         }
         List<Map<String, Object>> out = new ArrayList<>();
         List<Map<String, Object>> rows = only == null
-                ? db.list("SELECT c.*, u.name AS by_name FROM carcasses c LEFT JOIN users u ON u.id = c.user_id ORDER BY c.received_on DESC, c.created_at DESC LIMIT 200")
+                ? db.list("SELECT c.*, u.name AS by_name FROM carcasses c LEFT JOIN users u ON u.id = c.user_id WHERE c.received_on >= current_date - 90 ORDER BY c.received_on DESC, c.created_at DESC LIMIT 200")
                 : db.list("SELECT c.*, u.name AS by_name FROM carcasses c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = :id", "id", only);
         for (Map<String, Object> c : rows) {
             Map<String, Object> m = new LinkedHashMap<>(c);

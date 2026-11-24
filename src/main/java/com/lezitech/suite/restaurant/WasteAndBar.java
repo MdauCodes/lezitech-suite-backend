@@ -38,8 +38,10 @@ public class WasteAndBar {
     private final Recipes recipes;
     private final StockService stock;
     private final ActivityLog activity;
+    private final com.lezitech.suite.carcass.CarcassFeature carcassFeature;
 
-    public WasteAndBar(Db db, JdbcTemplate jdbc, Recipes recipes, StockService stock, ActivityLog activity) {
+    public WasteAndBar(Db db, JdbcTemplate jdbc, Recipes recipes, StockService stock, ActivityLog activity, com.lezitech.suite.carcass.CarcassFeature carcassFeature) {
+        this.carcassFeature = carcassFeature;
         this.db = db;
         this.jdbc = jdbc;
         this.recipes = recipes;
@@ -77,6 +79,9 @@ public class WasteAndBar {
         if (qty == null || qty.signum() <= 0) {
             throw ApiException.bad("Say how much was wasted");
         }
+        if (qty.stripTrailingZeros().scale() > 3) {
+            throw ApiException.bad("Weigh the waste to 3 decimals at most, for example 0.750 kg");
+        }
         String reason = b.str("reason", "").toUpperCase();
         if (!REASONS.contains(reason)) {
             throw ApiException.bad("Choose why it was wasted");
@@ -112,8 +117,8 @@ public class WasteAndBar {
                 INSERT INTO waste_entries (tenant_id, item_id, qty, reason, note, value, user_id)
                 VALUES (:t, :item, :qty, :reason, :note, :value, :u) RETURNING id""",
                 "item", itemId, "qty", qty, "reason", reason, "note", note, "value", value);
-        // Meat sold by the kg always goes to the Activity log, whatever it is worth.
-        if (value.compareTo(BIG_WASTE) > 0 || Boolean.TRUE.equals(item.get("soldByWeight"))) {
+        // In a butchery, meat sold by the kg always goes to the Activity log, whatever it is worth.
+        if (value.compareTo(BIG_WASTE) > 0 || (Boolean.TRUE.equals(item.get("soldByWeight")) && carcassFeature.enabled())) {
             activity.record("WASTE", ActivityLog.CONCERN, "Waste: " + qty.stripTrailingZeros().toPlainString() + " " + item.get("unit") + " "
                     + item.get("name") + " (" + reason.toLowerCase().replace('_', ' ') + "), worth " + value.toPlainString() + " at cost",
                     null, itemId, value, null, Map.of("note", note == null ? "" : note));
