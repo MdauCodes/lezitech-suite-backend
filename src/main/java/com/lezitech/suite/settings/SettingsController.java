@@ -164,7 +164,9 @@ public class SettingsController {
         var t = jdbc.queryForMap("SELECT sector, sub_sector FROM tenants WHERE id = ?", TenantContext.tenantId());
         var pack = sectors.get((String) t.get("sector"), (String) t.get("sub_sector"));
         var patch = json.createObjectNode();
-        patch.set("modules", pack.get("modules"));
+        var modules = pack.get("modules").deepCopy();
+        SectorCatalog.fitModulesToFeatures((com.fasterxml.jackson.databind.node.ArrayNode) modules, pack.get("features"));
+        patch.set("modules", modules);
         patch.set("features", pack.get("features"));
         jdbc.update("UPDATE tenants SET settings = settings || cast(? as jsonb) WHERE id = ?", patch.toString(), TenantContext.tenantId());
         return Map.of("ok", true);

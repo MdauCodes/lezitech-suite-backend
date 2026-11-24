@@ -187,4 +187,21 @@ public class SectorCatalog {
         }
         return out;
     }
+
+    /**
+     * Keeps a business's screens in step with its switches: no tables means no table plan or table bookings, no kitchen
+     * flag means no kitchen screen, no appointments flag means no bookings diary. Used at sign-up and when the sector
+     * pack is re-applied, so a fast-food place never gets "No tables yet".
+     */
+    public static void fitModulesToFeatures(com.fasterxml.jackson.databind.node.ArrayNode modules, JsonNode features) {
+        for (int i = modules.size() - 1; i >= 0; i--) {
+            String m = modules.get(i).asText();
+            boolean drop = ("floor".equals(m) && !features.path("tables").asBoolean(false))
+                    || ("kitchen".equals(m) && !features.path("kitchen").asBoolean(false))
+                    || ("bookings".equals(m) && !features.path("appointments").asBoolean(false));
+            if (drop) {
+                modules.remove(i);
+            }
+        }
+    }
 }

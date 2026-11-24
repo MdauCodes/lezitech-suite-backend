@@ -158,6 +158,8 @@ public class AuthController {
                 extra.path("features").fields().forEachRemaining(f -> features.set(f.getKey(), f.getValue()));
             }
         }
+        // The sub-sector's own switches decide the screens: no tables, no kitchen or no appointments take those out.
+        SectorCatalog.fitModulesToFeatures(modules, features);
         // Screens the owner left unticked at sign-up ("what you'll use"). The basics every business needs stay on:
         // the till, products with stock counts, sales, customers, reports, staff and settings.
         if (raw.get("modulesOff") instanceof List<?> off && !off.isEmpty()) {
