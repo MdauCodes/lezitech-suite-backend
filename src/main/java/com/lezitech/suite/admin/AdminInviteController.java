@@ -39,6 +39,26 @@ public class AdminInviteController {
         return invites.accept(token, new Body(raw).str("password", ""));
     }
 
+    /** Asking for a reset link: 5 an hour from one address, and the same answer for every email, team member or not. */
+    public static final RateLimit ASKS_PER_CLIENT = new RateLimit(5, 3_600_000);
+
+    /** Reset links for one email: 3 an hour from anywhere, so rotating addresses cannot be used to flood one inbox. */
+    public static final RateLimit ASKS_PER_EMAIL = new RateLimit(3, 3_600_000);
+
+    @PostMapping("/api/public/admin-forgot")
+    public Map<String, Object> forgot(@RequestBody Map<String, Object> raw, HttpServletRequest req) {
+        if (!ASKS_PER_CLIENT.allow(ClientIp.of(req))) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many tries. Please wait a while and try again.");
+        }
+        String email = new Body(raw).str("email", "").trim().toLowerCase();
+        // Per email, counted before anything looks the person up. Over the limit it is quietly skipped with the same
+        // answer, so nobody can tell a team address from any other and nobody can lock a colleague out of asking.
+        if (ASKS_PER_EMAIL.allow(email.length() > 254 ? email.substring(0, 254) : email)) {
+            invites.requestResetLater(email);
+        }
+        return Map.of("ok", true);
+    }
+
     private static void slow(HttpServletRequest req) {
         if (!PER_CLIENT.allow(ClientIp.of(req))) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "SLOW_DOWN", "Too many tries. Please wait a while and open the link again.");
