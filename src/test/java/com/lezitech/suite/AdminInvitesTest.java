@@ -252,4 +252,280 @@ class AdminInvitesTest extends IntegrationTest {
         assertThat(post("/admin/team", support, Map.of("name", "X Y", "email", newEmail(), "role", "SUPPORT")).status()).isEqualTo(403);
         assertThat(post("/admin/team", superadmin(), Map.of("name", "X Y", "email", newEmail(), "role", "KING")).status()).isEqualTo(400);
     }
+
+    // ---- Forgotten password: reuses the invite link, one hour, same answer for everyone ----
+
+    /** A colleague who has accepted their invite and can sign in with the password given. */
+    String activeColleague(String boss, String email, String password) {
+        add(boss, email);
+        assertThat(post("/public/admin-invite/" + tokenIn(inviteTo(email)), null, Map.of("password", password)).status()).isEqualTo(200);
+        return email;
+    }
+
+    EmailSender.Email resetMailTo(String email) {
+        return outbox.sent.stream().filter(m -> m.to().equals(email) && m.subject().contains("Reset")).reduce((a, b) -> b).orElse(null);
+    }
+
+    /**
+     * Reset asks are worked off in the background now, so a test cannot read the outbox the instant it has asked.
+     * This polls for the condition every 20 ms and fails after 3 seconds; it never sleeps a fixed time.
+     */
+    static void waitFor(String what, java.util.function.BooleanSupplier done) {
+        long end = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+        while (!done.getAsBoolean()) {
+            if (System.nanoTime() > end) {
+                throw new AssertionError("Gave up waiting for: " + what);
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    /** The reset email for this address, waiting for the background work to deliver it. */
+    EmailSender.Email awaitResetMail(String email) {
+        waitFor("a reset email to " + email, () -> resetMailTo(email) != null);
+        return resetMailTo(email);
+    }
+
+    /** Waits until the background work has finished answering this many asks for the address (it audits every one that finds a person). */
+    void awaitAsks(String email, int count) {
+        waitFor(count + " reset asks handled for " + email, () -> jdbc.queryForObject(
+                "SELECT count(*) FROM platform_audit WHERE action = 'team.reset_request' AND detail->>'email' = ?", Integer.class, email) >= count);
+    }
+
+    int count(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Integer.class, args);
+    }
+
+    @Test
+    void anUnknownEmailGetsExactlyTheSameAnswerAsARealTeammate() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        // Make the real path as slow as a real mail provider, so a leak by timing would be wide open if it existed.
+        mailer.useSender(new EmailSender() {
+            @Override
+            public void send(Email e) {
+                try {
+                    Thread.sleep(400);
+                } catch (InterruptedException x) {
+                    Thread.currentThread().interrupt();
+                }
+                outbox.send(e);
+            }
+
+            @Override
+            public String name() {
+                return "slow";
+            }
+        });
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        String stranger1 = "nobody-" + UUID.randomUUID() + "@example.com";
+        post("/public/admin-forgot", null, Map.of("email", stranger1)); // warm-up, not measured
+
+        long t0 = System.nanoTime();
+        Res real = post("/public/admin-forgot", null, Map.of("email", email));
+        long realMs = (System.nanoTime() - t0) / 1_000_000;
+        t0 = System.nanoTime();
+        Res stranger = post("/public/admin-forgot", null, Map.of("email", "nobody-" + UUID.randomUUID() + "@example.com"));
+        long strangerMs = (System.nanoTime() - t0) / 1_000_000;
+
+        assertThat(stranger.status()).isEqualTo(real.status()).isEqualTo(200);
+        assertThat(stranger.body().toString()).isEqualTo(real.body().toString());
+        // Same cost for everyone: a real teammate (400 ms mail send behind it) answers within a small margin of a stranger.
+        assertThat(realMs).as("real %d ms vs unknown %d ms", realMs, strangerMs).isLessThan(strangerMs + 150).isLessThan(300);
+        assertThat(awaitResetMail(email)).isNotNull();
+        assertThat(outbox.sent.stream().filter(m -> m.to().startsWith("nobody-")).count()).isZero();
+    }
+
+    @Test
+    void theResetLinkWorksOnceThenIsRefusedAndTheOldPasswordStopsWorking() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        String token = tokenIn(awaitResetMail(email));
+
+        assertThat(get("/public/admin-invite/" + token, null).body().get("kind").asText()).isEqualTo("reset");
+        Res ok = post("/public/admin-invite/" + token, null, Map.of("password", "a-brand-new-password-9"));
+        assertThat(ok.status()).as(ok.body().toString()).isEqualTo(200);
+        assertThat(canSignInWith(email, "chosen-by-josiah-1")).isFalse();
+        assertThat(canSignInWith(email, "a-brand-new-password-9")).isTrue();
+
+        Res again = post("/public/admin-invite/" + token, null, Map.of("password", "someone-else-entirely-2"));
+        assertThat(again.status()).isEqualTo(410);
+        assertThat(canSignInWith(email, "someone-else-entirely-2")).isFalse();
+        awaitAsks(email, 1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'team.reset_request' AND detail->>'email' = ?", Integer.class, email)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'team.reset_complete' AND detail->>'email' = ?", Integer.class, email)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE detail::text LIKE '%a-brand-new-password-9%' OR detail::text LIKE '%/admin/invite/%'", Integer.class)).isZero();
+    }
+
+    @Test
+    void theResetLinkExpiresAfterAnHour() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        String token = tokenIn(awaitResetMail(email));
+        // It was made for an hour, not the invite's three days.
+        Long minutes = jdbc.queryForObject("SELECT round(extract(epoch FROM (expires_at - created_at)) / 60)::bigint FROM admin_invites WHERE kind = 'reset' AND admin_id = (SELECT id FROM platform_admins WHERE email = ?)", Long.class, email);
+        assertThat(minutes).isEqualTo(60);
+
+        jdbc.update("UPDATE admin_invites SET expires_at = now() - interval '1 minute' WHERE kind = 'reset' AND admin_id = (SELECT id FROM platform_admins WHERE email = ?)", email);
+        Res late = post("/public/admin-invite/" + token, null, Map.of("password", "a-brand-new-password-9"));
+        assertThat(late.status()).isEqualTo(410);
+        assertThat(late.body().get("message").asText()).contains("expired");
+        assertThat(canSignInWith(email, "chosen-by-josiah-1")).isTrue();
+    }
+
+    @Test
+    void aBlockedPersonGetsNoResetLinkAndAnOldOneCannotUnblockThem() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        String id = jdbc.queryForObject("SELECT id::text FROM platform_admins WHERE email = ?", String.class, email);
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        String token = tokenIn(awaitResetMail(email));
+
+        assertThat(call("PUT", "/admin/team/" + id, boss, Map.of("role", "SUPPORT", "active", false)).status()).isEqualTo(200);
+        int before = outbox.sent.size();
+        Res asked = post("/public/admin-forgot", null, Map.of("email", email));
+        assertThat(asked.status()).isEqualTo(200);
+        awaitAsks(email, 2);
+        assertThat(outbox.sent.size()).isEqualTo(before);
+        // A link issued before the block, even if somehow still unspent, cannot set a password for a blocked account.
+        jdbc.update("UPDATE admin_invites SET used_at = NULL WHERE admin_id = ?", UUID.fromString(id));
+        assertThat(post("/public/admin-invite/" + token, null, Map.of("password", "a-brand-new-password-9")).status()).isEqualTo(410);
+        assertThat(canSignInWith(email, "a-brand-new-password-9")).isFalse();
+        assertThat(jdbc.queryForObject("SELECT active FROM platform_admins WHERE email = ?", Boolean.class, email)).isFalse();
+    }
+
+    @Test
+    void someoneWhoNeverAcceptedTheirInviteGetsNoResetLink() {
+        String boss = superadmin();
+        String email = newEmail();
+        add(boss, email);
+        int before = outbox.sent.size();
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        Res asked = post("/public/admin-forgot", null, Map.of("email", email));
+        assertThat(asked.status()).isEqualTo(200);
+        awaitAsks(email, 1);
+        assertThat(outbox.sent.size()).isEqualTo(before);
+        assertThat(resetMailTo(email)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM admin_invites WHERE kind = 'reset' AND admin_id = (SELECT id FROM platform_admins WHERE email = ?)", Integer.class, email)).isZero();
+    }
+
+    @Test
+    void afterAResetTheirOtherSessionsAreSignedOut() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        String intruder = post("/admin/auth/login", null, Map.of("email", email, "password", "chosen-by-josiah-1")).body().get("token").asText();
+        assertThat(get("/admin/auth/me", intruder).status()).isEqualTo(200);
+
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        String token = tokenIn(awaitResetMail(email));
+        assertThat(post("/public/admin-invite/" + token, null, Map.of("password", "a-brand-new-password-9")).status()).isEqualTo(200);
+
+        assertThat(get("/admin/auth/me", intruder).status()).isEqualTo(401);
+        String fresh = post("/admin/auth/login", null, Map.of("email", email, "password", "a-brand-new-password-9")).body().get("token").asText();
+        assertThat(get("/admin/auth/me", fresh).status()).isEqualTo(200);
+    }
+
+    @Test
+    void theResetEmailCarriesNoPasswordAndAskingIsRateLimited() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        EmailSender.Email mail = awaitResetMail(email);
+        assertThat(mail.text() + mail.html()).doesNotContain("chosen-by-josiah-1").contains("/admin/invite/").contains("1 hour");
+
+        int status = 200;
+        for (int i = 0; i < 8 && status == 200; i++) {
+            status = post("/public/admin-forgot", null, Map.of("email", "x" + i + "@example.com")).status();
+        }
+        assertThat(status).isEqualTo(429);
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+    }
+
+    @Test
+    void askingForASecondResetKillsTheFirstLink() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        String first = tokenIn(awaitResetMail(email));
+        post("/public/admin-forgot", null, Map.of("email", email));
+        awaitAsks(email, 2);
+        String second = tokenIn(awaitResetMail(email));
+        assertThat(second).isNotEqualTo(first);
+
+        assertThat(get("/public/admin-invite/" + first, null).status()).isEqualTo(410);
+        assertThat(post("/public/admin-invite/" + first, null, Map.of("password", "a-brand-new-password-9")).status()).isEqualTo(410);
+        assertThat(canSignInWith(email, "a-brand-new-password-9")).isFalse();
+        assertThat(get("/public/admin-invite/" + second, null).status()).isEqualTo(200);
+        assertThat(count("SELECT count(*) FROM admin_invites WHERE kind = 'reset' AND used_at IS NULL AND admin_id = (SELECT id FROM platform_admins WHERE email = ?)", email)).isEqualTo(1);
+    }
+
+    @Test
+    void aLinkOfOneKindCannotBeSpentAtTheOtherKindsPage() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        String reset = tokenIn(awaitResetMail(email));
+
+        // A reset link for someone who is waiting on an invite is no use: reset is not a side door past the invite.
+        jdbc.update("UPDATE platform_admins SET invite_pending = true, active = false WHERE email = ?", email);
+        assertThat(post("/public/admin-invite/" + reset, null, Map.of("password", "a-brand-new-password-9")).status()).isEqualTo(410);
+        assertThat(canSignInWith(email, "a-brand-new-password-9")).isFalse();
+        assertThat(jdbc.queryForObject("SELECT active FROM platform_admins WHERE email = ?", Boolean.class, email)).isFalse();
+
+        // And an invite link for someone who has already accepted cannot reset their password.
+        String other = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        String id = jdbc.queryForObject("SELECT id::text FROM platform_admins WHERE email = ?", String.class, other);
+        String invite = tokenIn(inviteTo(other));
+        jdbc.update("UPDATE admin_invites SET used_at = NULL WHERE admin_id = ?::uuid AND kind = 'invite'", id);
+        assertThat(post("/public/admin-invite/" + invite, null, Map.of("password", "a-brand-new-password-9")).status()).isEqualTo(410);
+        assertThat(canSignInWith(other, "a-brand-new-password-9")).isFalse();
+        assertThat(canSignInWith(other, "chosen-by-josiah-1")).isTrue();
+    }
+
+    @Test
+    void resetAsksAndInviteResendsDoNotUseUpEachOthersHourlyBudget() {
+        String boss = superadmin();
+        String email = newEmail();
+        String id = add(boss, email);
+        // Four invites already this hour (the one from add plus three resends is the cap); resets are counted apart.
+        for (int i = 0; i < 3; i++) {
+            assertThat(post("/admin/team/" + id + "/invite", boss, Map.of()).status()).isEqualTo(200);
+        }
+        assertThat(post("/admin/team/" + id + "/invite", boss, Map.of()).status()).isEqualTo(400);
+        assertThat(post("/public/admin-invite/" + tokenIn(inviteTo(email)), null, Map.of("password", "chosen-by-josiah-1")).status()).isEqualTo(200);
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        post("/public/admin-forgot", null, Map.of("email", email));
+        assertThat(awaitResetMail(email)).isNotNull();
+    }
+
+    @Test
+    void oneEmailCanOnlyAskForAFewResetsAnHourWhateverAddressesTheyComeFrom() {
+        String boss = superadmin();
+        String email = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        String other = activeColleague(boss, newEmail(), "chosen-by-josiah-1");
+        com.lezitech.suite.admin.AdminInviteController.ASKS_PER_CLIENT.clear();
+        for (int i = 0; i < 4; i++) {
+            Res r = post("/public/admin-forgot", null, Map.of("email", i % 2 == 0 ? email.toUpperCase() : email));
+            assertThat(r.status()).isEqualTo(200);
+            assertThat(r.body().get("ok").asBoolean()).isTrue();
+        }
+        awaitAsks(email, 3);
+        post("/public/admin-forgot", null, Map.of("email", other));
+        awaitResetMail(other);
+        assertThat(count("SELECT count(*) FROM platform_audit WHERE action = 'team.reset_request' AND detail->>'email' = ?", email)).isEqualTo(3);
+    }
 }
