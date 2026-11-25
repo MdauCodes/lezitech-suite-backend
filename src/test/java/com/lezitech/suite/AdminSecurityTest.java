@@ -435,7 +435,7 @@ class AdminSecurityTest extends IntegrationTest {
         String look = open(signIn(email), email, tenant, "LOOK", "Checking").at("/token").asText();
         assertThat(get("/billing/referral", look).status()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT referral_code FROM tenants WHERE id = ?::uuid", String.class, tenant)).isNull();
-        assertThat(get("/bookings/alerts", look).status()).isLessThan(500);
+        assertThat(get("/appointments/alerts", look).status()).isEqualTo(200);
     }
 
     @Test
