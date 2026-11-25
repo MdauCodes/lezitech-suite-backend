@@ -31,7 +31,9 @@ public class AdminCodes {
     static final int MAX_ATTEMPTS = 5;
     /** At most this many sign-in codes per person per hour, and (higher, as opening several businesses is normal work) step-up codes. */
     static final int MAX_SIGNIN_PER_HOUR = 6;
-    static final int MAX_STEPUP_PER_HOUR = 20;
+    static final int MAX_STEPUP_PER_HOUR = 10;
+    /** Per person per day, counted in the database so a restart or a second server cannot reset it. */
+    static final int MAX_PER_DAY = 20;
     static final String SIGNIN = "signin";
     static final String STEPUP = "stepup";
 
@@ -86,6 +88,12 @@ public class AdminCodes {
         if (recent != null && recent >= (STEPUP.equals(kind) ? MAX_STEPUP_PER_HOUR : MAX_SIGNIN_PER_HOUR)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_CODES",
                     "We've sent a few codes to your email already. Check your inbox and spam, or try again in an hour.");
+        }
+        Integer today = jdbc.queryForObject(
+                "SELECT count(*) FROM admin_codes WHERE admin_id = ? AND kind = ? AND created_at > now() - interval '24 hours'", Integer.class, adminId, kind);
+        if (today != null && today >= MAX_PER_DAY) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_CODES",
+                    "Too many codes were sent to your email today. Try again tomorrow, or contact the person who runs the server.");
         }
         jdbc.update("UPDATE admin_codes SET used_at = now() WHERE admin_id = ? AND kind = ? AND used_at IS NULL", adminId, kind);
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));

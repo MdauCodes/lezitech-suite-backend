@@ -206,8 +206,8 @@ public class AdminController {
     public Map<String, Object> login(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         Body b = new Body(raw);
         String email = b.str("email").trim().toLowerCase();
-        String account = "admin:" + email;
-        throttle.check(account, req);
+        // Counted by address only: a stranger who knows an email must not be able to lock that person out.
+        throttle.checkAddress(req);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, name, role, password_hash, active, invite_pending, blocked_at FROM platform_admins WHERE email = ?", email);
         boolean found = !rows.isEmpty() && rows.get(0).get("password_hash") != null;
@@ -216,12 +216,13 @@ public class AdminController {
         boolean usable = found && Boolean.TRUE.equals(rows.get(0).get("active"))
                 && !Boolean.TRUE.equals(rows.get(0).get("invite_pending")) && rows.get(0).get("blocked_at") == null;
         if (!passwordRight || !usable) {
-            throttle.failed(account, req);
+            throttle.failedAddress(req);
+            auditFailure("auth.signin_failed", null, email, req, !found ? "no such account" : !usable ? "account not allowed in" : "wrong password");
             throw new ApiException(HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
         }
         String sent = codes.sendSignIn((UUID) rows.get(0).get("id"));
         if (!"SENT".equals(sent)) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CODE_NOT_SENT", "We couldn't email your sign-in code. Try again in a minute.");
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CODE_NOT_SENT", CODE_NOT_SENT_MESSAGE);
         }
         return Map.of("step", "code", "sentTo", mask(email));
     }
@@ -231,20 +232,33 @@ public class AdminController {
     public Map<String, Object> code(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         Body b = new Body(raw);
         String email = b.str("email").trim().toLowerCase();
-        String account = "admincode:" + email;
-        throttle.check(account, req);
+        // By address only, and checked before the code is touched: a refused try never spends the live code.
+        throttle.checkAddress(req);
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, name, role, active, invite_pending, blocked_at FROM platform_admins WHERE email = ?", email);
         boolean usable = !rows.isEmpty() && Boolean.TRUE.equals(rows.get(0).get("active"))
                 && !Boolean.TRUE.equals(rows.get(0).get("invite_pending")) && rows.get(0).get("blocked_at") == null;
         boolean ok = usable ? codes.checkSignIn((UUID) rows.get(0).get("id"), b.str("code", "")) : codes.burn(b.str("code", ""));
         if (!ok || !usable) {
-            throttle.failed(account, req);
+            throttle.failedAddress(req);
+            auditFailure("auth.code_failed", null, email, req, !usable ? "account not allowed in" : "wrong, spent or expired code");
             throw new ApiException(HttpStatus.UNAUTHORIZED, "CODE_WRONG", "That code is not right or has expired. Sign in again to get a new code.");
         }
-        throttle.succeeded(account);
-        throttle.succeeded("admin:" + email);
         return adminSession(rows.get(0), req, "password and emailed code");
+    }
+
+    static final String CODE_NOT_SENT_MESSAGE =
+            "We couldn't send your code. Try again in a minute. If it keeps failing, contact the person who runs the server.";
+
+    /** A failed sign-in or step-up goes in the platform audit: who was tried, from where and why. Never the code or password. */
+    private void auditFailure(String action, UUID tenant, String email, jakarta.servlet.http.HttpServletRequest req, String reason) {
+        try {
+            UUID adminId = jdbc.query("SELECT id FROM platform_admins WHERE email = ?", rs -> rs.next() ? (UUID) rs.getObject(1) : null, email);
+            jdbc.update("INSERT INTO platform_audit (admin_id, admin_name, action, tenant_id, detail) VALUES (?, ?, ?, ?, cast(? as jsonb))",
+                    adminId, null, action, tenant, json.writeValueAsString(Map.of("email", email, "ip", com.lezitech.suite.common.ClientIp.of(req), "reason", reason)));
+        } catch (Exception e) {
+            // An audit failure must not change the answer.
+        }
     }
 
     private static String mask(String email) {
@@ -284,7 +298,7 @@ public class AdminController {
         UUID id = (UUID) row.get("id");
         String ip = com.lezitech.suite.common.ClientIp.of(req);
         String device = deviceType(req.getHeader("User-Agent"));
-        jdbc.update("UPDATE platform_admins SET last_login_at = now(), last_login_ip = ?, last_login_device = ? WHERE id = ?", ip, device, id);
+        jdbc.update("UPDATE platform_admins SET last_login_at = now(), last_seen_at = now(), last_login_ip = ?, last_login_device = ? WHERE id = ?", ip, device, id);
         try {
             jdbc.update("INSERT INTO platform_audit (admin_id, admin_name, action, detail) VALUES (?, ?, 'auth.signin', cast(? as jsonb))",
                     id, row.get("name"), json.writeValueAsString(Map.of("ip", ip, "device", device, "how", how)));
@@ -523,7 +537,7 @@ public class AdminController {
         AdminContext.Admin a = AdminContext.admin();
         String sent = codes.sendStepUp(a.id(), id);
         if (!"SENT".equals(sent)) {
-            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CODE_NOT_SENT", "We couldn't email your code. Try again in a minute.");
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CODE_NOT_SENT", CODE_NOT_SENT_MESSAGE);
         }
         admin.audit("workspace.open_code", id, Map.of());
         String email = jdbc.queryForObject("SELECT email FROM platform_admins WHERE id = ?", String.class, a.id());
@@ -538,7 +552,8 @@ public class AdminController {
      * the business's activity log.
      */
     @PostMapping("/tenants/{id}/impersonate")
-    public Map<String, Object> impersonate(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
+    public Map<String, Object> impersonate(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw,
+                                           jakarta.servlet.http.HttpServletRequest req) {
         AdminContext.require("impersonate");
         Body b = new Body(raw);
         String role = b.str("role", "OWNER").toUpperCase();
@@ -574,6 +589,7 @@ public class AdminController {
         throttle.check("stepup:" + a.id(), null);
         if (!codes.checkStepUp(a.id(), id, b.str("code", ""))) {
             throttle.failed("stepup:" + a.id(), null);
+            admin.audit("workspace.open_code_failed", id, Map.of("ip", com.lezitech.suite.common.ClientIp.of(req), "reason", "wrong, spent or expired code"));
             throw new ApiException(HttpStatus.FORBIDDEN, "STEP_UP_CODE", "That code is not right or has expired. Ask for a new code.");
         }
         throttle.succeeded("stepup:" + a.id());

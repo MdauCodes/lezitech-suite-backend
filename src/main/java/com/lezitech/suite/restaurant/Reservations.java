@@ -142,6 +142,9 @@ public class Reservations {
 
     /** Free up tables: guests who never came, and online holds whose deposit wasn't paid in time. */
     public void sweep() {
+        if (com.lezitech.suite.auth.SupportAccess.lookOnly()) {
+            return;
+        }
         Rules r = rules(TenantContext.tenantId());
         db.exec("UPDATE reservations SET status = 'NO_SHOW' WHERE status = 'BOOKED' AND starts_at + make_interval(mins => :g) < now()", "g", r.graceMin());
         db.exec("""

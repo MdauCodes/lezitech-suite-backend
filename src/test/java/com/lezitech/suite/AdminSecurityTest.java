@@ -49,8 +49,12 @@ class AdminSecurityTest extends IntegrationTest {
 
     /** Wrong tries from this machine share limits for the whole run; give back what these tests used. */
     @AfterEach
-    @SuppressWarnings("unchecked")
     void forgetFailures() throws Exception {
+        clearThrottle();
+    }
+
+    @SuppressWarnings("unchecked")
+    void clearThrottle() throws Exception {
         var f = LoginThrottle.class.getDeclaredField("failures");
         f.setAccessible(true);
         ((Map<String, ?>) f.get(throttle)).clear();
@@ -335,5 +339,142 @@ class AdminSecurityTest extends IntegrationTest {
         assertThat(post("/admin/tenants/" + tenant + "/open-code", salesToken, Map.of()).status()).isEqualTo(403);
         Map<String, Object> body = new HashMap<>(Map.of("mode", "LOOK", "reason", "Checking", "code", "123456"));
         assertThat(post("/admin/tenants/" + tenant + "/impersonate", salesToken, body).status()).isEqualTo(403);
+    }
+
+    // ---------- review fixes ----------
+
+    @Test
+    void aStrangerWhoKnowsTheEmailCannotLockThePersonOutOrSpendTheLiveCode() throws Exception {
+        String email = newAdmin("SUPPORT");
+        // Many wrong passwords for that email do not lock the real person out.
+        for (int i = 0; i < 8; i++) {
+            assertThat(post("/admin/auth/login", null, Map.of("email", email, "password", "guess" + i)).status()).isEqualTo(401);
+        }
+        assertThat(post("/admin/auth/login", null, Map.of("email", email, "password", PW)).status()).isEqualTo(200);
+        String code = codeTo(box, email);
+        for (int i = 0; i < 2; i++) {
+            assertThat(post("/admin/auth/code", null, Map.of("email", email, "code", wrongCode(code))).status()).isEqualTo(401);
+        }
+        // Once this address is throttled, a try is refused before the live code is touched.
+        for (int i = 0; i < 40; i++) {
+            post("/admin/auth/login", null, Map.of("email", "x" + i + "@lezitech.test", "password", "nope"));
+        }
+        int attemptsBefore = jdbc.queryForObject("SELECT attempts FROM admin_codes WHERE admin_id = (SELECT id FROM platform_admins WHERE email = ?) AND used_at IS NULL", Integer.class, email);
+        assertThat(post("/admin/auth/code", null, Map.of("email", email, "code", wrongCode(code))).status()).isEqualTo(429);
+        assertThat(jdbc.queryForObject("SELECT attempts FROM admin_codes WHERE admin_id = (SELECT id FROM platform_admins WHERE email = ?) AND used_at IS NULL", Integer.class, email)).isEqualTo(attemptsBefore);
+        clearThrottle();
+        assertThat(post("/admin/auth/code", null, Map.of("email", email, "code", code)).status()).isEqualTo(200);
+    }
+
+    @Test
+    void codesAreCappedAtTwentyADayInTheDatabase() {
+        String email = newAdmin("SUPPORT");
+        for (int i = 0; i < 20; i++) {
+            jdbc.update("INSERT INTO admin_codes (admin_id, kind, code_hash, expires_at, used_at, created_at) SELECT id, 'signin', 'x', now(), now(), now() - interval '2 hours' FROM platform_admins WHERE email = ?", email);
+        }
+        Res r = post("/admin/auth/login", null, Map.of("email", email, "password", PW));
+        assertThat(r.status()).isEqualTo(429);
+        assertThat(r.at("/code").asText()).isEqualTo("TOO_MANY_CODES");
+        assertThat(mailsTo(email)).isZero();
+        // Same for opening a business.
+        String email2 = newAdmin("SUPPORT");
+        String token = signIn(email2);
+        String tenant = signup("retail").at("/tenant/id").asText();
+        for (int i = 0; i < 20; i++) {
+            jdbc.update("INSERT INTO admin_codes (admin_id, kind, code_hash, expires_at, used_at, created_at) SELECT id, 'stepup', 'x', now(), now(), now() - interval '2 hours' FROM platform_admins WHERE email = ?", email2);
+        }
+        assertThat(post("/admin/tenants/" + tenant + "/open-code", token, Map.of()).status()).isEqualTo(429);
+    }
+
+    @Test
+    void theServerSignsAnIdlePersonOutAfterAnHour() {
+        String email = newAdmin("SUPPORT");
+        String token = signIn(email);
+        assertThat(get("/admin/auth/me", token).status()).isEqualTo(200);
+        jdbc.update("UPDATE platform_admins SET last_seen_at = now() - interval '2 minutes' WHERE email = ?", email);
+        get("/admin/auth/me", token);
+        assertThat(jdbc.queryForObject("SELECT last_seen_at > now() - interval '1 minute' FROM platform_admins WHERE email = ?", Boolean.class, email)).isTrue();
+        jdbc.update("UPDATE platform_admins SET last_seen_at = now() - interval '61 minutes' WHERE email = ?", email);
+        Res out = get("/admin/auth/me", token);
+        assertThat(out.status()).isEqualTo(401);
+        assertThat(out.at("/code").asText()).isEqualTo("IDLE_SIGNED_OUT");
+        assertThat(out.at("/message").asText()).isEqualTo("Signed out after an hour without activity");
+        // The old token stays refused; signing in again works.
+        assertThat(get("/admin/auth/me", token).status()).isEqualTo(401);
+        assertThat(get("/admin/auth/me", signIn(email)).status()).isEqualTo(200);
+    }
+
+    @Test
+    void failedSignInsAndFailedStepUpCodesAreAuditedWithoutTheCode() {
+        String email = newAdmin("SUPPORT");
+        post("/admin/auth/login", null, Map.of("email", email, "password", "wrong-password-9"));
+        post("/admin/auth/login", null, Map.of("email", "ghost-" + UUID.randomUUID() + "@lezitech.test", "password", PW));
+        post("/admin/auth/login", null, Map.of("email", email, "password", PW));
+        String code = codeTo(box, email);
+        post("/admin/auth/code", null, Map.of("email", email, "code", wrongCode(code)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'auth.signin_failed' AND detail->>'email' = ? AND detail->>'ip' IS NOT NULL AND detail->>'reason' = 'wrong password'", Integer.class, email)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'auth.signin_failed' AND detail->>'reason' = 'no such account'", Integer.class)).isGreaterThanOrEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'auth.code_failed' AND detail->>'email' = ?", Integer.class, email)).isEqualTo(1);
+
+        String token = adminSignIn(email, PW, box);
+        String tenant = signup("retail").at("/tenant/id").asText();
+        post("/admin/tenants/" + tenant + "/open-code", token, Map.of());
+        String stepCode = codeTo(box, email);
+        post("/admin/tenants/" + tenant + "/impersonate", token, Map.of("mode", "LOOK", "reason", "Checking", "code", wrongCode(stepCode)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'workspace.open_code_failed' AND tenant_id = ?::uuid", Integer.class, tenant)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE detail::text LIKE ? OR detail::text LIKE ? OR detail::text LIKE ?",
+                Integer.class, "%" + code + "%", "%" + stepCode + "%", "%wrong-password-9%")).isZero();
+    }
+
+    @Test
+    void aLookOnlyPageThatWouldWriteStillLoadsWithoutWriting() {
+        JsonNode s = signup("retail");
+        String tenant = s.at("/tenant/id").asText();
+        jdbc.update("UPDATE tenants SET referral_code = NULL WHERE id = ?::uuid", tenant);
+        String email = newAdmin("SUPPORT");
+        String look = open(signIn(email), email, tenant, "LOOK", "Checking").at("/token").asText();
+        assertThat(get("/billing/referral", look).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT referral_code FROM tenants WHERE id = ?::uuid", String.class, tenant)).isNull();
+        assertThat(get("/bookings/alerts", look).status()).isLessThan(500);
+    }
+
+    @Test
+    void aLookOnlyPaymentCheckWritesNothingAndTheRealCallbackStillSettles() throws Exception {
+        JsonNode s = signup("retail");
+        String owner = token(s);
+        String tenant = s.at("/tenant/id").asText();
+        String sugar = item(owner, "Sugar").get("id").asText();
+        String order = post("/orders", owner, Map.of("lines", line(sugar, 1))).at("/id").asText();
+        Res start = post("/mpesa/stk", owner, Map.of("orderId", order, "phone", "0712345678"));
+        assertThat(start.status()).isEqualTo(200);
+        String id = start.at("/id").asText();
+        String email = newAdmin("SUPPORT");
+        String look = open(signIn(email), email, tenant, "LOOK", "Customer says the prompt did not arrive").at("/token").asText();
+        String before = jdbc.queryForObject("SELECT updated_at::text FROM mpesa_requests WHERE id = ?::uuid", String.class, id);
+        Res seen = get("/mpesa/requests/" + id, look);
+        assertThat(seen.status()).isEqualTo(200);
+        if ("PENDING".equals(seen.at("/status").asText())) {
+            assertThat(jdbc.queryForObject("SELECT updated_at::text FROM mpesa_requests WHERE id = ?::uuid", String.class, id)).isEqualTo(before);
+        }
+        // The payment still settles the normal way.
+        for (int i = 0; i < 50 && !"PAID".equals(get("/mpesa/requests/" + id, owner).at("/status").asText()); i++) {
+            Thread.sleep(200);
+        }
+        assertThat(get("/mpesa/requests/" + id, owner).at("/status").asText()).isEqualTo("PAID");
+        assertThat(get("/orders/" + order, owner).at("/status").asText()).isEqualTo("PAID");
+    }
+
+    @Test
+    void aCodeMadeByPgcryptoLikeTheBreakGlassScriptIsAcceptedByTheApp() {
+        try {
+            jdbc.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto");
+        } catch (Exception e) {
+            org.junit.jupiter.api.Assumptions.abort("pgcrypto not available in the test database");
+        }
+        String email = newAdmin("SUPPORT");
+        jdbc.update("INSERT INTO admin_codes (admin_id, kind, code_hash, expires_at) SELECT id, 'signin', crypt('424242', gen_salt('bf', 10)), now() + interval '10 minutes' FROM platform_admins WHERE email = ?", email);
+        Res r = post("/admin/auth/code", null, Map.of("email", email, "code", "424242"));
+        assertThat(r.status()).isEqualTo(200);
+        assertThat(r.at("/token").asText()).isNotBlank();
     }
 }

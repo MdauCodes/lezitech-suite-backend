@@ -31,6 +31,10 @@ public class Referrals {
         if (code != null) {
             return code;
         }
+        if (com.lezitech.suite.auth.SupportAccess.lookOnly()) {
+            // LeziTech support only looking: don't make a code for them. The page shows without one.
+            return "";
+        }
         for (int i = 0; i < 10; i++) {
             String c = newCode();
             if (jdbc.update("UPDATE tenants SET referral_code = ? WHERE id = ? AND referral_code IS NULL "

@@ -456,7 +456,8 @@ public class MpesaService {
 
     /** What the till polls while the customer is entering their PIN. PayHero prompts are re-checked with PayHero every few seconds. */
     public Map<String, Object> status(UUID id) {
-        if (!cfg.simulated()) {
+        // LeziTech support only looking: no PayHero call and no write. The real callback settles the payment as usual.
+        if (!cfg.simulated() && !com.lezitech.suite.auth.SupportAccess.lookOnly()) {
             List<Map<String, Object>> pending = jdbc.queryForList("""
                     SELECT * FROM mpesa_requests WHERE id = ? AND tenant_id = ? AND status = 'PENDING' AND provider = 'PAYHERO'
                       AND provider_ref IS NOT NULL AND updated_at < now() - interval '4 seconds'""", id, TenantContext.tenantId());

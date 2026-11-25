@@ -47,3 +47,6 @@ CREATE TABLE support_requests (
 );
 CREATE INDEX ix_support_requests_open ON support_requests (tenant_id, created_at DESC);
 GRANT SELECT, INSERT, UPDATE ON support_requests TO suite_app;
+
+-- When each LeziTech person last made a request: the server signs them out after 60 minutes without one.
+ALTER TABLE platform_admins ADD COLUMN last_seen_at timestamptz;

@@ -76,8 +76,8 @@ class ControlPanelOnBusinessLoginTest extends IntegrationTest {
         for (int i = 0; i < 5; i++) {
             assertThat(post("/auth/login", null, Map.of("email", email, "password", "wrong" + i)).status()).isEqualTo(401);
         }
-        // Locked on the control-panel page too, even with the right password.
-        assertThat(post("/admin/auth/login", null, Map.of("email", email, "password", "staff-pass-123")).status()).isEqualTo(429);
+        // Strangers guessing at an email cannot lock that person out: control-panel sign-in counts by address only.
+        assertThat(post("/admin/auth/login", null, Map.of("email", email, "password", "staff-pass-123")).status()).isEqualTo(200);
     }
 
     @Test

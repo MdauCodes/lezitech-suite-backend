@@ -42,6 +42,22 @@ public class LoginThrottle {
         }
     }
 
+    /**
+     * For the control panel's two sign-in steps: counts by address only, never by the person's email, so a stranger who
+     * knows an email cannot lock that person out. Throws 429 when this address has failed too often.
+     */
+    public void checkAddress(HttpServletRequest req) {
+        if (addressCount(req) >= maxPerAddress) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "TOO_MANY_ATTEMPTS", "Too many wrong tries from here. Wait 15 minutes and try again.");
+        }
+    }
+
+    public void failedAddress(HttpServletRequest req) {
+        if (req != null) {
+            record(address(req));
+        }
+    }
+
     public void failed(String account, HttpServletRequest req) {
         record(account);
         if (req != null) {

@@ -25,12 +25,42 @@ public class JwtFilter extends OncePerRequestFilter {
     private final TokenVersions versions;
     private final SupportAccess support;
     private final com.lezitech.suite.property.portal.RenterSessions renters;
+    private final com.lezitech.suite.admin.AdminActivity adminActivity;
+    private final org.springframework.transaction.support.TransactionTemplate readOnlyWork;
 
-    public JwtFilter(JwtService jwt, TokenVersions versions, SupportAccess support, com.lezitech.suite.property.portal.RenterSessions renters) {
+    public JwtFilter(JwtService jwt, TokenVersions versions, SupportAccess support, com.lezitech.suite.property.portal.RenterSessions renters,
+                     com.lezitech.suite.admin.AdminActivity adminActivity, org.springframework.transaction.PlatformTransactionManager txm) {
+        this.adminActivity = adminActivity;
+        this.readOnlyWork = new org.springframework.transaction.support.TransactionTemplate(txm);
         this.jwt = jwt;
         this.versions = versions;
         this.support = support;
         this.renters = renters;
+    }
+
+    private void runReadOnly(HttpServletRequest req, HttpServletResponse res, FilterChain chain) throws ServletException, IOException {
+        try {
+            readOnlyWork.executeWithoutResult(status -> {
+                try {
+                    chain.doFilter(req, res);
+                } catch (IOException | ServletException e) {
+                    throw new FilterFailure(e);
+                } finally {
+                    status.setRollbackOnly();
+                }
+            });
+        } catch (FilterFailure f) {
+            if (f.getCause() instanceof IOException io) {
+                throw io;
+            }
+            throw (ServletException) f.getCause();
+        }
+    }
+
+    private static final class FilterFailure extends RuntimeException {
+        FilterFailure(Exception cause) {
+            super(cause);
+        }
     }
 
     @Override
@@ -39,6 +69,7 @@ public class JwtFilter extends OncePerRequestFilter {
         String header = req.getHeader("Authorization");
         UUID grant = null;
         UUID look = null;
+        boolean idleOut = false;
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             int tv = jwt.versionOf(token);
@@ -72,7 +103,12 @@ public class JwtFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 });
             } else if (sg.isEmpty() && sl.isEmpty()) {
-                jwt.parseAdmin(token).filter(a -> versions.valid(a.id(), true, tv)).ifPresent(admin -> {
+                Optional<com.lezitech.suite.admin.AdminContext.Admin> found = jwt.parseAdmin(token).filter(a -> versions.valid(a.id(), true, tv));
+                if (found.isPresent() && !adminActivity.touch(found.get().id())) {
+                    idleOut = true;
+                    found = Optional.empty();
+                }
+                found.ifPresent(admin -> {
                     com.lezitech.suite.admin.AdminContext.set(admin);
                     var auth = new UsernamePasswordAuthenticationToken(admin, null,
                             List.of(new SimpleGrantedAuthority("ROLE_PLATFORM")));
@@ -81,6 +117,13 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         }
         try {
+            if (idleOut) {
+                res.setStatus(401);
+                res.setContentType("application/json");
+                res.getWriter().write("{\"code\":\"" + com.lezitech.suite.admin.AdminActivity.IDLE_CODE + "\",\"message\":\""
+                        + com.lezitech.suite.admin.AdminActivity.IDLE_MESSAGE + "\"}");
+                return;
+            }
             // A LeziTech support sign-in must never renew itself. Renewal hands back a plain workspace token with
             // no grant on it, so the session would outlive the owner's 5 hours and its changes would stop being
             // recorded as support in the business's activity log. A grant is shorter than a token's life, so a real
@@ -102,7 +145,13 @@ public class JwtFilter extends OncePerRequestFilter {
                         + "\"You are only looking at this business, so nothing can be changed. Ask the owner to give help access if you need to change something.\"}");
                 return;
             }
-            chain.doFilter(req, res);
+            if (look != null) {
+                // Look only: the whole request runs inside one read-only transaction that is never committed. Every
+                // database call on this thread (also the ones outside any @Transactional) joins it, so no write can commit.
+                runReadOnly(req, res, chain);
+            } else {
+                chain.doFilter(req, res);
+            }
             // Everything LeziTech changes while signed in as the business goes in the business's activity log.
             if (grant != null && WRITES.contains(req.getMethod()) && req.getRequestURI().startsWith("/api/")) {
                 support.logChange(req.getMethod(), req.getRequestURI(), res.getStatus());

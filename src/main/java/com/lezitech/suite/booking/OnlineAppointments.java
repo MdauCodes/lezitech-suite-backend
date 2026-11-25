@@ -320,6 +320,9 @@ public class OnlineAppointments {
 
     /** Free times again for anything HELD whose deposit wasn't paid in time. */
     public int sweep() {
+        if (com.lezitech.suite.auth.SupportAccess.lookOnly()) {
+            return 0;
+        }
         return db.exec("""
                 UPDATE appointments SET status = 'CANCELLED', cancel_reason = 'Deposit not paid in time'
                 WHERE status = 'HELD' AND hold_until < now()""");
