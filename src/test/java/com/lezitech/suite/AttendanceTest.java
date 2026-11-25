@@ -350,7 +350,13 @@ class AttendanceTest extends IntegrationTest {
         assertThat(get("/attendance/me", cashier).status()).isEqualTo(200); // the free days open everything
         String tenant = s.session().at("/tenant/id").asText();
         jdbc.update("UPDATE tenants SET status = 'ACTIVE', plan = 'LITE', paid_until = now() + interval '30 days' WHERE id = ?", UUID.fromString(tenant));
-        for (Res r : List.of(get("/attendance/me", cashier), post("/attendance/clock", cashier, Map.of("kind", "IN")), get("/attendance/board", s.owner()))) {
+        // Records stay readable after a downgrade; clocking and set-up are closed.
+        assertThat(get("/attendance/me", cashier).status()).isEqualTo(200);
+        assertThat(get("/attendance/board", s.owner()).status()).isEqualTo(200);
+        assertThat(get("/attendance/mine", cashier).status()).isEqualTo(200);
+        assertThat(get("/attendance/timesheets?from=2026-11-23&to=2026-11-23", s.owner()).status()).isEqualTo(200);
+        for (Res r : List.of(post("/attendance/clock", cashier, Map.of("kind", "IN")), get("/attendance/branches", s.owner()),
+                call("PUT", "/attendance/branches/" + s.branch() + "/rules", s.owner(), Map.of("method", "CODE")))) {
             assertThat(r.status()).isEqualTo(403);
             assertThat(r.at("/code").asText()).isEqualTo("PLAN_FEATURE");
         }
@@ -540,5 +546,48 @@ class AttendanceTest extends IntegrationTest {
         // Not absent while the shift is still on.
         clock.freeze(at("23:00"));
         assertThat(person(s, idOf(away)).get("status").asText()).isEqualTo("NOT_YET");
+    }
+
+    @Test
+    void theTillRuleNeedsALocationAndManagersAreNotHeldUp() {
+        JsonNode sess = signup("restaurant");
+        String owner = token(sess);
+        String branch = get("/branches", owner).at("/branches/0/id").asText();
+        Res refused = call("PUT", "/attendance/branches/" + branch + "/rules", owner, Map.of("tillNeedsClock", true));
+        assertThat(refused.status()).isEqualTo(400);
+        assertThat(refused.at("/message").asText()).contains("location");
+        call("PUT", "/attendance/branches/" + branch + "/location", owner, Map.of("lat", LAT, "lng", LNG, "accuracy", 10));
+        assertThat(call("PUT", "/attendance/branches/" + branch + "/rules", owner, Map.of("tillNeedsClock", true)).status()).isEqualTo(200);
+        String manager = staff(owner, "MANAGER");
+        assertThat(post("/shifts/open", manager, Map.of("openingCash", 0)).status()).isEqualTo(200);
+        assertThat(post("/shifts/open", staff(owner, "CASHIER"), Map.of("openingCash", 0)).status()).isEqualTo(409);
+    }
+
+    @Test
+    void aClockInAfterTheEndIsExtraTimeClosedAfterTwelveHours() {
+        Shop s = shop();
+        String cashier = staff(s.owner(), "CASHIER");
+        clock.freeze(at("17:30"));
+        assertThat(in(cashier).status()).isEqualTo(200);
+        clock.freeze(at("18:30"));
+        jobs.closeAll();
+        assertThat(person(s, idOf(cashier)).get("status").asText()).isEqualTo("IN");
+        clock.freeze(at("17:31").plusSeconds(12 * 3600));
+        jobs.closeAll();
+        JsonNode sheet = get("/attendance/timesheet?userId=" + idOf(cashier) + "&from=2026-11-23&to=2026-11-23", s.owner()).body();
+        assertThat(sheet.at("/days/0/noClockOut").asBoolean()).isTrue();
+    }
+
+    @Test
+    void aPhotoLosesAnythingAfterItsLastEndMarker() {
+        Shop s = shop();
+        clock.freeze(at("08:00"));
+        byte[] photo = Base64.getDecoder().decode(jpeg());
+        byte[] padded = java.util.Arrays.copyOf(photo, photo.length + 12);
+        System.arraycopy("HIDDEN-TAIL!".getBytes(), 0, padded, photo.length, 12);
+        String cashier = staff(s.owner(), "CASHIER");
+        assertThat(clockAt(cashier, "IN", 1, 1, 10, Map.of("selfie", Base64.getEncoder().encodeToString(padded))).status()).isEqualTo(200);
+        String file = person(s, idOf(cashier)).get("selfieFileId").asText();
+        assertThat(new String(raw("/files/" + file, s.owner()).bytes(), java.nio.charset.StandardCharsets.ISO_8859_1)).doesNotContain("HIDDEN-TAIL");
     }
 }

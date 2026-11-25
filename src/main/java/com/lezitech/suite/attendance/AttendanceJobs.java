@@ -56,7 +56,8 @@ public class AttendanceJobs {
 
     public int purgeAll() {
         int n = 0;
-        for (UUID t : tenants()) {
+        // Every business, suspended ones too: a photo is never kept past its time.
+        for (UUID t : jdbc.queryForList("SELECT id FROM tenants", UUID.class)) {
             try {
                 n += TenantContext.runAs(t, null, () -> tx.execute(s -> service.purgeSelfies()));
             } catch (RuntimeException e) {

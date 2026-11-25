@@ -51,7 +51,17 @@ final class ImageScrub {
                 return out.toByteArray();
             }
             if (marker == 0xDA) { // start of scan: the picture data runs to the end
-                out.write(b, i, b.length - i);
+                int end = -1; // nothing after the final end-of-image marker is kept
+                for (int k = b.length - 2; k > i; k--) {
+                    if ((b[k] & 0xff) == 0xFF && (b[k + 1] & 0xff) == 0xD9) {
+                        end = k + 2;
+                        break;
+                    }
+                }
+                if (end < 0) {
+                    throw broken();
+                }
+                out.write(b, i, end - i);
                 return out.toByteArray();
             }
             if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) { // markers with no length

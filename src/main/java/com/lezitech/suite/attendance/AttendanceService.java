@@ -44,6 +44,7 @@ public class AttendanceService {
     static final int MAX_ATTEMPTS = 10;
     static final Duration ATTEMPT_WINDOW = Duration.ofMinutes(10);
     /** A forgotten clock-out is closed this long after the day's end, so a person finishing late can still clock out. */
+    static final Duration EXTRA_TIME_CLOSE = Duration.ofHours(12);
     static final Duration CLOSE_AFTER = Duration.ofMinutes(30);
 
     public record Hours(LocalTime start, LocalTime end, int graceMin) {
@@ -221,6 +222,8 @@ public class AttendanceService {
         TenantContext.Caller caller = TenantContext.caller();
         UUID user = caller.userId();
         limitAttempts(user);
+        // One clock at a time per person: a second tap waits here, then sees the first one's result.
+        db.value("SELECT id FROM users WHERE id = :user FOR UPDATE", UUID.class, "user", user);
         Body body = new Body(raw);
         String kind = body.str("kind", "").toUpperCase();
         if (!kind.equals("IN") && !kind.equals("OUT")) {
@@ -347,11 +350,12 @@ public class AttendanceService {
     /** For the till: when the branch asks for it, a staff member has to be clocked in first. */
     public void requireClockedInForTill() {
         TenantContext.Caller c = TenantContext.callerOrNull();
-        if (c == null || "OWNER".equals(c.role()) || c.userId() == null) {
+        if (c == null || "OWNER".equals(c.role()) || "MANAGER".equals(c.role()) || c.userId() == null) {
             return;
         }
         UUID b = branchOf(c.userId());
-        if (!Boolean.TRUE.equals(branch(b).get("tillNeedsClock")) || !features.has(c.tenantId(), "attendance")) {
+        Map<String, Object> br = branch(b);
+        if (!Boolean.TRUE.equals(br.get("tillNeedsClock")) || br.get("lat") == null || !features.has(c.tenantId(), "attendance")) {
             return;
         }
         Map<String, Object> last = lastEvent(c.userId());
@@ -663,8 +667,12 @@ public class AttendanceService {
         if (!List.of("SELFIE", "CODE", "EITHER").contains(method)) {
             throw ApiException.bad("Choose Selfie at the shop, Scan the shop code, or Either");
         }
+        boolean till = b.bool("tillNeedsClock", Boolean.TRUE.equals(cur.get("tillNeedsClock")));
+        if (till && cur.get("lat") == null) {
+            throw ApiException.bad("Set this branch's location first. Staff can't clock in until the shop's location is saved.");
+        }
         db.exec("UPDATE locations SET radius_m = :r, att_method = :m, att_till_needs_clock = :till, att_allow_printed = :p WHERE id = :id",
-                "r", radius, "m", method, "till", b.bool("tillNeedsClock", Boolean.TRUE.equals(cur.get("tillNeedsClock"))),
+                "r", radius, "m", method, "till", till,
                 "p", b.bool("allowPrinted", Boolean.TRUE.equals(cur.get("allowPrinted"))), "id", id);
         return branches().stream().filter(x -> id.toString().equals(x.get("id"))).findFirst().orElseThrow();
     }
@@ -819,9 +827,12 @@ public class AttendanceService {
             Hours h = hoursFor(user, loc, day.getDayOfWeek().getValue());
             Instant closeAt = h == null ? day.atTime(23, 59).atZone(NAIROBI).toInstant() : endOf(day, h);
             if (closeAt.isBefore(in)) {
-                closeAt = in;
-            }
-            if (now.isBefore(closeAt.plus(CLOSE_AFTER))) {
+                // Clocked in after the scheduled end: extra time. Close it after 12 hours, not 30 minutes.
+                closeAt = in.plus(EXTRA_TIME_CLOSE);
+                if (now.isBefore(closeAt)) {
+                    continue;
+                }
+            } else if (now.isBefore(closeAt.plus(CLOSE_AFTER))) {
                 continue;
             }
             db.exec("""
@@ -837,10 +848,13 @@ public class AttendanceService {
     public int purgeSelfies() {
         Instant cutoff = clock.now().minus(Duration.ofDays(SELFIE_DAYS));
         int n = 0;
-        for (Map<String, Object> e : db.list("SELECT id, selfie_file_id FROM attendance_events WHERE selfie_file_id IS NOT NULL AND at < :cut", "cut", ts(cutoff))) {
-            files.remove(UUID.fromString((String) e.get("selfieFileId")));
-            db.exec("UPDATE attendance_events SET selfie_file_id = NULL WHERE id = :id", "id", e.get("id"));
-            n++;
+        // Every selfie file past its time, whether or not an event still points at it.
+        for (Map<String, Object> f : db.list("""
+                SELECT id FROM files WHERE purpose = 'ATTENDANCE_SELFIE'
+                  AND (created_at < :cut OR id IN (SELECT selfie_file_id FROM attendance_events WHERE selfie_file_id IS NOT NULL AND at < :cut))""", "cut", ts(cutoff))) {
+            if (files.remove(UUID.fromString((String) f.get("id")))) {
+                n++;
+            }
         }
         return n;
     }

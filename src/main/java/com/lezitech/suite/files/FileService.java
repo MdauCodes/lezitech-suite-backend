@@ -123,15 +123,20 @@ public class FileService {
         });
     }
 
-    public void remove(UUID id) {
-        db.find("SELECT store_key FROM files WHERE id = :id", "id", id).ifPresent(f -> {
-            db.exec("DELETE FROM files WHERE id = :id", "id", id);
-            try {
-                store.delete((String) f.get("storeKey"));
-            } catch (RuntimeException e) {
-                log.warn("Couldn't delete stored file {}: {}", id, e.getMessage());
-            }
-        });
+    /** Delete the stored object first; the row goes only when that worked (otherwise it stays, to try again later). */
+    public boolean remove(UUID id) {
+        var f = db.find("SELECT store_key FROM files WHERE id = :id", "id", id).orElse(null);
+        if (f == null) {
+            return true;
+        }
+        try {
+            store.delete((String) f.get("storeKey"));
+        } catch (RuntimeException e) {
+            log.warn("Couldn't delete stored file {}: {}", id, e.getMessage());
+            return false;
+        }
+        db.exec("DELETE FROM files WHERE id = :id", "id", id);
+        return true;
     }
 
     /** Clock-in photos are for the owner, managers, the accountant and the person in them; other files are open to any staff. */
