@@ -20,7 +20,7 @@ CREATE TABLE attendance_hours (
     start_time  time NOT NULL,
     end_time    time NOT NULL,
     grace_min   integer NOT NULL DEFAULT 10 CHECK (grace_min BETWEEN 0 AND 120),
-    CHECK (end_time > start_time)
+    CHECK (end_time <> start_time)   -- an end earlier than the start means the shift ends the next day
 );
 CREATE UNIQUE INDEX ux_attendance_hours ON attendance_hours (location_id, coalesce(user_id, '00000000-0000-0000-0000-000000000000'::uuid), weekday);
 

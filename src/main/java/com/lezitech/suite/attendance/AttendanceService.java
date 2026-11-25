@@ -153,6 +153,27 @@ public class AttendanceService {
         return m;
     }
 
+    /** When a shift that belongs to {@code day} starts and ends (an end earlier than the start is the next morning). */
+    static Instant startOf(LocalDate day, Hours h) {
+        return day.atTime(h.start()).atZone(NAIROBI).toInstant();
+    }
+
+    static Instant endOf(LocalDate day, Hours h) {
+        LocalDate d = h.end().isAfter(h.start()) ? day : day.plusDays(1);
+        return d.atTime(h.end()).atZone(NAIROBI).toInstant();
+    }
+
+    /** The work day a clock-in belongs to: today, or yesterday while yesterday's night shift is still running (end + 30 min). */
+    private LocalDate workDayForIn(UUID user, UUID branch, Instant now) {
+        LocalDate today = LocalDateTime.ofInstant(now, NAIROBI).toLocalDate();
+        LocalDate yesterday = today.minusDays(1);
+        Hours y = hoursFor(user, branch, yesterday.getDayOfWeek().getValue());
+        if (y != null && !y.end().isAfter(y.start()) && now.isBefore(endOf(yesterday, y).plus(CLOSE_AFTER))) {
+            return yesterday;
+        }
+        return today;
+    }
+
     private void limitAttempts(UUID user) {
         Instant now = clock.now();
         Deque<Instant> q = attempts.computeIfAbsent(user, k -> new ArrayDeque<>());
@@ -170,7 +191,7 @@ public class AttendanceService {
     // ---------------- clocking ----------------
 
     private Map<String, Object> lastEvent(UUID user) {
-        return db.find("SELECT id, kind, at, lat, lng, location_id FROM attendance_events WHERE user_id = :user ORDER BY at DESC, kind DESC LIMIT 1", "user", user).orElse(null);
+        return db.find("SELECT id, kind, at, day, lat, lng, location_id FROM attendance_events WHERE user_id = :user ORDER BY at DESC, kind DESC LIMIT 1", "user", user).orElse(null);
     }
 
     /** What the staff phone shows: where I clock, my state and today's hours. */
@@ -291,24 +312,19 @@ public class AttendanceService {
             }
         }
 
-        LocalDateTime local = LocalDateTime.ofInstant(now, NAIROBI);
-        LocalDate day = local.toLocalDate();
+        // An OUT closes the day its clock-in started; an IN starts today's day (or the night shift still running from yesterday).
+        LocalDate day = kind.equals("OUT") ? LocalDate.parse((String) last.get("day")) : workDayForIn(user, b, now);
         Hours hours = hoursFor(user, b, day.getDayOfWeek().getValue());
         Integer lateMin = null, earlyMin = null;
+        // Late: only the day's first clock-in (coming back from a break is never late). Early: judged on the last
+        // clock-out once the day has closed, when the timesheet is read.
         if (hours != null && kind.equals("IN")) {
             boolean first = db.value("SELECT count(*) FROM attendance_events WHERE user_id = :user AND day = :d AND kind = 'IN'", Long.class,
                     "user", user, "d", date(day)) == 0;
-            long after = Duration.between(day.atTime(hours.start()), local).toMinutes();
+            long after = Duration.between(startOf(day, hours), now).toMinutes();
             if (first && after > hours.graceMin()) {
                 flags.add("LATE");
                 lateMin = (int) after;
-            }
-        }
-        if (hours != null && kind.equals("OUT")) {
-            long before = Duration.between(local, day.atTime(hours.end())).toMinutes();
-            if (before >= 1) {
-                flags.add("LEFT_EARLY");
-                earlyMin = (int) before;
             }
         }
 
@@ -367,8 +383,15 @@ public class AttendanceService {
         for (Map<String, Object> u : roll(onlyBranch)) {
             UUID id = UUID.fromString((String) u.get("id"));
             UUID b = UUID.fromString((String) u.get("branchId"));
-            Hours h = hoursFor(id, b, day.getDayOfWeek().getValue());
-            List<Map<String, Object>> ev = events(id, day, day);
+            LocalDate shown = day;
+            if (day.equals(today)) { // still in from last night's shift: that day's record is the one to show
+                Map<String, Object> lastOne = lastEventOf(id);
+                if (lastOne != null && "IN".equals(lastOne.get("kind")) && LocalDate.parse((String) lastOne.get("day")).equals(day.minusDays(1))) {
+                    shown = day.minusDays(1);
+                }
+            }
+            Hours h = hoursFor(id, b, shown.getDayOfWeek().getValue());
+            List<Map<String, Object>> ev = events(id, shown, shown);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("userId", id);
             row.put("name", u.get("name"));
@@ -400,7 +423,7 @@ public class AttendanceService {
                 row.put("flags", firstIn.get("flags"));
             } else if (h == null) {
                 status = "OFF";
-            } else if (day.isBefore(today) || (day.equals(today) && local.toLocalTime().isAfter(h.end()))) {
+            } else if (now.isAfter(endOf(day, h))) {
                 status = "ABSENT";
                 absent++;
             } else {
@@ -415,6 +438,10 @@ public class AttendanceService {
         res.put("people", people);
         res.put("counts", Map.of("in", in, "out", out, "late", late, "absent", absent, "notYet", notYet));
         return res;
+    }
+
+    private Map<String, Object> lastEventOf(UUID user) {
+        return db.find("SELECT kind, day FROM attendance_events WHERE user_id = :user ORDER BY at DESC, kind DESC LIMIT 1", "user", user).orElse(null);
     }
 
     private List<Map<String, Object>> events(UUID user, LocalDate from, LocalDate to) {
@@ -451,9 +478,22 @@ public class AttendanceService {
             Instant openAt = null;
             Integer lateMin = null, earlyMin = null;
             boolean didntOut = false;
+            Instant lastOutAt = null;
+            boolean lastOutAuto = false;
+            long breakMin = 0;
+            List<Map<String, Object>> breaks = new ArrayList<>();
             for (Map<String, Object> e : ev) {
                 Instant at = Instant.parse((String) e.get("at"));
                 if ("IN".equals(e.get("kind"))) {
+                    if (lastOutAt != null) {
+                        long m = Duration.between(lastOutAt, at).toMinutes();
+                        breakMin += m;
+                        Map<String, Object> br = new LinkedHashMap<>();
+                        br.put("from", lastOutAt.toString());
+                        br.put("to", at.toString());
+                        br.put("minutes", m);
+                        breaks.add(br);
+                    }
                     openAt = at;
                     if (lateMin == null && e.get("lateMin") != null) {
                         lateMin = ((Number) e.get("lateMin")).intValue();
@@ -461,16 +501,22 @@ public class AttendanceService {
                 } else if (openAt != null) {
                     mins += Duration.between(openAt, at).toMinutes();
                     openAt = null;
-                    if (e.get("earlyMin") != null) {
-                        earlyMin = ((Number) e.get("earlyMin")).intValue();
-                    }
-                    if (((List<?>) e.get("flags")).contains("NO_CLOCK_OUT")) {
+                    lastOutAt = at;
+                    lastOutAuto = "AUTO".equals(e.get("method"));
+                    if (lastOutAuto) {
                         didntOut = true;
                     }
                 }
             }
             boolean stillIn = openAt != null;
-            boolean isAbsent = ev.isEmpty() && h != null && (d.isBefore(today) || (d.equals(today) && local.toLocalTime().isAfter(h.end())));
+            boolean isAbsent = ev.isEmpty() && h != null && now.isAfter(endOf(d, h));
+            // Left early: the day's last clock-out, judged once the day has closed.
+            if (h != null && openAt == null && lastOutAt != null && !lastOutAuto && now.isAfter(endOf(d, h))) {
+                long before = Duration.between(lastOutAt, endOf(d, h)).toMinutes();
+                if (before >= 1) {
+                    earlyMin = (int) before;
+                }
+            }
             if (ev.isEmpty() && !isAbsent) {
                 continue; // a scheduled day that has not happened yet
             }
@@ -480,6 +526,8 @@ public class AttendanceService {
             row.put("lateMin", lateMin);
             row.put("earlyMin", earlyMin);
             row.put("noClockOut", didntOut);
+            row.put("breakMinutes", breakMin);
+            row.put("breaks", breaks);
             row.put("absent", isAbsent);
             minutes += mins;
             if (!ev.isEmpty()) {
@@ -647,8 +695,8 @@ public class AttendanceService {
             } catch (java.time.format.DateTimeParseException ex) {
                 throw ApiException.bad("Times look like 08:00");
             }
-            if (!e.isAfter(s)) {
-                throw ApiException.bad("Finishing time must be after the starting time");
+            if (e.equals(s)) {
+                throw ApiException.bad("The finishing time can't be the same as the starting time. For a night shift, finish earlier than you start, e.g. 18:00 to 02:00.");
             }
             int grace = d.integer("graceMin", 10);
             if (grace < 0 || grace > 120) {
@@ -769,7 +817,7 @@ public class AttendanceService {
             LocalDate day = LocalDate.parse((String) e.get("day"));
             Instant in = Instant.parse((String) e.get("at"));
             Hours h = hoursFor(user, loc, day.getDayOfWeek().getValue());
-            Instant closeAt = h == null ? day.atTime(23, 59).atZone(NAIROBI).toInstant() : day.atTime(h.end()).atZone(NAIROBI).toInstant();
+            Instant closeAt = h == null ? day.atTime(23, 59).atZone(NAIROBI).toInstant() : endOf(day, h);
             if (closeAt.isBefore(in)) {
                 closeAt = in;
             }

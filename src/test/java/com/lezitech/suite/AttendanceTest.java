@@ -240,13 +240,16 @@ class AttendanceTest extends IntegrationTest {
 
         clock.freeze(at("16:30"));
         Res e = out(late);
-        assertThat(e.at("/event/flags").toString()).contains("LEFT_EARLY");
+        assertThat(e.status()).isEqualTo(200);
+        // Early leave is judged once the day has closed.
+        clock.freeze(at("17:05"));
         JsonNode sheet = get("/attendance/timesheet?userId=" + idOf(late) + "&from=2026-11-23&to=2026-11-23", s.owner()).body();
         assertThat(sheet.at("/totals/daysLate").asInt()).isEqualTo(1);
         assertThat(sheet.at("/totals/earlyLeaves").asInt()).isEqualTo(1);
         assertThat(sheet.at("/days/0/lateMin").asInt()).isEqualTo(25);
         assertThat(sheet.at("/days/0/earlyMin").asInt()).isEqualTo(30);
         assertThat(sheet.at("/totals/minutes").asInt()).isEqualTo(485);
+        assertThat(sheet.at("/days/0/events/0/flags").toString()).contains("LATE");
 
         // A person's own hours replace the branch's.
         String own = staff(s.owner(), "CASHIER");
@@ -460,5 +463,82 @@ class AttendanceTest extends IntegrationTest {
         clock.freeze(at("20:00"));
         JsonNode night = get("/night/2026-11-23", s.owner()).body();
         assertThat(night.at("/attendance/text").asText()).isEqualTo("Staff: 2 in, 1 late (WAITER 30 min), 1 absent");
+    }
+
+    @Test
+    void severalPairsAMakeBreaksAndOnlyTheLastClockOutIsJudgedForLeavingEarly() {
+        Shop s = shop();
+        String cashier = staff(s.owner(), "CASHIER"), leaver = staff(s.owner(), "WAITER");
+        clock.freeze(at("08:00"));
+        in(cashier);
+        clock.freeze(at("12:00"));
+        out(cashier);
+        clock.freeze(at("12:30"));
+        Res back = in(cashier);
+        assertThat(back.at("/event/flags").toString()).doesNotContain("LATE"); // back from a break is never late
+        clock.freeze(at("17:00"));
+        out(cashier);
+        clock.freeze(at("08:00"));
+        in(leaver);
+        clock.freeze(at("16:00"));
+        out(leaver); // a break, not leaving: they come back
+        clock.freeze(at("16:20"));
+        in(leaver);
+        clock.freeze(at("17:00"));
+        out(leaver);
+        clock.freeze(at("18:00"));
+        JsonNode sheet = get("/attendance/timesheet?userId=" + idOf(cashier) + "&from=2026-11-23&to=2026-11-23", s.owner()).body();
+        assertThat(sheet.at("/totals/minutes").asInt()).isEqualTo(8 * 60 + 30);
+        assertThat(sheet.at("/days/0/breakMinutes").asInt()).isEqualTo(30);
+        assertThat(sheet.at("/days/0/breaks/0/minutes").asInt()).isEqualTo(30);
+        assertThat(sheet.at("/days/0/earlyMin").isNull()).isTrue();
+        JsonNode l = get("/attendance/timesheet?userId=" + idOf(leaver) + "&from=2026-11-23&to=2026-11-23", s.owner()).body();
+        assertThat(l.at("/totals/earlyLeaves").asInt()).isZero();
+    }
+
+    @Test
+    void aNightShiftCrossesMidnightForLatenessEarlyLeaveForgottenClockOutAndAbsence() {
+        Shop s = shop();
+        List<Map<String, Object>> days = new ArrayList<>();
+        for (int d = 1; d <= 7; d++) {
+            days.add(Map.of("weekday", d, "start", "18:00", "end", "02:00", "graceMin", 10));
+        }
+        assertThat(call("PUT", "/attendance/branches/" + s.branch() + "/hours", s.owner(), Map.of("days", days)).status()).isEqualTo(200);
+        String late = staff(s.owner(), "CASHIER"), early = staff(s.owner(), "WAITER"), forgot = staff(s.owner(), "KITCHEN"), away = staff(s.owner(), "SALES");
+
+        clock.freeze(at("18:25"));
+        in(late);
+        clock.freeze(at("18:05"));
+        in(early);
+        in(forgot);
+        // After midnight the people still in are still shown, under the day the shift started.
+        clock.freeze(at(1, "00:30"));
+        JsonNode board = get("/attendance/board", s.owner()).body();
+        assertThat(person(s, idOf(late)).get("status").asText()).isEqualTo("IN");
+        assertThat(board.at("/counts/in").asInt()).isEqualTo(3);
+        clock.freeze(at(1, "01:15"));
+        assertThat(out(early).status()).isEqualTo(200);
+        clock.freeze(at(1, "02:10"));
+        assertThat(out(late).status()).isEqualTo(200);
+        jobs.closeAll();
+        assertThat(person(s, idOf(forgot)).get("status").asText()).isEqualTo("IN"); // 30 minutes of grace first
+        clock.freeze(at(1, "02:40"));
+        jobs.closeAll();
+
+        String q = "&from=2026-11-23&to=2026-11-23";
+        JsonNode l = get("/attendance/timesheet?userId=" + idOf(late) + q, s.owner()).body();
+        assertThat(l.at("/days/0/lateMin").asInt()).isEqualTo(25);
+        assertThat(l.at("/days/0/earlyMin").isNull()).isTrue();
+        assertThat(l.at("/totals/minutes").asInt()).isEqualTo(465);
+        JsonNode e = get("/attendance/timesheet?userId=" + idOf(early) + q, s.owner()).body();
+        assertThat(e.at("/days/0/earlyMin").asInt()).isEqualTo(45);
+        JsonNode f = get("/attendance/timesheet?userId=" + idOf(forgot) + q, s.owner()).body();
+        assertThat(f.at("/days/0/noClockOut").asBoolean()).isTrue();
+        assertThat(f.at("/totals/minutes").asInt()).isEqualTo(8 * 60 - 5); // closed at 02:00
+        JsonNode a = get("/attendance/timesheet?userId=" + idOf(away) + q, s.owner()).body();
+        assertThat(a.at("/days/0/absent").asBoolean()).isTrue();
+        // Not absent while the shift is still on.
+        clock.freeze(at("23:00"));
+        assertThat(person(s, idOf(away)).get("status").asText()).isEqualTo("NOT_YET");
     }
 }
