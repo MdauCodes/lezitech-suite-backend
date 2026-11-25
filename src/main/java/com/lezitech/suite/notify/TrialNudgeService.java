@@ -33,6 +33,8 @@ public class TrialNudgeService {
     private final String support;
 
     private final com.lezitech.suite.platform.PlanFeatures planFeatures;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.Offers offers;
 
     public TrialNudgeService(JdbcTemplate jdbc, Mailer mailer, com.lezitech.suite.platform.PlanFeatures planFeatures) {
         this.jdbc = jdbc;
@@ -119,8 +121,14 @@ public class TrialNudgeService {
         try {
             Map<String, Object> plan = planFeatures.fittingPlan(tenant);
             long monthly = ((Number) plan.get("monthly")).longValue();
-            cost = "Everything you use is on the " + plan.get("name") + " plan: KSh " + String.format("%,d", monthly) + " a month, or KSh "
-                    + String.format("%,d", monthly * 10) + " for a year (2 months free).";
+            // What this business would be charged now (any plan offer or its own offer taken off), the normal price shown as "was".
+            var month = offers.price(tenant, (String) plan.get("code"), "MONTHLY");
+            var year = offers.price(tenant, (String) plan.get("code"), "ANNUAL");
+            cost = "Everything you use is on the " + plan.get("name") + " plan: "
+                    + (month.amount() < monthly ? "now KSh " + String.format("%,d", month.amount()) + " a month, was KSh " + String.format("%,d", monthly)
+                    : "KSh " + String.format("%,d", monthly) + " a month")
+                    + ", or " + (year.amount() < monthly * 10 ? "now KSh " + String.format("%,d", year.amount()) + " for a year, was KSh " + String.format("%,d", monthly * 10)
+                    : "KSh " + String.format("%,d", monthly * 10) + " for a year (2 months free)") + ".";
         } catch (RuntimeException e) {
             log.debug("No plan price for the reminder to {}: {}", tenant, e.toString());
         }

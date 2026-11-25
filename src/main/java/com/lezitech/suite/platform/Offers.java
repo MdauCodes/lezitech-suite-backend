@@ -166,7 +166,14 @@ public class Offers {
         return out;
     }
 
-    /** What this business pays for a plan now: the lowest price any live offer gives (percent off is for monthly payments). */
+    /**
+     * The one place that decides what a business pays for a plan now. Everything that shows or charges a price uses this
+     * (the plans list, "keep everything running", the payment request and so the billing queue, activation and the paid email).
+     * Order: the normal plan price; then the plan offer from "Free days and plans" if it is live; then this business's own offers
+     * (percent off, set price, a mall tenant's discount). Offers never stack: whichever gives the LOWEST price wins, so the
+     * customer always gets the best one (on a tie the plan offer wins). Only the thank-you credit comes off afterwards.
+     * The price never goes below 0. Annual is ten times the monthly price.
+     */
     public Price price(UUID tenant, String plan, String cycle) {
         Map<String, Object> p = platform.plan(plan);
         if (p == null) {
@@ -176,6 +183,12 @@ public class Offers {
         boolean annual = "ANNUAL".equals(cycle);
         long full = annual ? monthly * 10 : monthly;
         Price best = new Price(full, full, null, null);
+        Map<String, Object> planOffer = platform.liveOffer(plan);
+        if (planOffer != null) {
+            long m = Math.max(0, ((Number) planOffer.get("price")).longValue());
+            String label = String.valueOf(planOffer.getOrDefault("label", "")).trim();
+            best = new Price(annual ? m * 10 : m, full, null, label.isEmpty() ? "Offer" : label);
+        }
         for (Map<String, Object> o : forTenant(tenant)) {
             long amount = full;
             switch ((String) o.get("kind")) {
@@ -196,7 +209,7 @@ public class Offers {
                     continue;
                 }
             }
-            if (amount < best.amount()) {
+            if (amount >= 0 && amount < best.amount()) {
                 best = new Price(amount, full, (UUID) o.get("id"), (String) o.get("title"));
             }
         }

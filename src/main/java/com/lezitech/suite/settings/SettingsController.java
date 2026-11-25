@@ -32,7 +32,8 @@ public class SettingsController {
     /** Each plan with the keys of the extra tools it includes (products are never limited, so no product count). */
     private List<Map<String, Object>> plansWithTools() {
         return platform.plans().stream().map(p -> {
-            Map<String, Object> m = new java.util.LinkedHashMap<>(p);
+            // price = normal, priceNow = after the plan offer (offerLabel, offerEnds say what it is and when it ends)
+            Map<String, Object> m = platform.withPriceNow(p);
             m.remove("parts");
             m.remove("items");
             m.put("tools", platform.planFeatures((String) p.get("code")));

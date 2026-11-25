@@ -61,7 +61,7 @@ public class PlatformSettings {
         Map<String, String> c = cache;
         if (c == null || System.currentTimeMillis() - cachedAt > 30_000) {
             Map<String, String> fresh = new LinkedHashMap<>();
-            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
+            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'planOffers', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
             cache = c = fresh;
             cachedAt = System.currentTimeMillis();
         }
@@ -138,6 +138,134 @@ public class PlatformSettings {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // ---------- plan offers: a crossed-out normal price and a lower price for a while ----------
+
+    private static final java.time.ZoneId NAIROBI = java.time.ZoneId.of("Africa/Nairobi");
+
+    /** What the owner saved for each plan: price, label, startsOn, endsOn (yyyy-MM-dd, end may be empty) and on. Empty map when none. */
+    public Map<String, Map<String, Object>> planOffers() {
+        String v = all().get("planOffers");
+        if (v == null) {
+            return Map.of();
+        }
+        try {
+            return json.readValue(v, new TypeReference<Map<String, Map<String, Object>>>() { });
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    /** The plan's offer if it is on, has started, has not ended and is lower than the normal price; otherwise null. Dates are Nairobi days. */
+    public Map<String, Object> liveOffer(String code) {
+        return liveOffer(code, java.time.LocalDate.now(NAIROBI));
+    }
+
+    public Map<String, Object> liveOffer(String code, java.time.LocalDate today) {
+        Map<String, Object> plan = plan(code);
+        Map<String, Object> o = planOffers().get(code);
+        if (plan == null || o == null || !Boolean.TRUE.equals(o.get("on"))) {
+            return null;
+        }
+        try {
+            long price = ((Number) o.get("price")).longValue();
+            if (price < 0 || price >= ((Number) plan.get("monthly")).longValue()) {
+                return null;
+            }
+            String start = (String) o.get("startsOn"), end = (String) o.get("endsOn");
+            if (start != null && !start.isBlank() && today.isBefore(java.time.LocalDate.parse(start))) {
+                return null;
+            }
+            if (end != null && !end.isBlank() && today.isAfter(java.time.LocalDate.parse(end))) {
+                return null;
+            }
+            return o;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Save the offers (one entry per plan code; a plan left out has none). Returns what was saved. */
+    public Map<String, Map<String, Object>> setPlanOffers(Map<String, Map<String, Object>> offers, String by) {
+        Map<String, Map<String, Object>> clean = new LinkedHashMap<>();
+        java.time.LocalDate today = java.time.LocalDate.now(NAIROBI);
+        for (Map.Entry<String, Map<String, Object>> e : (offers == null ? Map.<String, Map<String, Object>>of() : offers).entrySet()) {
+            Map<String, Object> plan = plan(e.getKey());
+            Map<String, Object> o = e.getValue();
+            if (plan == null) {
+                throw ApiException.bad("Plans are LITE, GROWTH and PRO");
+            }
+            if (o == null || o.isEmpty()) {
+                continue;
+            }
+            String name = String.valueOf(plan.get("name"));
+            int normal = ((Number) plan.get("monthly")).intValue();
+            boolean on = Boolean.TRUE.equals(o.get("on")) || "true".equals(String.valueOf(o.get("on")));
+            Object rawPrice = o.get("price");
+            if (rawPrice == null || String.valueOf(rawPrice).isBlank()) {
+                if (!on) {
+                    continue; // nothing typed and switched off: no offer
+                }
+                throw ApiException.bad("Type the offer price for " + name);
+            }
+            int price = num(rawPrice, "the offer price for " + name);
+            if (price < 0) {
+                throw ApiException.bad("The offer price for " + name + " can't be below 0");
+            }
+            if (price >= normal) {
+                throw ApiException.bad("The offer price for " + name + " must be lower than its normal price of KES " + String.format("%,d", normal));
+            }
+            String label = String.valueOf(o.getOrDefault("label", "")).trim();
+            if (label.length() > 40) {
+                throw ApiException.bad("Keep the offer label for " + name + " to 40 letters or fewer");
+            }
+            java.time.LocalDate start = day(o.get("startsOn"), "the start date for " + name);
+            java.time.LocalDate end = day(o.get("endsOn"), "the end date for " + name);
+            if (start != null && end != null && end.isBefore(start)) {
+                throw ApiException.bad("The offer for " + name + " can't end before it starts");
+            }
+            if (on && end != null && end.isBefore(today)) {
+                throw ApiException.bad("The end date for " + name + " has already passed");
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("price", price);
+            m.put("label", label);
+            m.put("startsOn", start == null ? null : start.toString());
+            m.put("endsOn", end == null ? null : end.toString());
+            m.put("on", on);
+            clean.put(e.getKey(), m);
+        }
+        try {
+            put("planOffers", json.writeValueAsString(clean), by);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
+        return clean;
+    }
+
+    private static java.time.LocalDate day(Object v, String what) {
+        if (v == null || String.valueOf(v).isBlank()) {
+            return null;
+        }
+        try {
+            return java.time.LocalDate.parse(String.valueOf(v).trim());
+        } catch (RuntimeException e) {
+            throw ApiException.bad("Choose " + what + " again");
+        }
+    }
+
+    /** One plan as customers see it: normal price, price now, and the offer's label and last day (null when no offer is live). */
+    public Map<String, Object> withPriceNow(Map<String, Object> plan) {
+        Map<String, Object> m = new LinkedHashMap<>(plan);
+        Map<String, Object> o = liveOffer((String) plan.get("code"));
+        long normal = ((Number) plan.get("monthly")).longValue();
+        m.put("price", normal);
+        m.put("priceNow", o != null ? ((Number) o.get("price")).longValue() : normal);
+        m.put("offerLabel", o == null ? null : (String.valueOf(o.getOrDefault("label", "")).isBlank() ? "Offer" : o.get("label")));
+        String end = o == null ? null : (String) o.get("endsOn");
+        m.put("offerEnds", end == null || end.isBlank() ? null : end);
+        return m;
     }
 
     /** The tools a plan includes: LeziTech's choice, or the defaults (each tool from its starting plan upwards). */
