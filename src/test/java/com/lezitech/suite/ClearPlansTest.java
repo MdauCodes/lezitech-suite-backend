@@ -534,4 +534,18 @@ class ClearPlansTest extends IntegrationTest {
         assertThat(java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bill_lines WHERE tenant_id = ?::uuid AND paid_at IS NULL", Long.class, tenant)).isEqualTo(0);
     }
+
+    @Test
+    void theSheetOpensForStaffAttendanceOnLite() {
+        JsonNode s = signup("restaurant");
+        String owner = paid(s, "LITE", 13, 30);
+        JsonNode sheet = get("/billing/plan-change/preview?feature=attendance", owner).body();
+        assertThat(sheet.at("/needed").asBoolean()).isTrue();
+        assertThat(sheet.at("/to").asText()).isEqualTo("GROWTH");
+        assertThat(sheet.at("/message").asText()).contains("Staff attendance is part of Busy Kitchen.").contains("Nothing to pay today.");
+        // The refusal on a Lite plan names the tool, so the app opens this sheet by itself.
+        Res refused = post("/attendance/clock", owner, Map.of("kind", "IN"));
+        assertThat(refused.status()).isEqualTo(403);
+        assertThat(refused.at("/feature").asText()).isEqualTo("attendance");
+    }
 }
