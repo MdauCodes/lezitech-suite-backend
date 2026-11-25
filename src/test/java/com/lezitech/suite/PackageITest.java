@@ -97,7 +97,7 @@ class PackageITest extends IntegrationTest {
         String tenant = s.at("/tenant/id").asText();
         String support = post("/admin/auth/demo", null, Map.of("role", "SUPPORT")).at("/token").asText();
 
-        Res refused = post("/admin/tenants/" + tenant + "/impersonate", support, Map.of());
+        Res refused = openBusiness(support, "support@lezitech.test", tenant, "HELP", "Fixing the menu");
         assertThat(refused.status()).isEqualTo(403);
         assertThat(refused.at("/code").asText()).isEqualTo("NO_SUPPORT_GRANT");
         assertThat(get("/admin/tenants/" + tenant, support).at("/supportAccess/active").asBoolean()).isFalse();
@@ -109,7 +109,7 @@ class PackageITest extends IntegrationTest {
         assertThat(granted.get("active").asBoolean()).isTrue();
         assertThat(granted.get("hours").asInt()).isEqualTo(5);
 
-        JsonNode session = post("/admin/tenants/" + tenant + "/impersonate", support, Map.of()).body();
+        JsonNode session = openBusiness(support, "support@lezitech.test", tenant, "HELP", "Fixing the menu").body();
         String as = session.get("token").asText();
         assertThat(session.at("/support/by").asText()).isNotBlank();
         assertThat(get("/items", as).status()).isEqualTo(200);
@@ -133,11 +133,11 @@ class PackageITest extends IntegrationTest {
         // The owner stops it: the support sign-in stops working at once.
         assertThat(post("/support-access/stop", owner, Map.of()).at("/active").asBoolean()).isFalse();
         assertThat(get("/items", as).status()).isEqualTo(401);
-        assertThat(post("/admin/tenants/" + tenant + "/impersonate", support, Map.of()).status()).isEqualTo(403);
+        assertThat(openBusiness(support, "support@lezitech.test", tenant, "HELP", "Fixing the menu").status()).isEqualTo(403);
 
         // An expired grant is the same as none.
         post("/support-access", owner, Map.of());
-        String again = post("/admin/tenants/" + tenant + "/impersonate", support, Map.of()).at("/token").asText();
+        String again = openBusiness(support, "support@lezitech.test", tenant, "HELP", "Fixing the menu").at("/token").asText();
         jdbc.update("UPDATE support_grants SET expires_at = now() - interval '1 minute' WHERE tenant_id = ?::uuid", tenant);
         assertThat(get("/items", again).status()).isEqualTo(401);
     }

@@ -19,6 +19,9 @@ import java.util.UUID;
 @Service
 public class JwtService {
 
+    /** A control-panel token lasts a working day; the web also signs out after 60 minutes without activity. */
+    public static final long ADMIN_TTL_HOURS = 8;
+
     private final SecretKey key;
     private final long ttlHours;
 
@@ -61,6 +64,37 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * LeziTech support looking at a business with no grant from the owner: look only. The token carries the look
+     * ("sl", checked on every request) and never outlives it. The server refuses every change under it.
+     */
+    public String issueLook(UUID userId, UUID tenantId, String role, String name, int tokenVersion, UUID look, Instant lookEnds) {
+        Instant now = Instant.now();
+        Instant end = lookEnds.isBefore(now.plus(ttlHours, ChronoUnit.HOURS)) ? lookEnds : now.plus(ttlHours, ChronoUnit.HOURS);
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("tv", tokenVersion)
+                .claim("tid", tenantId.toString())
+                .claim("role", role)
+                .claim("name", name)
+                .claim("sl", look.toString())
+                .claim("ro", true)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(end))
+                .signWith(key)
+                .compact();
+    }
+
+    /** The look-only opening a token was issued under, if it is one. */
+    public Optional<UUID> lookOf(String token) {
+        try {
+            String g = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload().get("sl", String.class);
+            return g == null ? Optional.empty() : Optional.of(UUID.fromString(g));
+        } catch (JwtException | IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
     /** The support grant a token was issued under, if it is a LeziTech support sign-in. */
     public Optional<UUID> supportGrantOf(String token) {
         try {
@@ -81,7 +115,7 @@ public class JwtService {
                 .claim("role", role)
                 .claim("name", name)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(12, ChronoUnit.HOURS)))
+                .expiration(Date.from(now.plus(ADMIN_TTL_HOURS, ChronoUnit.HOURS)))
                 .signWith(key)
                 .compact();
     }

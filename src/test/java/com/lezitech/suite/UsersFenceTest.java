@@ -222,7 +222,7 @@ class UsersFenceTest extends IntegrationTest {
         assertThat(seen.status()).as(seen.body().toString()).isEqualTo(200);
         assertThat(seen.at("/supportAccess/active").asBoolean()).isTrue();
 
-        Res as = post("/admin/tenants/" + tenant + "/impersonate", support, Map.of());
+        Res as = openBusiness(support, "support@lezitech.test", tenant, "HELP", "Fixing the menu");
         assertThat(as.status()).as(as.body().toString()).isEqualTo(200);
         assertThat(as.at("/token").asText()).isNotBlank();
     }

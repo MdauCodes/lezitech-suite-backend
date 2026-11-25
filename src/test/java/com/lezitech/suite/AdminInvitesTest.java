@@ -495,14 +495,14 @@ class AdminInvitesTest extends IntegrationTest {
     void afterAResetTheirOtherSessionsAreSignedOut() {
         String boss = superadmin();
         String email = activeColleague(boss, newEmail(), OLD_PW);
-        String intruder = post("/admin/auth/login", null, Map.of("email", email, "password", OLD_PW)).body().get("token").asText();
+        String intruder = adminSignIn(email, OLD_PW, outbox);
         assertThat(get("/admin/auth/me", intruder).status()).isEqualTo(200);
 
         String code = askCode(email);
         assertThat(reset(email, code, NEW_PW).status()).isEqualTo(200);
 
         assertThat(get("/admin/auth/me", intruder).status()).isEqualTo(401);
-        String fresh = post("/admin/auth/login", null, Map.of("email", email, "password", NEW_PW)).body().get("token").asText();
+        String fresh = adminSignIn(email, NEW_PW, outbox);
         assertThat(get("/admin/auth/me", fresh).status()).isEqualTo(200);
     }
 

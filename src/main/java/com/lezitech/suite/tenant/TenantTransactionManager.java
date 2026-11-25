@@ -26,5 +26,11 @@ public class TenantTransactionManager extends DataSourceTransactionManager {
             ps.setString(1, caller == null ? "" : caller.tenantId().toString());
             ps.execute();
         }
+        // LeziTech support looking at a business with no grant: the database itself refuses every write.
+        if (com.lezitech.suite.auth.SupportAccess.lookOnly()) {
+            try (java.sql.Statement st = con.createStatement()) {
+                st.execute("SET TRANSACTION READ ONLY");
+            }
+        }
     }
 }

@@ -172,6 +172,49 @@ public abstract class IntegrationTest {
         return r.body();
     }
 
+    @Autowired
+    protected com.lezitech.suite.notify.Mailer itMailer;
+
+    private static final java.util.regex.Pattern SIX_DIGITS = java.util.regex.Pattern.compile("\\n\\n(\\d{6})\\n\\n");
+
+    /** The 6-digit code in the newest captured email to this address. */
+    protected static String codeTo(com.lezitech.suite.notify.EmailSender.LogSender box, String email) {
+        var mail = box.sent.stream().filter(m -> m.to().equals(email)).reduce((x, y) -> y).orElseThrow(() -> new IllegalStateException("No email to " + email));
+        java.util.regex.Matcher m = SIX_DIGITS.matcher(mail.text());
+        if (!m.find()) {
+            throw new IllegalStateException("No code in: " + mail.text());
+        }
+        return m.group(1);
+    }
+
+    /** Control-panel sign-in the real way: password, then the emailed code. Returns the token. */
+    protected String adminSignIn(String email, String password, com.lezitech.suite.notify.EmailSender.LogSender box) {
+        Res one = post("/admin/auth/login", null, Map.of("email", email, "password", password));
+        if (one.status() != 200) {
+            throw new IllegalStateException("Sign-in step one failed: " + one.body());
+        }
+        Res two = post("/admin/auth/code", null, Map.of("email", email, "code", codeTo(box, email)));
+        if (two.status() != 200) {
+            throw new IllegalStateException("Sign-in step two failed: " + two.body());
+        }
+        return two.at("/token").asText();
+    }
+
+    /** Open a business from the control panel: asks for the emailed code first (not needed for demos), then goes in. */
+    protected Res openBusiness(String adminToken, String adminEmail, String tenant, String mode, String reason) {
+        var box = new com.lezitech.suite.notify.EmailSender.LogSender();
+        itMailer.useSender(box);
+        Res c = post("/admin/tenants/" + tenant + "/open-code", adminToken, Map.of());
+        if (c.status() != 200) {
+            return c;
+        }
+        Map<String, Object> body = new java.util.HashMap<>(Map.of("mode", mode, "reason", reason));
+        if (c.at("/needed").asBoolean()) {
+            body.put("code", codeTo(box, adminEmail));
+        }
+        return post("/admin/tenants/" + tenant + "/impersonate", adminToken, body);
+    }
+
     protected static String token(JsonNode session) {
         return session.get("token").asText();
     }

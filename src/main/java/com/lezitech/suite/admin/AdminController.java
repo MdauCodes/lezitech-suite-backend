@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -130,7 +131,9 @@ public class AdminController {
         return platformSettings();
     }
     @org.springframework.beans.factory.annotation.Autowired
-    private com.lezitech.suite.auth.LoginCodes codes;
+    private AdminCodes codes;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.auth.LoginCodes loginCodes;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.notify.Mailer mailer;
 
@@ -152,7 +155,7 @@ public class AdminController {
         if (!Boolean.TRUE.equals(u.get("active"))) {
             throw ApiException.bad("This person can't sign in (switched off by the business)");
         }
-        String status = codes.sendInvite(userId, email, (String) u.get("name"), (String) u.get("business"), (String) u.get("slug"),
+        String status = loginCodes.sendInvite(userId, email, (String) u.get("name"), (String) u.get("business"), (String) u.get("slug"),
                 (String) u.get("job_title"), "LeziTech", mailer.appUrl());
         admin.audit("workspace.user_code", id, Map.of("user", userId.toString(), "email", status));
         return Map.of("ok", true, "emailStatus", status, "message", "Code and link sent to " + email);
@@ -194,24 +197,66 @@ public class AdminController {
         return Map.of("demoLogins", admin.demoLogins(), "roles", roles);
     }
 
+    /**
+     * Step one of two: the password. A right password sends a 6-digit code to the person's own address; the token comes
+     * only after the code (see {@link #code}). Unknown, switched-off, blocked and not-yet-accepted accounts are
+     * refused exactly like a wrong password, and one bcrypt check always runs, so nothing tells them apart.
+     */
     @PostMapping("/auth/login")
     public Map<String, Object> login(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         Body b = new Body(raw);
-        String account = "admin:" + b.str("email").toLowerCase();
+        String email = b.str("email").trim().toLowerCase();
+        String account = "admin:" + email;
         throttle.check(account, req);
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT id, name, role, password_hash, active FROM platform_admins WHERE email = ?", b.str("email").toLowerCase());
-        if (rows.isEmpty() || !Boolean.TRUE.equals(rows.get(0).get("active"))
-                || !encoder.matches(b.str("password"), (String) rows.get(0).get("password_hash"))) {
+                "SELECT id, name, role, password_hash, active, invite_pending, blocked_at FROM platform_admins WHERE email = ?", email);
+        boolean found = !rows.isEmpty() && rows.get(0).get("password_hash") != null;
+        String hash = found ? (String) rows.get(0).get("password_hash") : codes.dummyHash();
+        boolean passwordRight = encoder.matches(b.str("password"), hash);
+        boolean usable = found && Boolean.TRUE.equals(rows.get(0).get("active"))
+                && !Boolean.TRUE.equals(rows.get(0).get("invite_pending")) && rows.get(0).get("blocked_at") == null;
+        if (!passwordRight || !usable) {
             throttle.failed(account, req);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "BAD_LOGIN", "Wrong email or password");
         }
+        String sent = codes.sendSignIn((UUID) rows.get(0).get("id"));
+        if (!"SENT".equals(sent)) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CODE_NOT_SENT", "We couldn't email your sign-in code. Try again in a minute.");
+        }
+        return Map.of("step", "code", "sentTo", mask(email));
+    }
+
+    /** Step two of two: the emailed code. Right code, token. Every failure answers the same. */
+    @PostMapping("/auth/code")
+    public Map<String, Object> code(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
+        Body b = new Body(raw);
+        String email = b.str("email").trim().toLowerCase();
+        String account = "admincode:" + email;
+        throttle.check(account, req);
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, name, role, active, invite_pending, blocked_at FROM platform_admins WHERE email = ?", email);
+        boolean usable = !rows.isEmpty() && Boolean.TRUE.equals(rows.get(0).get("active"))
+                && !Boolean.TRUE.equals(rows.get(0).get("invite_pending")) && rows.get(0).get("blocked_at") == null;
+        boolean ok = usable ? codes.checkSignIn((UUID) rows.get(0).get("id"), b.str("code", "")) : codes.burn(b.str("code", ""));
+        if (!ok || !usable) {
+            throttle.failed(account, req);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "CODE_WRONG", "That code is not right or has expired. Sign in again to get a new code.");
+        }
         throttle.succeeded(account);
-        return adminSession(rows.get(0));
+        throttle.succeeded("admin:" + email);
+        return adminSession(rows.get(0), req, "password and emailed code");
+    }
+
+    private static String mask(String email) {
+        int at = email.indexOf('@');
+        if (at < 2) {
+            return email;
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 
     @PostMapping("/auth/demo")
-    public Map<String, Object> demoLogin(@RequestBody Map<String, Object> raw) {
+    public Map<String, Object> demoLogin(@RequestBody Map<String, Object> raw, jakarta.servlet.http.HttpServletRequest req) {
         if (!admin.demoLogins()) {
             throw ApiException.forbidden("Demo control-panel logins are only available on local runs");
         }
@@ -221,7 +266,7 @@ public class AdminController {
         if (rows.isEmpty()) {
             throw ApiException.notFound("Demo staff account");
         }
-        return adminSession(rows.get(0));
+        return adminSession(rows.get(0), req, "demo login");
     }
 
     @GetMapping("/auth/me")
@@ -234,12 +279,35 @@ public class AdminController {
         return out;
     }
 
-    private Map<String, Object> adminSession(Map<String, Object> row) {
+    /** Signed in: remember when, from where and on what kind of device, in the platform audit and on the person's row. */
+    private Map<String, Object> adminSession(Map<String, Object> row, jakarta.servlet.http.HttpServletRequest req, String how) {
         UUID id = (UUID) row.get("id");
-        jdbc.update("UPDATE platform_admins SET last_login_at = now() WHERE id = ?", id);
+        String ip = com.lezitech.suite.common.ClientIp.of(req);
+        String device = deviceType(req.getHeader("User-Agent"));
+        jdbc.update("UPDATE platform_admins SET last_login_at = now(), last_login_ip = ?, last_login_device = ? WHERE id = ?", ip, device, id);
+        try {
+            jdbc.update("INSERT INTO platform_audit (admin_id, admin_name, action, detail) VALUES (?, ?, 'auth.signin', cast(? as jsonb))",
+                    id, row.get("name"), json.writeValueAsString(Map.of("ip", ip, "device", device, "how", how)));
+        } catch (Exception e) {
+            // A failed audit write must not lock the person out.
+        }
         String role = (String) row.get("role");
         return Map.of("token", jwt.issueAdmin(id, role, (String) row.get("name"), versions.current(id, true)),
                 "admin", Map.of("id", id.toString(), "name", row.get("name"), "role", role, "permissions", AdminContext.permissions(role)));
+    }
+
+    static String deviceType(String userAgent) {
+        String ua = userAgent == null ? "" : userAgent.toLowerCase();
+        if (ua.isBlank()) {
+            return "Unknown";
+        }
+        if (ua.contains("ipad") || ua.contains("tablet")) {
+            return "Tablet";
+        }
+        if (ua.contains("mobi") || ua.contains("iphone") || ua.contains("android")) {
+            return "Phone";
+        }
+        return "Computer";
     }
 
     // ---------- overview ----------
@@ -443,31 +511,106 @@ public class AdminController {
     }
 
     /**
-     * Sign in as the business to see exactly what the customer sees. Only while the owner has let LeziTech in
-     * (Settings → Let LeziTech help), except demo businesses and businesses LeziTech is still setting up. The sign-in
-     * ends with the grant, and everything changed during it goes in the business's activity log. Always audited.
+     * Step one of opening a business: a 6-digit code goes to the admin's own address (10 minutes, single use, for that
+     * business only). Demo businesses need no code.
+     */
+    @PostMapping("/tenants/{id}/open-code")
+    public Map<String, Object> openCode(@PathVariable UUID id) {
+        AdminContext.require("impersonate");
+        if (Boolean.TRUE.equals(supportAccess.forAdmin(id).get("exempt"))) {
+            return Map.of("needed", false);
+        }
+        AdminContext.Admin a = AdminContext.admin();
+        String sent = codes.sendStepUp(a.id(), id);
+        if (!"SENT".equals(sent)) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "CODE_NOT_SENT", "We couldn't email your code. Try again in a minute.");
+        }
+        admin.audit("workspace.open_code", id, Map.of());
+        String email = jdbc.queryForObject("SELECT email FROM platform_admins WHERE id = ?", String.class, a.id());
+        return Map.of("needed", true, "sentTo", mask(email));
+    }
+
+    /**
+     * Open a business from the control panel, in one of two modes. LOOK needs no grant from the owner: the session is
+     * look only (the server refuses every change) and lasts at most 2 hours. HELP can change things and needs the
+     * owner's grant (Settings, Let LeziTech help). Both need a short reason and, except for demo businesses, the code
+     * from {@link #openCode}. Every opening is in the platform audit with the mode, the business and the reason, and in
+     * the business's activity log.
      */
     @PostMapping("/tenants/{id}/impersonate")
     public Map<String, Object> impersonate(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("impersonate");
-        String role = new Body(raw).str("role", "OWNER").toUpperCase();
+        Body b = new Body(raw);
+        String role = b.str("role", "OWNER").toUpperCase();
+        String mode = b.str("mode", "LOOK").toUpperCase();
+        if (!"LOOK".equals(mode) && !"HELP".equals(mode)) {
+            throw ApiException.bad("Choose to look only, or to help");
+        }
+        String reason = b.str("reason", "").trim();
+        if (reason.length() > 200) {
+            reason = reason.substring(0, 200);
+        }
+        Map<String, Object> access = supportAccess.forAdmin(id);
+        boolean demo = Boolean.TRUE.equals(access.get("exempt"));
+        if (!demo && reason.length() < 3) {
+            throw ApiException.bad("Say why you are opening this business, in a few words");
+        }
         List<Map<String, Object>> users = jdbc.queryForList(
                 "SELECT id, name, role FROM users WHERE tenant_id = ? AND role = ? AND active ORDER BY created_at LIMIT 1", id, role);
         if (users.isEmpty()) {
             throw ApiException.notFound("Active " + role.toLowerCase() + " in that workspace");
         }
         Map<String, Object> u = users.get(0);
-        Map<String, Object> access = supportAccess.forAdmin(id);
-        if (Boolean.TRUE.equals(access.get("exempt"))) {
-            admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "grant", "not needed (demo or still in setup)"));
+        AdminContext.Admin a = AdminContext.admin();
+        if (demo) {
+            admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "mode", mode, "reason", reason, "grant", "not needed (demo)"));
             return auth.session((UUID) u.get("id"), id, role, (String) u.get("name"));
         }
-        Map<String, Object> grant = supportAccess.active(id).orElseThrow(() -> new ApiException(org.springframework.http.HttpStatus.FORBIDDEN,
-                "NO_SUPPORT_GRANT", "The owner hasn't let LeziTech in. Ask them to open Settings → Let LeziTech help and tap \"Give access for 5 hours\"."));
-        admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "grant", grant.get("id").toString(),
-                "until", String.valueOf(grant.get("expires_at"))));
-        return auth.supportSession((UUID) u.get("id"), id, role, AdminContext.admin().name(), (UUID) grant.get("id"),
-                com.lezitech.suite.auth.SupportAccess.expiry(grant).toInstant());
+        Optional<Map<String, Object>> grant = "HELP".equals(mode) ? supportAccess.active(id) : Optional.empty();
+        if ("HELP".equals(mode) && grant.isEmpty()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "NO_SUPPORT_GRANT",
+                    "The owner hasn't let LeziTech help yet. Ask the owner for help access, or look only.");
+        }
+        throttle.check("stepup:" + a.id(), null);
+        if (!codes.checkStepUp(a.id(), id, b.str("code", ""))) {
+            throttle.failed("stepup:" + a.id(), null);
+            throw new ApiException(HttpStatus.FORBIDDEN, "STEP_UP_CODE", "That code is not right or has expired. Ask for a new code.");
+        }
+        throttle.succeeded("stepup:" + a.id());
+        String business = (String) jdbc.queryForMap("SELECT name FROM tenants WHERE id = ?", id).get("name");
+        if (grant.isPresent()) {
+            Map<String, Object> g = grant.get();
+            admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "mode", mode, "business", business, "reason", reason,
+                    "grant", g.get("id").toString(), "until", String.valueOf(g.get("expires_at"))));
+            supportAccess.logOpening(id, (UUID) u.get("id"), a.name(), mode, reason);
+            return auth.supportSession((UUID) u.get("id"), id, role, a.name(), (UUID) g.get("id"),
+                    com.lezitech.suite.auth.SupportAccess.expiry(g).toInstant());
+        }
+        Map<String, Object> look = supportAccess.openLook(id, a.id(), a.name(), reason);
+        admin.audit("workspace.impersonate", id, Map.of("as", u.get("name"), "role", role, "mode", mode, "business", business, "reason", reason,
+                "until", String.valueOf(look.get("expires"))));
+        supportAccess.logOpening(id, (UUID) u.get("id"), a.name(), mode, reason);
+        return auth.lookSession((UUID) u.get("id"), id, role, a.name(), (UUID) look.get("id"), (java.time.Instant) look.get("expires"));
+    }
+
+    /** No grant yet: ask the owner for help access. The owner sees it in the app and answers Allow or Not now. */
+    @PostMapping("/tenants/{id}/ask-help")
+    public Map<String, Object> askHelp(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
+        AdminContext.require("impersonate");
+        if (Boolean.TRUE.equals(supportAccess.forAdmin(id).get("exempt"))) {
+            throw ApiException.bad("Demo businesses don't need the owner's permission");
+        }
+        String reason = new Body(raw).str("reason", "").trim();
+        if (reason.length() < 3) {
+            throw ApiException.bad("Say what you need to help with, in a few words");
+        }
+        if (reason.length() > 200) {
+            reason = reason.substring(0, 200);
+        }
+        AdminContext.Admin a = AdminContext.admin();
+        supportAccess.requestHelp(id, a.id(), a.name(), reason);
+        admin.audit("workspace.ask_help", id, Map.of("reason", reason));
+        return Map.of("ok", true);
     }
 
     // ---------- billing queue ----------
@@ -581,7 +724,7 @@ public class AdminController {
     public List<Map<String, Object>> team() {
         AdminContext.require("read");
         return jdbc.queryForList("""
-                SELECT id, email, name, role, active, last_login_at, created_at, invite_pending, blocked_at,
+                SELECT id, email, name, role, active, last_login_at, last_login_device, created_at, invite_pending, blocked_at,
                        (SELECT max(i.created_at) FROM admin_invites i WHERE i.admin_id = platform_admins.id AND i.kind = 'invite') AS invite_sent_at
                 FROM platform_admins ORDER BY role, name""")
                 .stream().map(this::clean).toList();

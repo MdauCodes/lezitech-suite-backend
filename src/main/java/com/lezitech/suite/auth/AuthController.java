@@ -58,6 +58,8 @@ public class AuthController {
                           com.lezitech.suite.growth.Referrals referrals, com.lezitech.suite.growth.MetaConversions meta) {
         this.referrals = referrals;
         this.meta = meta;
+        // Made once, here, so no request ever pays for it or races to make it.
+        this.dummyHash = encoder.encode("no-one-has-this-password-" + UUID.randomUUID());
         this.jdbc = jdbc;
         this.encoder = encoder;
         this.throttle = throttle;
@@ -313,16 +315,11 @@ public class AuthController {
         return session((UUID) u.get("id"), (UUID) u.get("tenant_id"), (String) u.get("role"), (String) u.get("name"));
     }
 
-    private volatile String dummyHash;
+    private final String dummyHash;
 
     /** A fixed hash nobody can match, so "no such email" costs the same bcrypt work as a real one. */
     private String dummyHash() {
-        String h = dummyHash;
-        if (h == null) {
-            h = encoder.encode("no-one-has-this-password-" + UUID.randomUUID());
-            dummyHash = h;
-        }
-        return h;
+        return dummyHash;
     }
 
     /** Hand the till to another staff member with their 4-digit PIN (cf. Odoo pos_hr cashier switch). */
@@ -433,6 +430,18 @@ public class AuthController {
         out.put("token", jwt.issueSupport(userId, tenantId, role, "LeziTech support (" + supportName + ")",
                 versions.current(userId, false), grant, ends));
         out.put("support", Map.of("until", ends.toString(), "by", supportName));
+        return out;
+    }
+
+    /**
+     * LeziTech support looking at a business with no grant: look only, at most 2 hours. The name shown everywhere is
+     * "LeziTech support (name)". The server refuses every change made with this token.
+     */
+    public Map<String, Object> lookSession(UUID userId, UUID tenantId, String role, String supportName, UUID look, Instant ends) {
+        Map<String, Object> out = profile(userId, tenantId);
+        out.put("token", jwt.issueLook(userId, tenantId, role, "LeziTech support (" + supportName + ")",
+                versions.current(userId, false), look, ends));
+        out.put("support", Map.of("until", ends.toString(), "by", supportName, "lookOnly", true));
         return out;
     }
 

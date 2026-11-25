@@ -32,6 +32,12 @@ public class SupportController {
         return support.grant(new Body(raw).str("note", null));
     }
 
+    /** The owner answers "LeziTech support asks to help": allowing is the same as granting; Not now closes the ask. */
+    @PostMapping("/request/decline")
+    public Map<String, Object> decline() {
+        return support.declineRequest();
+    }
+
     @PostMapping("/stop")
     public Map<String, Object> stop() {
         return support.stop();

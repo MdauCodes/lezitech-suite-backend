@@ -18,7 +18,8 @@ import java.util.UUID;
  * "Let LeziTech help": LeziTech can sign in as a business only while its owner has granted access (5 hours, which the
  * owner can stop any time). The sign-in carries the grant: every request checks it is still active, so stopping it
  * ends the session at once, and every change made during it is written to the business's activity log, marked
- * "LeziTech support". Demo businesses and businesses LeziTech is still setting up (not yet handed over) need no grant.
+ * "LeziTech support". Demo businesses need no grant. Without a grant LeziTech can only look (support_looks): the
+ * server refuses every change.
  *
  * support_grants has no row-level security (the control panel reads it before signing in): always filter by tenant.
  */
@@ -29,6 +30,11 @@ public class SupportAccess {
 
     /** The grant behind the current request, when it comes from a LeziTech support sign-in. */
     private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();
+    /** True while serving a look-only opening: every database change is refused (see TenantTransactionManager). */
+    private static final ThreadLocal<Boolean> LOOK_ONLY = new ThreadLocal<>();
+
+    /** A look-only opening lasts at most this long. */
+    public static final int LOOK_HOURS = 2;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
@@ -50,6 +56,16 @@ public class SupportAccess {
 
     static void clear() {
         CURRENT.remove();
+        LOOK_ONLY.remove();
+    }
+
+    static void setLookOnly(boolean on) {
+        LOOK_ONLY.set(on);
+    }
+
+    /** True when the current request is LeziTech support looking at a business with no grant. */
+    public static boolean lookOnly() {
+        return Boolean.TRUE.equals(LOOK_ONLY.get());
     }
 
     /** The grant now in force for a business, if any. */
@@ -82,6 +98,7 @@ public class SupportAccess {
             jdbc.update("INSERT INTO support_grants (tenant_id, granted_by, expires_at, note) VALUES (?, ?, now() + make_interval(hours => ?), ?)",
                     tenant, TenantContext.userId(), HOURS, n);
         }
+        jdbc.update("UPDATE support_requests SET resolved_at = now(), outcome = 'ALLOWED' WHERE tenant_id = ? AND resolved_at IS NULL", tenant);
         activity.record("SUPPORT_GRANTED", com.lezitech.suite.activity.ActivityLog.NOTICE,
                 "Let LeziTech help for " + HOURS + " hours" + (n == null ? "" : ": " + n));
         return status();
@@ -92,7 +109,8 @@ public class SupportAccess {
         requireOwnerInPerson();
         int n = jdbc.update("UPDATE support_grants SET stopped_at = now(), stopped_by = ? WHERE tenant_id = ? AND stopped_at IS NULL AND expires_at > now()",
                 TenantContext.userId(), TenantContext.tenantId());
-        if (n > 0) {
+        int looks = jdbc.update("UPDATE support_looks SET ended_at = now() WHERE tenant_id = ? AND ended_at IS NULL AND expires_at > now()", TenantContext.tenantId());
+        if (n > 0 || looks > 0) {
             activity.record("SUPPORT_STOPPED", com.lezitech.suite.activity.ActivityLog.INFO, "Stopped LeziTech's access");
         }
         return status();
@@ -107,7 +125,81 @@ public class SupportAccess {
         out.put("grantedBy", g.map(x -> x.get("granted_by_name")).orElse(null));
         out.put("hours", HOURS);
         out.put("inSupportSession", current().isPresent());
+        out.put("lookOnly", lookOnly());
+        // Who is looking at the business right now (look only), so the owner's staff can see it.
+        out.put("looking", looking(TenantContext.tenantId()));
+        // LeziTech support asking for help access: the owner answers Allow or Not now.
+        out.put("request", current().isPresent() ? null : pendingRequest(TenantContext.tenantId()).orElse(null));
         return out;
+    }
+
+    /** Support looking at the business now: name, since, until. */
+    public List<Map<String, Object>> looking(UUID tenant) {
+        return jdbc.queryForList("""
+                SELECT l.admin_name AS name, l.started_at AS since, l.expires_at AS until
+                FROM support_looks l JOIN platform_admins a ON a.id = l.admin_id
+                WHERE l.tenant_id = ? AND l.ended_at IS NULL AND l.expires_at > now() AND a.active AND a.blocked_at IS NULL
+                ORDER BY l.started_at""", tenant);
+    }
+
+    /** A look-only opening is still open and the person is still on the team. */
+    boolean lookActive(UUID look, UUID tenant) {
+        Integer n = jdbc.queryForObject("""
+                SELECT count(*) FROM support_looks l JOIN platform_admins a ON a.id = l.admin_id
+                WHERE l.id = ? AND l.tenant_id = ? AND l.ended_at IS NULL AND l.expires_at > now() AND a.active AND a.blocked_at IS NULL""",
+                Integer.class, look, tenant);
+        return n != null && n > 0;
+    }
+
+    /** Opens a look-only session for this person (at most 2 hours). Returns {id, expires}. */
+    public Map<String, Object> openLook(UUID tenant, UUID adminId, String adminName, String reason) {
+        UUID id = jdbc.queryForObject("""
+                INSERT INTO support_looks (tenant_id, admin_id, admin_name, reason, expires_at)
+                VALUES (?, ?, ?, ?, now() + make_interval(hours => ?)) RETURNING id""", UUID.class, tenant, adminId, adminName, reason, LOOK_HOURS);
+        Timestamp ends = jdbc.queryForObject("SELECT expires_at FROM support_looks WHERE id = ?", Timestamp.class, id);
+        return Map.of("id", id, "expires", ends.toInstant());
+    }
+
+    public Optional<Map<String, Object>> pendingRequest(UUID tenant) {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT id, admin_name AS name, reason, created_at AS at FROM support_requests
+                WHERE tenant_id = ? AND resolved_at IS NULL AND created_at > now() - interval '24 hours'
+                ORDER BY created_at DESC LIMIT 1""", tenant);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    /** LeziTech support asks the owner for help access. One open ask per business: asking again returns it. */
+    public Map<String, Object> requestHelp(UUID tenant, UUID adminId, String adminName, String reason) {
+        Optional<Map<String, Object>> open = pendingRequest(tenant);
+        if (open.isPresent()) {
+            return open.get();
+        }
+        jdbc.update("INSERT INTO support_requests (tenant_id, admin_id, admin_name, reason) VALUES (?, ?, ?, ?)", tenant, adminId, adminName, reason);
+        return pendingRequest(tenant).orElseThrow();
+    }
+
+    /** The owner says Not now. */
+    public Map<String, Object> declineRequest() {
+        requireOwnerInPerson();
+        jdbc.update("UPDATE support_requests SET resolved_at = now(), outcome = 'DECLINED' WHERE tenant_id = ? AND resolved_at IS NULL", TenantContext.tenantId());
+        return status();
+    }
+
+    /** The opening of a business by LeziTech support goes in the business's activity log (as that support person). */
+    public void logOpening(UUID tenant, UUID userId, String adminName, String mode, String reason) {
+        TenantContext.Caller previous = TenantContext.callerOrNull();
+        TenantContext.set(new TenantContext.Caller(userId, tenant, "OWNER", "LeziTech support (" + adminName + ")"));
+        try {
+            tx.executeWithoutResult(s -> activity.record("SUPPORT_OPENED", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                    "LeziTech support (" + adminName + ") opened your business, " + ("LOOK".equals(mode) ? "looking only" : "able to help")
+                            + ": " + reason, null, null, null, null, Map.of("mode", mode, "reason", reason)));
+        } finally {
+            if (previous == null) {
+                TenantContext.clear();
+            } else {
+                TenantContext.set(previous);
+            }
+        }
     }
 
     /** Only the owner, signed in themselves (not LeziTech signed in as them), decides who gets in. */
@@ -144,14 +236,20 @@ public class SupportAccess {
 
     /** For the control panel: the grant in force, or why signing in isn't allowed. */
     public Map<String, Object> forAdmin(UUID tenant) {
-        Map<String, Object> t = jdbc.queryForMap("SELECT is_demo, in_setup FROM tenants WHERE id = ?", tenant);
+        List<Map<String, Object>> found = jdbc.queryForList("SELECT is_demo FROM tenants WHERE id = ?", tenant);
+        if (found.isEmpty()) {
+            throw ApiException.notFound("Workspace");
+        }
         Map<String, Object> out = new LinkedHashMap<>();
-        boolean exempt = Boolean.TRUE.equals(t.get("is_demo")) || Boolean.TRUE.equals(t.get("in_setup"));
+        // Only demo businesses are open to everyone. A business LeziTech is still setting up needs the code and a reason like any other.
+        boolean exempt = Boolean.TRUE.equals(found.get(0).get("is_demo"));
         Optional<Map<String, Object>> g = active(tenant);
         out.put("exempt", exempt);
         out.put("active", g.isPresent());
         out.put("expiresAt", g.map(x -> x.get("expires_at")).orElse(null));
         out.put("grantedBy", g.map(x -> x.get("granted_by_name")).orElse(null));
+        out.put("requested", pendingRequest(tenant).isPresent());
+        out.put("looking", looking(tenant).size());
         return out;
     }
 

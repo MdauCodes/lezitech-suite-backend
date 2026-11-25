@@ -38,6 +38,13 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", cors);
 
         http.csrf(c -> c.disable())
+                // Headers on every API answer: no framing, no sniffing, HTTPS only, and a policy that lets JSON load nothing.
+                .headers(h -> h
+                        .httpStrictTransportSecurity(t -> t.includeSubDomains(true).maxAgeInSeconds(31536000).requestMatcher(r -> true))
+                        .contentTypeOptions(c -> { })
+                        .frameOptions(f -> f.deny())
+                        .referrerPolicy(r -> r.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .contentSecurityPolicy(c -> c.policyDirectives("default-src 'none'; frame-ancestors 'none'")))
                 .cors(c -> c.configurationSource(source))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
@@ -45,7 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/**", "/api/auth/signup", "/api/auth/login", "/api/auth/code", "/api/auth/reset",
                                 "/api/auth/staff-pin", "/api/auth/reset-pin",
                                 "/api/platform/**", "/actuator/health", "/api/admin/auth/login", "/api/admin/auth/demo",
-                                "/api/admin/auth/options").permitAll()
+                                "/api/admin/auth/options", "/api/admin/auth/code").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("PLATFORM")
                         // Workspace endpoints need a workspace login; a control-panel token is refused here.
                         .anyRequest().access((auth, ctx) -> new org.springframework.security.authorization.AuthorizationDecision(

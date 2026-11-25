@@ -44,6 +44,16 @@ public class ApiExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("code", "BAD_REQUEST", "message", "Something in the request is missing or not valid"));
     }
 
+    /** A read that tried to write during a look-only opening: the database refused it. */
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    ResponseEntity<Map<String, Object>> dataAccess(org.springframework.dao.DataAccessException e, jakarta.servlet.http.HttpServletRequest request) {
+        if (com.lezitech.suite.auth.SupportAccess.lookOnly() && String.valueOf(e.getMostSpecificCause().getMessage()).contains("read-only transaction")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("code", "LOOK_ONLY",
+                    "message", "You are only looking at this business, so nothing can be changed."));
+        }
+        return unexpected(e, request);
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> unexpected(Exception e, jakarta.servlet.http.HttpServletRequest request) {
         log.error("Unexpected error", e);
