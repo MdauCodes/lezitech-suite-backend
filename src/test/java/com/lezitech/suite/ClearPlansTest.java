@@ -444,4 +444,94 @@ class ClearPlansTest extends IntegrationTest {
         call("PUT", "/admin/sectors/restaurant/plan-names", boss, Map.of());
         assertThat(get("/public/plans?sector=restaurant", null).body().at("/plans/0/name").asText()).isEqualTo("Starter Kitchen");
     }
+
+    // ---------- review fixes ----------
+
+    @Autowired
+    com.lezitech.suite.mpesa.MpesaService mpesa;
+
+    private UUID owner(String tenant) {
+        return jdbc.queryForObject("SELECT id FROM users WHERE tenant_id = ?::uuid AND role = 'OWNER'", UUID.class, tenant);
+    }
+
+    @Test
+    void movingUpClosesWaitingRequestsAndAnOldOneNeverSetsThePlanBack() {
+        JsonNode s = signup("retail");
+        String tenant = s.at("/tenant/id").asText();
+        String ownerTok = paid(s, "LITE", 13, 30);
+        UUID old = UUID.fromString(post("/billing/subscribe", ownerTok, Map.of("plan", "LITE", "cycle", "MONTHLY")).at("/requestId").asText());
+        post("/billing/plan-change", ownerTok, Map.of("plan", "GROWTH"));
+        assertThat(jdbc.queryForObject("SELECT status FROM subscription_requests WHERE id = ?", String.class, old)).isEqualTo("SUPERSEDED");
+        assertThat(jdbc.queryForObject("SELECT note FROM subscription_requests WHERE id = ?", String.class, old)).contains("plan changed");
+
+        // No M-Pesa prompt for the closed request; the answer carries the new amount.
+        var refused = org.assertj.core.api.Assertions.catchThrowable(() ->
+                com.lezitech.suite.tenant.TenantContext.runAs(UUID.fromString(tenant), owner(tenant), () -> mpesa.startSubscriptionPayment(old, "0712345678")));
+        assertThat(refused).isInstanceOf(com.lezitech.suite.common.ApiException.class).hasMessageContaining("out of date").hasMessageContaining("5,302");
+
+        // Even if its money arrives by hand, the plan stays on Growth and the extra line stays on the bill.
+        activation.activate(old, "MANUAL", null);
+        assertThat(jdbc.queryForObject("SELECT plan FROM tenants WHERE id = ?::uuid", String.class, tenant)).isEqualTo("GROWTH");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bill_lines WHERE tenant_id = ?::uuid AND paid_at IS NULL", Long.class, tenant)).isEqualTo(1);
+    }
+
+    @Test
+    void aWaitingRequestThatNoLongerMatchesTheBillIsRefused() {
+        JsonNode s = signup("retail");
+        String tenant = s.at("/tenant/id").asText();
+        String ownerTok = paid(s, "LITE", 13, 30);
+        UUID req = UUID.fromString(post("/billing/subscribe", ownerTok, Map.of("plan", "LITE", "cycle", "MONTHLY")).at("/requestId").asText());
+        jdbc.update("INSERT INTO bill_lines (tenant_id, kind, label, amount) VALUES (?::uuid, 'PRORATION', 'extra', 100)", tenant);
+        var refused = org.assertj.core.api.Assertions.catchThrowable(() ->
+                com.lezitech.suite.tenant.TenantContext.runAs(UUID.fromString(tenant), owner(tenant), () -> mpesa.startSubscriptionPayment(req, "0712345678")));
+        assertThat(refused).hasMessageContaining("out of date").hasMessageContaining("2,750");
+    }
+
+    @Test
+    void stayingAfterPayingTheLowerPlanAheadAddsTheDifference() {
+        JsonNode s = signup("retail");
+        String tenant = s.at("/tenant/id").asText();
+        String ownerTok = paid(s, "GROWTH", 20, 30);
+        post("/billing/plan-change", ownerTok, Map.of("plan", "LITE"));
+        Res sub = post("/billing/subscribe", ownerTok, Map.of("plan", "LITE", "cycle", "MONTHLY"));
+        activation.activate(UUID.fromString(sub.at("/requestId").asText()), "MANUAL", null);
+
+        // The sheet says it before they confirm.
+        JsonNode sheet = get("/billing/plan-change/preview?toPlan=GROWTH", ownerTok).body();
+        assertThat(sheet.at("/message").asText()).contains("already paid the next period at Corner Shop").contains("KES 1,850");
+        Res stay = post("/billing/plan-change", ownerTok, Map.of("plan", "GROWTH"));
+        assertThat(stay.status()).isEqualTo(200);
+        assertThat(stay.at("/proration").asLong()).isEqualTo(1850);
+        JsonNode bill = get("/billing/next-bill", ownerTok).body();
+        assertThat(bill.at("/total").asLong()).isEqualTo(4500 + 1850);
+        assertThat(bill.at("/lines/1/label").asText()).contains("Busy Shop instead of Corner Shop");
+        assertThat(jdbc.queryForObject("SELECT plan FROM tenants WHERE id = ?::uuid", String.class, tenant)).isEqualTo("GROWTH");
+    }
+
+    @Test
+    void aLineIsSettledOnceEvenIfTwoRequestsIncludedIt() {
+        JsonNode s = signup("retail");
+        String tenant = s.at("/tenant/id").asText();
+        String ownerTok = paid(s, "LITE", 13, 30);
+        post("/billing/plan-change", ownerTok, Map.of("plan", "GROWTH"));
+        UUID a = UUID.fromString(post("/billing/subscribe", ownerTok, Map.of("plan", "GROWTH", "cycle", "MONTHLY")).at("/requestId").asText());
+        UUID b = UUID.fromString(post("/billing/subscribe", ownerTok, Map.of("plan", "GROWTH", "cycle", "MONTHLY")).at("/requestId").asText());
+        activation.activate(a, "MANUAL", null);
+        activation.activate(b, "MANUAL", null);
+        assertThat(jdbc.queryForObject("SELECT paid_request_id FROM bill_lines WHERE tenant_id = ?::uuid", UUID.class, tenant)).isEqualTo(a);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bill_lines WHERE tenant_id = ?::uuid AND paid_request_id = ?", Long.class, tenant, b)).isEqualTo(0);
+    }
+
+    @Test
+    void operatorActivationSettlesTheLinesToo() throws Exception {
+        JsonNode s = signup("retail");
+        String tenant = s.at("/tenant/id").asText();
+        String ownerTok = paid(s, "LITE", 13, 30);
+        post("/billing/plan-change", ownerTok, Map.of("plan", "GROWTH"));
+        var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + "/api/platform/tenants/" + tenant + "/activate"))
+                .header("Content-Type", "application/json").header("X-Operator-Key", "local-operator-key")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"plan\":\"GROWTH\",\"months\":1}")).build();
+        assertThat(java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM bill_lines WHERE tenant_id = ?::uuid AND paid_at IS NULL", Long.class, tenant)).isEqualTo(0);
+    }
 }

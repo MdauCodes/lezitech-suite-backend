@@ -28,6 +28,8 @@ public class PlatformController {
 
     private final JdbcTemplate jdbc;
     private final SectorCatalog sectors;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanBilling billing;
     private final byte[] operatorKey;
 
     public PlatformController(JdbcTemplate jdbc, SectorCatalog sectors, @Value("${suite.operator-key}") String operatorKey) {
@@ -68,6 +70,7 @@ public class PlatformController {
                        paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?) WHERE id = ?""",
                 b.str("plan").toUpperCase(), months, id);
         jdbc.update("UPDATE subscription_requests SET status = 'PAID' WHERE tenant_id = ? AND status = 'PENDING'", id);
+        billing.markPaid(id, null, null); // the operator confirmed the payment: extra lines on the bill are paid too
         return Map.of("ok", true);
     }
 

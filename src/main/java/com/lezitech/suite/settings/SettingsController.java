@@ -249,7 +249,7 @@ public class SettingsController {
         Map<String, Object> own = jdbc.queryForMap("SELECT status, plan, next_plan, paid_until FROM tenants WHERE id = ?", TenantContext.tenantId());
         java.sql.Timestamp until = (java.sql.Timestamp) own.get("paid_until");
         String billed = own.get("next_plan") != null ? (String) own.get("next_plan") : (String) own.get("plan");
-        if ("ACTIVE".equals(own.get("status")) && until != null && until.toInstant().isAfter(java.time.Instant.now()) && !plan.equals(billed)) {
+        if ("ACTIVE".equals(own.get("status")) && billed != null && !plan.equals(billed)) {
             throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "MOVE_FIRST", "To pay for " + platform.planName(TenantContext.tenantId(), plan) + ", move to it first. Open Your plan and choose it, and the next bill will be worked out for you.");
         }
         // The price after the best live offer for this business, plus any extra lines already on the next bill: one total.

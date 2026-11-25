@@ -118,9 +118,32 @@ public class PlanBilling {
     }
 
     private Map<String, Object> tenantRow(UUID tenant) {
+        return tenantRow(tenant, false);
+    }
+
+    /** The business's billing row; locked when a change is about to be made, so two taps cannot both go through. */
+    private Map<String, Object> tenantRow(UUID tenant, boolean lock) {
         return jdbc.queryForMap("""
                 SELECT sector, status, plan, next_plan, plan_switch_at, trial_ends_at, paid_until, period_start
-                FROM tenants WHERE id = ?""", tenant);
+                FROM tenants WHERE id = ?""" + (lock ? " FOR UPDATE" : ""), tenant);
+    }
+
+    /**
+     * A lower plan was paid for ahead (the next period is already paid at its price). Keeping or moving to a plan that
+     * costs more means the difference for that period goes on the next bill. 0 when nothing was paid ahead.
+     */
+    private long prepaidGap(UUID tenant, Map<String, Object> t, String keep) {
+        String next = (String) t.get("next_plan");
+        if (next == null || t.get("plan_switch_at") == null || keep.equals(next)) {
+            return 0;
+        }
+        List<String> cycle = jdbc.queryForList("SELECT billing_cycle FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID' ORDER BY created_at DESC LIMIT 1", String.class, tenant);
+        long k = !cycle.isEmpty() && "ANNUAL".equals(cycle.get(0)) ? 10 : 1;
+        return Math.max(0, (monthlyNow(tenant, keep) - monthlyNow(tenant, next)) * k);
+    }
+
+    private String gapLabel(UUID tenant, Map<String, Object> t, String keep) {
+        return nameOf(tenant, keep) + " instead of " + nameOf(tenant, (String) t.get("next_plan")) + " for the period you already paid for";
     }
 
     private static Instant at(Object ts) {
@@ -305,6 +328,12 @@ public class PlanBilling {
                         .append(toName).append(" this month");
             }
             msg.append(".");
+            long gap = prepaidGap(tenant, t, target);
+            if (gap > 0) {
+                msg.append(" You already paid the next period at ").append(nameOf(tenant, nextPlan)).append("'s price, so ").append(kes(gap))
+                        .append(" for the difference is added too.");
+                others += gap;
+            }
             if (others > 0) {
                 msg.append(" Earlier extra amounts of ").append(kes(others)).append(" are also on it, ").append(kes(next + extra + others)).append(" in all.");
             }
@@ -331,8 +360,11 @@ public class PlanBilling {
             // Same plan as now, with a move down waiting: staying on it cancels that move.
             out.put("needed", true);
             out.put("direction", "STAY");
-            out.put("proration", 0);
-            out.put("message", "Stay on " + toName + "? Your move to " + nameOf(tenant, nextPlan) + " on " + (date == null ? "the bill date" : day(date)) + " is cancelled.");
+            long gap = prepaidGap(tenant, t, target);
+            out.put("proration", gap);
+            out.put("message", "Stay on " + toName + "? Your move to " + nameOf(tenant, nextPlan) + " on " + (date == null ? "the bill date" : day(date)) + " is cancelled."
+                    + (gap > 0 ? " You already paid the next period at " + nameOf(tenant, nextPlan) + "'s price, so " + kes(gap)
+                    + " for the difference is added to your next bill." : ""));
             out.put("yes", "Yes, stay on " + toName);
             out.put("no", "Not now");
         }
@@ -397,7 +429,7 @@ public class PlanBilling {
         if (platform.plan(to) == null) {
             throw ApiException.bad("Choose a plan");
         }
-        Map<String, Object> t = tenantRow(tenant);
+        Map<String, Object> t = tenantRow(tenant, true);
         boolean paid = "ACTIVE".equals(t.get("status")) && t.get("plan") != null && platform.plan((String) t.get("plan")) != null;
         String from = paid ? (String) t.get("plan") : (String) features.fittingPlan(tenant).get("code");
         String toName = nameOf(tenant, to), fromName = nameOf(tenant, from);
@@ -417,16 +449,24 @@ public class PlanBilling {
             if (nextPlan == null) {
                 throw ApiException.bad("You are already on " + toName);
             }
+            long gap = prepaidGap(tenant, t, to);
+            String gapText = gap > 0 ? gapLabel(tenant, t, to) : null;
             jdbc.update("UPDATE tenants SET next_plan = NULL, plan_switch_at = NULL WHERE id = ?", tenant);
-            record(tenant, from, to, "CANCEL_DOWNGRADE", "Stayed on " + toName, 0, Instant.now());
-            return Map.of("ok", true, "kind", "CANCEL_DOWNGRADE", "plan", to, "planName", toName, "proration", 0,
-                    "message", "You stay on " + toName + ". Your move to " + nameOf(tenant, nextPlan) + " is cancelled.");
+            UUID id = record(tenant, from, to, "CANCEL_DOWNGRADE", "Stayed on " + toName, gap, Instant.now());
+            supersedeRequests(tenant);
+            if (gap > 0) {
+                jdbc.update("INSERT INTO bill_lines (tenant_id, plan_change_id, kind, label, amount) VALUES (?, ?, 'DIFFERENCE', ?, ?)", tenant, id, gapText, gap);
+            }
+            return Map.of("ok", true, "kind", "CANCEL_DOWNGRADE", "plan", to, "planName", toName, "proration", gap,
+                    "message", "You stay on " + toName + ". Your move to " + nameOf(tenant, nextPlan) + " is cancelled."
+                            + (gap > 0 ? " " + kes(gap) + " for the difference on the period you already paid for is added to your next bill." : ""));
         }
         if (dir < 0) {
             if (to.equals(nextPlan)) {
                 throw ApiException.bad("You are already moving to " + toName + " on " + (date == null ? "your next bill date" : day(date)));
             }
             jdbc.update("UPDATE tenants SET next_plan = ?, plan_switch_at = NULL WHERE id = ?", to, tenant);
+            supersedeRequests(tenant);
             record(tenant, from, to, "DOWNGRADE", why, 0, date == null ? Instant.now() : date);
             return Map.of("ok", true, "kind", "DOWNGRADE", "plan", from, "planName", fromName, "movingTo", to, "movingToName", toName, "proration", 0,
                     "message", "You move to " + toName + " on " + (date == null ? "your next bill date" : day(date)) + ". Until then you keep " + fromName
@@ -434,8 +474,14 @@ public class PlanBilling {
         }
         long[] days = daysLeft(t);
         long extra = extraFor(monthlyNow(tenant, from), monthlyNow(tenant, to), days);
-        UUID changeId = record(tenant, from, to, "UPGRADE", why, extra, Instant.now());
+        long gap = prepaidGap(tenant, t, to);
+        String gapText = gap > 0 ? gapLabel(tenant, t, to) : null;
+        UUID changeId = record(tenant, from, to, "UPGRADE", why, extra + gap, Instant.now());
         jdbc.update("UPDATE tenants SET plan = ?, next_plan = NULL, plan_switch_at = NULL WHERE id = ?", to, tenant);
+        supersedeRequests(tenant);
+        if (gap > 0) {
+            jdbc.update("INSERT INTO bill_lines (tenant_id, plan_change_id, kind, label, amount) VALUES (?, ?, 'DIFFERENCE', ?, ?)", tenant, changeId, gapText, gap);
+        }
         if (extra > 0) {
             jdbc.update("INSERT INTO bill_lines (tenant_id, plan_change_id, kind, label, amount) VALUES (?, ?, 'PRORATION', ?, ?)",
                     tenant, changeId, days[0] + (days[0] == 1 ? " day" : " days") + " of " + toName + " this month", extra);
@@ -443,6 +489,13 @@ public class PlanBilling {
         return Map.of("ok", true, "kind", "UPGRADE", "plan", to, "planName", toName, "proration", extra,
                 "message", "You are on " + toName + " now. Nothing to pay today."
                         + (extra > 0 ? " " + kes(extra) + " for the " + days[0] + (days[0] == 1 ? " day" : " days") + " of " + toName + " this month is added to your next bill." : ""));
+    }
+
+    /** Payment requests made before a plan change were worked out for the old plan and bill: they are closed, and a new one is made from the new bill. */
+    private void supersedeRequests(UUID tenant) {
+        jdbc.update("""
+                UPDATE subscription_requests SET status = 'SUPERSEDED', note = 'Your plan changed, so this request was closed. The next bill was worked out again.'
+                WHERE tenant_id = ? AND status = 'PENDING'""", tenant);
     }
 
     private UUID record(UUID tenant, String from, String to, String kind, String why, long proration, Instant effective) {
@@ -494,10 +547,16 @@ public class PlanBilling {
 
     /** A paid request covers the proration lines that existed when it was made. */
     public int markPaid(UUID tenant, UUID requestId, Timestamp requestMadeAt) {
-        return jdbc.update("""
-                UPDATE bill_lines SET paid_request_id = ?, paid_at = now()
-                WHERE tenant_id = ? AND paid_at IS NULL AND (cast(? as timestamptz) IS NULL OR created_at <= ?)""",
-                requestId, tenant, requestMadeAt, requestMadeAt);
+        // Lock the lines by id first: a line two requests both included is settled by whichever is confirmed first, once.
+        List<UUID> ids = jdbc.queryForList("""
+                SELECT id FROM bill_lines
+                WHERE tenant_id = ? AND paid_at IS NULL AND (cast(? as timestamptz) IS NULL OR created_at <= ?)
+                ORDER BY id FOR UPDATE""", UUID.class, tenant, requestMadeAt, requestMadeAt);
+        int n = 0;
+        for (UUID id : ids) {
+            n += jdbc.update("UPDATE bill_lines SET paid_request_id = ?, paid_at = now() WHERE id = ? AND paid_at IS NULL", requestId, id);
+        }
+        return n;
     }
 
     /** A move down that was paid for ahead starts on the bill date: switch every business whose date has come. */

@@ -48,6 +48,8 @@ public class MpesaService {
     private final JdbcTemplate jdbc;
     private final OrderService orders;
     private final PlanActivation plans;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanBilling billing;
     private final TransactionTemplate tx;
     private final IntegrationService integrations;
     private final DarajaGateway daraja;
@@ -405,10 +407,17 @@ public class MpesaService {
 
     /** Owner pays for a plan from Billing. The plan switches on as soon as the payment is confirmed. */
     public Map<String, Object> startSubscriptionPayment(UUID subscriptionRequestId, String phoneRaw) {
+        // Only a waiting request that still matches the next bill may be paid: a plan change makes older ones out of date.
+        Map<String, Object> r = jdbc.queryForMap("SELECT amount, plan, billing_cycle, status FROM subscription_requests WHERE id = ? AND tenant_id = ?",
+                subscriptionRequestId, TenantContext.tenantId());
+        var quote = billing.quote(TenantContext.tenantId(), (String) r.get("plan"), (String) r.get("billing_cycle"));
+        var now = billing.quote(TenantContext.tenantId(), billing.billPlan(TenantContext.tenantId()), (String) r.get("billing_cycle"));
+        if (!"PENDING".equals(r.get("status")) || ((BigDecimal) r.get("amount")).compareTo(BigDecimal.valueOf(quote.total())) != 0) {
+            throw ApiException.conflict("This payment request is out of date because your plan or bill changed. Your next bill is now KES " + String.format("%,d", now.total()) + ". Open Your plan and pay from there.")
+                    .with("amount", now.total());
+        }
         requireEnabled();
         String phone = normalizePhone(phoneRaw);
-        Map<String, Object> r = jdbc.queryForMap("SELECT amount, plan FROM subscription_requests WHERE id = ? AND tenant_id = ?",
-                subscriptionRequestId, TenantContext.tenantId());
         PayAccount acct = cfg.subscriptionAccount();
         if (acct == null && !cfg.simulated()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "MPESA_SETUP",

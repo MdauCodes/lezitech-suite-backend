@@ -58,3 +58,14 @@ ALTER TABLE tenants ADD COLUMN period_start timestamptz;
 ALTER TABLE subscription_requests ADD COLUMN lines jsonb;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON plan_changes, bill_lines, bill_reminders TO suite_app;
+
+-- Why a request was closed (a plan change made it out of date), in words the owner can read.
+ALTER TABLE subscription_requests ADD COLUMN note varchar(300);
+
+-- Businesses already paying: work out the period now running (one month, or a year if their last payment was yearly)
+-- so a move up uses the real period.
+UPDATE tenants t SET period_start = t.paid_until - COALESCE(
+        (SELECT CASE WHEN r.billing_cycle = 'ANNUAL' THEN interval '12 months' ELSE interval '1 month' END
+         FROM subscription_requests r WHERE r.tenant_id = t.id AND r.status = 'PAID' ORDER BY r.created_at DESC LIMIT 1),
+        interval '1 month')
+WHERE t.status = 'ACTIVE' AND t.paid_until IS NOT NULL AND t.period_start IS NULL;
