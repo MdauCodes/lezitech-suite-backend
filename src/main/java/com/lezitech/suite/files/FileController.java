@@ -39,6 +39,9 @@ public class FileController {
     /** Any file of this business, for signed-in staff. */
     @GetMapping("/api/files/{id}")
     public ResponseEntity<byte[]> show(@PathVariable UUID id) {
+        if (!files.mayView(id)) {
+            throw ApiException.notFound("File");
+        }
         FileService.Stored f = files.load(id).orElseThrow(() -> ApiException.notFound("File"));
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(f.contentType()))
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate()).body(f.bytes());

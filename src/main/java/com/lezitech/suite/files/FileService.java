@@ -37,7 +37,9 @@ public class FileService {
         /** The design a customer wants on their cake (R7). */
         CAKE_DESIGN(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp"),
         /** A photo or PDF of the receipt for something the business paid for (expenses). */
-        EXPENSE_RECEIPT(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp", "application/pdf");
+        EXPENSE_RECEIPT(6 * 1024 * 1024, "image/jpeg", "image/png", "image/webp", "application/pdf"),
+        /** The photo a staff member takes when they clock in or out (location and camera details removed; kept 60 days). */
+        ATTENDANCE_SELFIE(1024 * 1024, "image/jpeg", "image/png", "image/webp");
 
         final int maxBytes;
         final java.util.Set<String> types;
@@ -95,7 +97,11 @@ public class FileService {
         if (type == null || !purpose.types.contains(type)) {
             throw ApiException.bad(purpose == Purpose.ETR ? "Upload the ETR as a photo (JPG or PNG) or a PDF"
                     : purpose == Purpose.LEASE_DOC ? "Upload the document as a PDF or a photo (JPG or PNG)"
+                    : purpose == Purpose.ATTENDANCE_SELFIE ? "That photo can't be used. Take it again"
                     : "Upload a photo (JPG, PNG or WebP)");
+        }
+        if (purpose == Purpose.ATTENDANCE_SELFIE) {
+            bytes = ImageScrub.strip(bytes, type);
         }
         UUID tenant = TenantContext.tenantId();
         String key = tenant + "/" + purpose.name().toLowerCase() + "/" + UUID.randomUUID() + ext(type);
@@ -126,6 +132,17 @@ public class FileService {
                 log.warn("Couldn't delete stored file {}: {}", id, e.getMessage());
             }
         });
+    }
+
+    /** Clock-in photos are for the owner, managers, the accountant and the person in them; other files are open to any staff. */
+    public boolean mayView(UUID id) {
+        if (!"ATTENDANCE_SELFIE".equals(purposeOf(id))) {
+            return true;
+        }
+        if (java.util.Set.of("OWNER", "MANAGER", "ACCOUNTANT").contains(TenantContext.caller().role())) {
+            return true;
+        }
+        return db.find("SELECT 1 AS ok FROM attendance_events WHERE selfie_file_id = :f AND user_id = :u", "f", id).isPresent();
     }
 
     public String purposeOf(UUID id) {

@@ -69,6 +69,8 @@ public class PlanFeatures {
                     List.of(all("/api/reports/tips.*"))),
             new Feature("onlineOrders", "Ordering from a phone", "Guests order from the QR code at the table, or order delivery, without a waiter.", "GROWTH", List.of()),
             new Feature("export", "Download reports to Excel", "Take any report out as a spreadsheet for your accountant.", "GROWTH", List.of()),
+            new Feature("attendance", "Staff attendance", "See that each person is at the shop when they clock in, with a selfie or a shop code, and who was late or absent.", "GROWTH",
+                    List.of(all("/api/attendance(/.*)?"))),
             new Feature("branchReports", "Reports across all branches", "Every branch's sales side by side, so you see which one is doing well.", "PRO", List.of()),
             new Feature("history", "Full history of changes", "Who changed prices, stock, refunds and staff, and when.", "PRO",
                     List.of(all("/api/activity.*"))),

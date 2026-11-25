@@ -47,6 +47,9 @@ public class ShiftController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.bottle.BottleCountController bottleCounts;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.attendance.AttendanceService attendance;
+
     public ShiftController(Db db) {
         this.db = db;
     }
@@ -75,6 +78,7 @@ public class ShiftController {
 
     @PostMapping("/open")
     public Map<String, Object> open(@RequestBody Map<String, Object> raw) {
+        attendance.requireClockedInForTill();
         if (db.find("SELECT id FROM shifts WHERE user_id = :u AND status = 'OPEN'").isPresent()) {
             throw ApiException.conflict("You already have an open till");
         }

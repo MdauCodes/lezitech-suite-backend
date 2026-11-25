@@ -56,6 +56,9 @@ public class NightSummary {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.bottle.BottleCountController bottleCounts;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.attendance.AttendanceService attendance;
+
     public NightSummary(Db db, JdbcTemplate jdbc, ObjectMapper json, Recipes recipes, Mailer mailer, WebPush push) {
         this.db = db;
         this.jdbc = jdbc;
@@ -238,6 +241,10 @@ public class NightSummary {
         Map<String, Object> bottles = bottleCounts.nightLine(day);
         if (bottles != null) {
             out.put("bottleCount", bottles);
+        }
+        Map<String, Object> staffLine = attendance.nightLine(day);
+        if (staffLine != null) {
+            out.put("attendance", staffLine);
         }
         out.put("voidsAndDiscounts", db.one("Voids", """
                 SELECT count(*) FILTER (WHERE kind = 'VOID') AS voids, coalesce(sum(amount) FILTER (WHERE kind = 'VOID'), 0) AS void_value,
@@ -474,6 +481,10 @@ public class NightSummary {
         Map<String, Object> bottles = (Map<String, Object>) s.get("bottleCount");
         if (bottles != null) {
             facts.add(new String[]{"Bottle count", ((String) bottles.get("text")).replaceFirst("^Bottle count: ", "")});
+        }
+        Map<String, Object> staffToday = (Map<String, Object>) s.get("attendance");
+        if (staffToday != null) {
+            facts.add(new String[]{"Staff", ((String) staffToday.get("text")).replaceFirst("^Staff: ", "")});
         }
         Map<String, Object> v = (Map<String, Object>) s.get("voidsAndDiscounts");
         facts.add(new String[]{"Cancelled bills", v.get("voids") + (n(v.get("voidValue")).signum() > 0 ? " (" + kes(v.get("voidValue")) + ")" : "")});
