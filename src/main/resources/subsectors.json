@@ -3427,6 +3427,33 @@
       }
     },
     {
+      "key": "hotelSupplier",
+      "name": "Supplier to hotels and hospitals",
+      "tagline": "Orders, delivery rounds and proof of delivery",
+      "modules": [
+        "dashboard",
+        "pos",
+        "quotes",
+        "crm",
+        "customers",
+        "items",
+        "stock",
+        "purchasing",
+        "rounds",
+        "reports",
+        "team",
+        "settings"
+      ],
+      "seo": {
+        "headline": "Supplier software for hotels and hospitals in Kenya",
+        "pitch": "Load the van, send the driver, and let the client's clerk confirm what arrived with a link, a code and a signature.",
+        "keywords": [
+          "supplier delivery software Kenya",
+          "proof of delivery Kenya"
+        ]
+      }
+    },
+    {
       "key": "manufacturer",
       "name": "Manufacturer",
       "tagline": "Raw materials, finished goods and orders from buyers",

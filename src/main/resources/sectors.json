@@ -374,6 +374,14 @@
         "features": {
           "rooms": true
         }
+      },
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
       }
     ],
     "demo": {
@@ -527,7 +535,16 @@
         "lost": true
       }
     ],
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "seed": {
       "locations": [
         {
@@ -1051,7 +1068,16 @@
       ],
       "deals": []
     },
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "demo": {
       "business": "Jirani Minimart",
       "color": "#0f766e",
@@ -1334,7 +1360,16 @@
         }
       ]
     },
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "demo": {
       "business": "Glow Beauty Lounge",
       "color": "#be185d",
@@ -1628,7 +1663,16 @@
         }
       ]
     },
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "demo": {
       "business": "Pwani Packaging Supplies",
       "color": "#1d4ed8",
@@ -1889,7 +1933,16 @@
       ],
       "deals": []
     },
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "demo": {
       "business": "Afya Bora Chemist",
       "color": "#059669",
@@ -2101,7 +2154,16 @@
         }
       ]
     },
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "demo": {
       "business": "Bidii Consulting",
       "color": "#7c3aed",
@@ -2243,7 +2305,16 @@
         "lost": true
       }
     ],
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "seed": {
       "locations": [
         {
@@ -2534,7 +2605,16 @@
         "lost": true
       }
     ],
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "seed": {
       "locations": [
         {
@@ -2963,7 +3043,16 @@
       ],
       "deals": []
     },
-    "extras": [],
+    "extras": [
+      {
+        "key": "rounds",
+        "question": "Do you deliver goods to customers on rounds with a driver?",
+        "modules": [
+          "rounds"
+        ],
+        "features": {}
+      }
+    ],
     "demo": {
       "business": "Bahari Beach Resort",
       "color": "#0284c7",

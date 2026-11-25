@@ -99,6 +99,15 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(ANY, "/api/jobs(/.*)?", "do repair jobs", "MANAGER", "TECHNICIAN"),
             rule(ANY, "/api/meters(/.*)?", "read meters", "MANAGER", "ACCOUNTANT", "TECHNICIAN"),
             rule(ANY, "/api/market(/.*)?", "collect market fees", "MANAGER", "ACCOUNTANT", "COLLECTOR"),
+            // Supply rounds: the store loads, the driver accepts and delivers. Being this round's driver is checked in RoundsService.
+            rule(READS, "/api/rounds", "see the delivery rounds", "MANAGER", "STOREKEEPER", "ACCOUNTANT"),
+            rule(READS, "/api/rounds/orders-ready", "see orders ready for a round", "MANAGER"),
+            rule(WRITES, "/api/rounds", "plan a delivery round", "MANAGER"),
+            rule(READS, "/api/rounds/(?!mine$)[^/]+", "see this round", "MANAGER", "STOREKEEPER", "ACCOUNTANT", "RIDER"),
+            rule(WRITES, "/api/rounds/[^/]+/load", "load a round", "MANAGER", "STOREKEEPER"),
+            rule(WRITES, "/api/rounds/[^/]+/back", "close a round", "MANAGER", "RIDER"),
+            rule(WRITES, "/api/rounds/[^/]+/accept", "accept a load", "RIDER"),
+            rule(WRITES, "/api/rounds/stops/[^/]+/(arrived|code|cash)", "deliver on a round", "RIDER"),
             // Delivery: riders see their own run sheet (checked again in Delivery); the rest is for the floor team.
             rule(ANY, "/api/delivery(/.*)?", "use deliveries", "MANAGER", "CASHIER", "WAITER", "ACCOUNTANT", "RIDER"));
 
