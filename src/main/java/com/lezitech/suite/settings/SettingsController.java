@@ -205,6 +205,24 @@ public class SettingsController {
         // The price after the best live offer for this business.
         var price = offers.price(TenantContext.tenantId(), plan, cycle);
         BigDecimal amount = BigDecimal.valueOf(price.amount());
+        // The page asks for the price it showed. If it changed since (an offer ended or began), say so with the new price and ask again.
+        if (raw.get("expectedAmount") != null) {
+            BigDecimal shown;
+            try {
+                shown = new BigDecimal(String.valueOf(raw.get("expectedAmount")));
+            } catch (NumberFormatException e) {
+                throw ApiException.bad("Reload the page and try again");
+            }
+            if (shown.compareTo(amount) != 0) {
+                throw ApiException.conflict("The price changed, here is the new price: KES " + String.format("%,d", price.amount()) + ".")
+                        .with("amount", amount).with("full", price.full()).with("offer", price.offerTitle());
+            }
+        }
+        if (amount.signum() == 0 && price.credit() == 0) {
+            throw ApiException.bad("This plan has no price to pay right now, so nothing was asked of you. Please try again later or WhatsApp us.");
+        }
+        // Waiting requests older than 48 hours are closed: a new one is made at today's price.
+        planActivation.expireStale();
         java.util.UUID id = jdbc.queryForObject("""
                 INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone, offer_id, credit_used) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id""",
                 java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null), price.offerId(), BigDecimal.valueOf(price.credit()));

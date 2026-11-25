@@ -84,7 +84,14 @@ public class MpesaController {
     public Map<String, Object> payPlan(@RequestBody Map<String, Object> raw) {
         TenantContext.requireRole("OWNER");
         String phone = new Body(raw).str("phone");
-        Map<String, Object> req = settings.subscribe(Map.of("plan", raw.get("plan"), "cycle", raw.getOrDefault("cycle", "MONTHLY"), "mpesaPhone", phone));
+        Map<String, Object> in = new java.util.HashMap<>(Map.of("plan", raw.get("plan"), "cycle", raw.getOrDefault("cycle", "MONTHLY"), "mpesaPhone", phone));
+        if (raw.get("expectedAmount") != null) {
+            in.put("expectedAmount", raw.get("expectedAmount"));
+        }
+        Map<String, Object> req = settings.subscribe(in);
+        if (Boolean.TRUE.equals(req.get("paid"))) {
+            return req; // thank-you credit covered it all: no prompt to send
+        }
         return mpesa.startSubscriptionPayment((UUID) req.get("requestId"), phone);
     }
 

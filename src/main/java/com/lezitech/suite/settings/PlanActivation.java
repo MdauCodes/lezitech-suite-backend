@@ -39,6 +39,12 @@ public class PlanActivation {
         this.json = json;
     }
 
+    /** Plan payment requests still waiting after 48 hours are closed (a new request is made at the current price). Late money still activates by hand. */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 3_600_000, initialDelay = 120_000)
+    public int expireStale() {
+        return jdbc.update("UPDATE subscription_requests SET status = 'EXPIRED' WHERE status = 'PENDING' AND created_at < now() - interval '48 hours'");
+    }
+
     /** @return the request row as it was before activation */
     public Map<String, Object> activate(UUID requestId, String paidVia, String receipt) {
         Map<String, Object> r = jdbc.queryForMap("SELECT * FROM subscription_requests WHERE id = ? FOR UPDATE", requestId);

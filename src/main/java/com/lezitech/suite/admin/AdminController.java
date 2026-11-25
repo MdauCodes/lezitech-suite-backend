@@ -61,7 +61,7 @@ public class AdminController {
     @GetMapping("/platform-settings")
     public Map<String, Object> platformSettings() {
         AdminContext.require("read");
-        return Map.of("trialDays", platform.trialDays(), "plans", platform.plans(), "planOffers", platform.planOffers(), "tools", planFeatures.describe(),
+        return Map.of("trialDays", platform.trialDays(), "plans", platform.plans().stream().map(platform::withPriceNow).toList(), "planOffers", platform.planOffers(), "tools", planFeatures.describe(),
                 "minTrial", com.lezitech.suite.platform.PlatformSettings.MIN_TRIAL, "maxTrial", com.lezitech.suite.platform.PlatformSettings.MAX_TRIAL);
     }
 
@@ -117,7 +117,9 @@ public class AdminController {
             Map<String, Map<String, Object>> o = (Map<String, Map<String, Object>>) po;
             Map<String, Map<String, Object>> before = platform.planOffers();
             Map<String, Map<String, Object>> saved = platform.setPlanOffers(o, by);
-            admin.audit("platform.plan_offers", null, Map.of("from", before.toString(), "to", saved.toString()));
+            if (!saved.equals(before)) {
+                admin.audit("platform.plan_offers", null, Map.of("from", before.toString(), "to", saved.toString()));
+            }
         }
         if (raw.get("planTools") instanceof Map<?, ?> tools) {
             @SuppressWarnings("unchecked")

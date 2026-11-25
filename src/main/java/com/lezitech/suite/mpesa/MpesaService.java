@@ -415,6 +415,9 @@ public class MpesaService {
                     "Paying by M-Pesa prompt isn't ready yet. Send the payment to LeziTech and tap I've paid, and we switch your plan on.");
         }
         BigDecimal amount = (BigDecimal) r.get("amount");
+        if (amount.signum() <= 0) {
+            throw ApiException.bad("There is nothing to pay for this plan right now, so no M-Pesa prompt was sent.");
+        }
         UUID id = insertRequest("SUBSCRIPTION", null, subscriptionRequestId, phone, amount);
         return push(id, acct, phone, amount, "Busynez " + r.get("plan"), "Busynez plan");
     }

@@ -170,7 +170,7 @@ public class PlatformSettings {
         }
         try {
             long price = ((Number) o.get("price")).longValue();
-            if (price < 0 || price >= ((Number) plan.get("monthly")).longValue()) {
+            if (price < 1 || price >= ((Number) plan.get("monthly")).longValue()) {
                 return null;
             }
             String start = (String) o.get("startsOn"), end = (String) o.get("endsOn");
@@ -210,8 +210,8 @@ public class PlatformSettings {
                 throw ApiException.bad("Type the offer price for " + name);
             }
             int price = num(rawPrice, "the offer price for " + name);
-            if (price < 0) {
-                throw ApiException.bad("The offer price for " + name + " can't be below 0");
+            if (price < 1) {
+                throw ApiException.bad("The offer price for " + name + " must be at least KES 1. For free months, use an offer of extra free days");
             }
             if (price >= normal) {
                 throw ApiException.bad("The offer price for " + name + " must be lower than its normal price of KES " + String.format("%,d", normal));

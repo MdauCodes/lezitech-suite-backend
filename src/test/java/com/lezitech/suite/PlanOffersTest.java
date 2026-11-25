@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -170,9 +171,58 @@ class PlanOffersTest extends IntegrationTest {
     }
 
     @Test
-    void aFreeOfferNeverGoesBelowZero() {
-        assertThat(save(admin(), offer(0, "Free month", null, null, true)).status()).isEqualTo(200);
+    void anOfferBelowOneShillingIsRefusedAndAZeroPriceIsNeverRequested() {
+        String admin = admin();
+        assertThat(save(admin, offer(0, "Free month", null, null, true)).status()).isEqualTo(400);
+        assertThat(publicPlan("GROWTH").get("priceNow").asInt()).isEqualTo(4500);
+        // A business's own offer that makes the price 0 must not create a request or an M-Pesa prompt.
         String owner = token(signup("tours"));
-        assertThat(myPlan(owner, "GROWTH").get("pay").asLong()).isEqualTo(0);
+        assertThat(post("/admin/offers", admin, Map.of("kind", "PRICE", "title", "Free", "plan", "LITE", "price", 0,
+                "audience", "ALL", "sector", "tours", "endsOn", LocalDate.now().plusDays(5).toString())).status()).isEqualTo(200);
+        int before = jdbc.queryForObject("SELECT count(*) FROM subscription_requests", Integer.class);
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "LITE", "cycle", "MONTHLY")).status()).isEqualTo(400);
+        assertThat(post("/billing/mpesa", owner, Map.of("plan", "LITE", "cycle", "MONTHLY", "phone", "0712345678")).status()).isEqualTo(400);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM subscription_requests", Integer.class)).isEqualTo(before);
+    }
+
+    @Test
+    void thePageMustAskForThePriceItShowed() {
+        String admin = admin();
+        save(admin, offer(3500, "December offer", null, null, true));
+        String owner = token(signup("tours"));
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY", "expectedAmount", 3500)).status()).isEqualTo(200);
+        // The offer ends while the page is open: the page still asks for 3,500.
+        save(admin, offer(3500, "December offer", null, null, false));
+        Res r = post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY", "expectedAmount", 3500));
+        assertThat(r.status()).isEqualTo(409);
+        assertThat(r.at("/amount").asLong()).isEqualTo(4500);
+        assertThat(r.at("/message").asText()).contains("The price changed, here is the new price");
+        assertThat(post("/billing/mpesa", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY", "phone", "0712345678", "expectedAmount", 3500)).status()).isEqualTo(409);
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY", "expectedAmount", 4500)).at("/amount").asLong()).isEqualTo(4500);
+    }
+
+    @Test
+    void waitingRequestsExpireAfter48HoursAndANewOneUsesTheCurrentPrice() {
+        String admin = admin();
+        save(admin, offer(3500, "December offer", null, null, true));
+        String owner = token(signup("tours"));
+        UUID old = UUID.fromString(post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY")).at("/requestId").asText());
+        UUID fresh = UUID.fromString(post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY")).at("/requestId").asText());
+        jdbc.update("UPDATE subscription_requests SET created_at = now() - interval '49 hours' WHERE id = ?", old);
+        save(admin, offer(3500, "December offer", null, null, false));
+        Res again = post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY"));
+        assertThat(again.at("/amount").asLong()).isEqualTo(4500);
+        assertThat(jdbc.queryForObject("SELECT status FROM subscription_requests WHERE id = ?", String.class, old)).isEqualTo("EXPIRED");
+        assertThat(jdbc.queryForObject("SELECT status FROM subscription_requests WHERE id = ?", String.class, fresh)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT amount FROM subscription_requests WHERE id = ?::uuid", Long.class, again.at("/requestId").asText())).isEqualTo(4500);
+    }
+
+    @Test
+    void savingTheSameOffersAgainWritesNoAuditEntry() {
+        String admin = admin();
+        save(admin, offer(3000, "Same", null, null, true));
+        int n = jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'platform.plan_offers'", Integer.class);
+        save(admin, offer(3000, "Same", null, null, true));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM platform_audit WHERE action = 'platform.plan_offers'", Integer.class)).isEqualTo(n);
     }
 }

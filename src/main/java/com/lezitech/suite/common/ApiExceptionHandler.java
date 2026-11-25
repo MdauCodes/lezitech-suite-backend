@@ -23,7 +23,10 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<Map<String, Object>> api(ApiException e) {
-        return ResponseEntity.status(e.status()).body(Map.of("code", e.code(), "message", e.getMessage()));
+        Map<String, Object> body = new java.util.LinkedHashMap<>(e.extra());
+        body.put("code", e.code());
+        body.put("message", e.getMessage());
+        return ResponseEntity.status(e.status()).body(body);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
