@@ -110,7 +110,7 @@ class GrowthTest extends IntegrationTest {
         UUID req = paidPlan(tenant);
         String text = receipts.send(new com.lezitech.suite.settings.PlanPaidEmail.PlanPaid(tenant, req));
         String code = get("/billing/referral", token(session)).at("/code").asText();
-        assertThat(text).contains("Growth plan").contains("KSh 4,500").contains("M-Pesa code: TKL").contains("Running until")
+        assertThat(text).contains("Busy Shop plan").contains("KSh 4,500").contains("M-Pesa code: TKL").contains("Running until")
                 .contains("?ref=" + code).doesNotContain("free month");
     }
 

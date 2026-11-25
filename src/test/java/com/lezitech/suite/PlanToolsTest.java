@@ -46,7 +46,7 @@ class PlanToolsTest extends IntegrationTest {
         Res refused = post("/suppliers", owner, Map.of("name", "After the trial"));
         assertThat(refused.status()).isEqualTo(403);
         assertThat(refused.at("/code").asText()).isEqualTo("PLAN_FEATURE");
-        assertThat(refused.at("/message").asText()).contains("Buying from suppliers", "Growth plan");
+        assertThat(refused.at("/message").asText()).contains("Buying from suppliers", "Busy Shop plan");
         assertThat(get("/suppliers", owner).status()).isEqualTo(200);
         assertThat(get("/suppliers", owner).body().toString()).contains("Made in the trial");
 

@@ -140,10 +140,10 @@ public class PlanFeatures {
         String plan = paidPlan(tenant);
         String label = f == null ? key : f.label();
         String where = platform.plans().stream().filter(p -> platform.planFeatures((String) p.get("code")).contains(key))
-                .map(p -> (String) p.get("name")).findFirst().orElse(null);
-        String yours = plan == null ? "your plan" : "your " + platform.plan(plan).get("name") + " plan";
+                .map(p -> platform.planName(tenant, (String) p.get("code"))).findFirst().orElse(null);
+        String yours = plan == null ? "your plan" : "your " + platform.planName(tenant, plan) + " plan";
         String more = where == null ? " Talk to LeziTech about it." : " It comes with the " + where + " plan. The owner can upgrade under Your plan.";
-        return new ApiException(HttpStatus.FORBIDDEN, "PLAN_FEATURE", label + " is not on " + yours + "." + more);
+        return new ApiException(HttpStatus.FORBIDDEN, "PLAN_FEATURE", label + " is not on " + yours + "." + more).with("feature", key);
     }
 
     /** For a request: the tool it needs and the business lacks, or null if it may go ahead. */
@@ -194,9 +194,15 @@ public class PlanFeatures {
 
     /** The cheapest plan that holds this business's setup: its tools, its staff and its branches. */
     public Map<String, Object> fittingPlan(UUID tenant) {
-        Set<String> need = needed(tenant);
-        long users = jdbc.queryForObject("SELECT count(*) FROM users WHERE tenant_id = ? AND active", Long.class, tenant);
-        long branches = jdbc.queryForObject("SELECT count(*) FROM locations WHERE tenant_id = ? AND parent_id IS NULL", Long.class, tenant);
+        return fittingPlan(tenant, Set.of(), 0, 0);
+    }
+
+    /** The same with more tools, staff or branches added: what the setup would be after switching something on. */
+    public Map<String, Object> fittingPlan(UUID tenant, Set<String> moreTools, int moreStaff, int moreBranches) {
+        Set<String> need = new java.util.LinkedHashSet<>(needed(tenant));
+        need.addAll(moreTools);
+        long users = jdbc.queryForObject("SELECT count(*) FROM users WHERE tenant_id = ? AND active", Long.class, tenant) + moreStaff;
+        long branches = jdbc.queryForObject("SELECT count(*) FROM locations WHERE tenant_id = ? AND parent_id IS NULL", Long.class, tenant) + moreBranches;
         List<Map<String, Object>> plans = platform.plans();
         for (Map<String, Object> p : plans) {
             int u = ((Number) p.get("users")).intValue(), l = ((Number) p.get("locations")).intValue();

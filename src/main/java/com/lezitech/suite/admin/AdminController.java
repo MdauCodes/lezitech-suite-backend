@@ -168,6 +168,8 @@ public class AdminController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.settings.PlanActivation activation;
     @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanBilling billing;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.auth.SupportAccess supportAccess;
 
     public AdminController(JdbcTemplate jdbc, JwtService jwt, PasswordEncoder encoder, AdminService admin,
@@ -440,12 +442,17 @@ public class AdminController {
         // Whether we may sign in as them now (the owner's grant, or a demo / still being set up).
         t.put("supportAccess", supportAccess.forAdmin(id));
         t.put("requests", jdbc.queryForList("""
-                SELECT id, plan, billing_cycle, amount, mpesa_phone, status, created_at FROM subscription_requests WHERE tenant_id = ?
+                SELECT id, plan, billing_cycle, amount, mpesa_phone, status, created_at, lines::text AS lines FROM subscription_requests WHERE tenant_id = ?
                 ORDER BY created_at DESC""", id).stream().map(this::clean).toList());
         t.put("audit", jdbc.queryForList("""
                 SELECT action, admin_name, detail::text AS detail, created_at FROM platform_audit WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 50""", id)
                 .stream().map(this::clean).toList());
         t.put("usage", TenantContext.runAs(id, null, usage::usage));
+        if (t.get("plan") != null) {
+            t.put("planName", platform.planName((String) rows.get(0).get("sector"), (String) t.get("plan")));
+        }
+        t.put("nextBill", TenantContext.runAs(id, null, () -> billing.nextBill(id, "MONTHLY")));
+        t.put("planChanges", billing.changes(id));
         JsonNode pack = sectors.get((String) rows.get(0).get("sector"));
         t.put("packModules", pack.get("modules"));
         t.put("packName", pack.get("name").asText());
@@ -459,9 +466,11 @@ public class AdminController {
         String plan = b.str("plan").toUpperCase();
         int months = b.integer("months", 1);
         jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?,
+                UPDATE tenants SET status = 'ACTIVE', plan = ?, next_plan = NULL, plan_switch_at = NULL,
+                       period_start = greatest(coalesce(paid_until, now()), now()),
                        paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?) WHERE id = ?""", plan, months, id);
         jdbc.update("UPDATE subscription_requests SET status = 'PAID' WHERE tenant_id = ? AND status = 'PENDING'", id);
+        billing.markPaid(id, null, null); // the operator confirmed the payment: extra lines on the bill are paid too
         admin.audit("plan.activate", id, Map.of("plan", plan, "months", months, "reference", b.str("reference", "")));
         return Map.of("ok", true);
     }
@@ -635,9 +644,10 @@ public class AdminController {
     public List<Map<String, Object>> requests(@RequestParam(defaultValue = "PENDING") String status) {
         AdminContext.require("read");
         return jdbc.queryForList("""
-                SELECT r.id, r.tenant_id, t.name AS tenant_name, t.sector, r.plan, r.billing_cycle, r.amount, r.mpesa_phone, r.status, r.created_at
+                SELECT r.id, r.tenant_id, t.name AS tenant_name, t.sector, r.plan, r.billing_cycle, r.amount, r.mpesa_phone, r.status, r.created_at,
+                       r.lines::text AS lines
                 FROM subscription_requests r JOIN tenants t ON t.id = r.tenant_id
-                WHERE (? = 'ALL' OR r.status = ?) ORDER BY r.created_at DESC LIMIT 200""", status, status).stream().map(this::clean).toList();
+                WHERE (? = 'ALL' OR r.status = ?) ORDER BY r.created_at DESC LIMIT 200""", status, status).stream().map(r -> withPlanName(r)).map(this::clean).toList();
     }
 
     @PostMapping("/requests/{id}/approve")
@@ -680,6 +690,13 @@ public class AdminController {
             row.put("color", p.get("color").asText());
             row.put("modules", p.get("modules"));
             row.put("subSectors", p.get("subSectors"));
+            row.put("planNames", platform.planNames(key).entrySet().stream().map(e -> {
+                Map<String, Object> n = new LinkedHashMap<>();
+                n.put("code", e.getKey());
+                n.put("name", e.getValue());
+                n.put("default", platform.defaultPlanName(key, e.getKey()));
+                return n;
+            }).toList());
             row.put("enabled", !disabled.contains(key));
             Map<String, Object> n = counts.getOrDefault(key, Map.of());
             row.put("workspaces", n.getOrDefault("workspaces", 0L));
@@ -687,6 +704,19 @@ public class AdminController {
             out.add(row);
         }
         return out;
+    }
+
+    /** The names a kind of business sees for the Lite, Growth and Pro plans (the codes and prices stay). A blank name goes back to the default. */
+    @PutMapping("/sectors/{key}/plan-names")
+    public Map<String, Object> savePlanNames(@PathVariable String key, @RequestBody Map<String, Object> raw) {
+        AdminContext.require("sectors");
+        sectors.get(key);
+        Map<String, String> before = platform.planNames(key);
+        Map<String, String> after = platform.setSectorPlanNames(key, raw, AdminContext.admin().name());
+        if (!after.equals(before)) {
+            admin.audit("sector.plan_names", null, Map.of("sector", key, "from", before.toString(), "to", after.toString()));
+        }
+        return Map.of("sector", key, "names", after);
     }
 
     /** Hide a sector from signup (e.g. while its pack is being reworked). Existing workspaces keep working. */
@@ -882,7 +912,7 @@ public class AdminController {
                 }
             }
             Object val = v instanceof Timestamp ts ? ts.toInstant().toString() : v instanceof UUID u ? u.toString() : v;
-            if ("detail".equals(k) && v instanceof String s) {
+            if (("detail".equals(k) || "lines".equals(k)) && v instanceof String s) {
                 try {
                     val = json.readTree(s);
                 } catch (Exception ignored) {
@@ -892,6 +922,13 @@ public class AdminController {
             out.put(sb.toString(), val);
         });
         return out;
+    }
+
+    /** A payment request with the name this business sees for its plan next to the code. */
+    private Map<String, Object> withPlanName(Map<String, Object> r) {
+        Map<String, Object> m = new LinkedHashMap<>(r);
+        m.put("plan_name", platform.planName((String) r.get("sector"), (String) r.get("plan")));
+        return m;
     }
 
     private static String blank(String s) {

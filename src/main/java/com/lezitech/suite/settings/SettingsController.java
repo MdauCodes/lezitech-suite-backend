@@ -28,14 +28,24 @@ public class SettingsController {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.Offers offers;
+    @org.springframework.beans.factory.annotation.Autowired
+    private PlanBilling billing;
 
     /** Each plan with the keys of the extra tools it includes (products are never limited, so no product count). */
     private List<Map<String, Object>> plansWithTools() {
+        return plansWithTools(null);
+    }
+
+    /** The same with the names a kind of business sees (null: the plans' own names). The code stays. */
+    private List<Map<String, Object>> plansWithTools(String sector) {
         return platform.plans().stream().map(p -> {
             // price = normal, priceNow = after the plan offer (offerLabel, offerEnds say what it is and when it ends)
             Map<String, Object> m = platform.withPriceNow(p);
             m.remove("parts");
             m.remove("items");
+            if (sector != null) {
+                m.put("name", platform.planName(sector, (String) p.get("code")));
+            }
             m.put("tools", platform.planFeatures((String) p.get("code")));
             return m;
         }).toList();
@@ -44,7 +54,8 @@ public class SettingsController {
     /** The plans for this business, each with what it would pay now (any offer taken off). */
     private List<Map<String, Object>> plansForTenant() {
         java.util.UUID t = TenantContext.tenantId();
-        return plansWithTools().stream().map(p -> {
+        String sector = jdbc.queryForList("SELECT sector FROM tenants WHERE id = ?", String.class, t).stream().findFirst().orElse(null);
+        return plansWithTools(sector).stream().map(p -> {
             Map<String, Object> m = new java.util.LinkedHashMap<>(p);
             var month = offers.price(t, (String) p.get("code"), "MONTHLY");
             var year = offers.price(t, (String) p.get("code"), "ANNUAL");
@@ -70,7 +81,8 @@ public class SettingsController {
         out.put("trialEndsAt", ((java.sql.Timestamp) tenant.get("trial_ends_at")).toInstant().toString());
         out.put("paidUntil", tenant.get("paid_until") == null ? null : ((java.sql.Timestamp) tenant.get("paid_until")).toInstant().toString());
         out.put("phone", tenant.get("phone"));
-        out.put("plan", Map.of("code", plan.get("code"), "name", plan.get("name")));
+        out.put("plan", Map.of("code", plan.get("code"), "name", platform.planName(t, (String) plan.get("code"))));
+        out.put("nextBill", billing.nextBill(t, "MONTHLY"));
         out.put("pay", price.amount());
         out.put("full", price.full());
         out.put("offer", price.offerTitle());
@@ -175,8 +187,8 @@ public class SettingsController {
 
     /** The plans and prices, for the sign-up screen ("this fits the Growth plan, KES 4,500 a month after the trial"). */
     @GetMapping("/api/public/plans")
-    public Map<String, Object> publicPlans() {
-        return Map.of("plans", plansWithTools(), "tools", planFeatures.describe(), "trialDays", platform.trialDays());
+    public Map<String, Object> publicPlans(@org.springframework.web.bind.annotation.RequestParam(required = false) String sector) {
+        return Map.of("plans", plansWithTools(sector == null || sector.isBlank() ? null : sector), "tools", planFeatures.describe(), "trialDays", platform.trialDays());
     }
 
     @GetMapping("/api/billing/plans")
@@ -184,10 +196,41 @@ public class SettingsController {
     public Map<String, Object> plans() {
         TenantContext.caller();
         java.util.List<String> parts = jdbc.queryForList("SELECT unnest(products) FROM tenants WHERE id = ?", String.class, TenantContext.tenantId());
-        return Map.of("plans", plansForTenant(), "tools", planFeatures.describe(), "needs", planFeatures.needed(TenantContext.tenantId()),
-                "fits", planFeatures.fittingPlan(TenantContext.tenantId()).get("code"), "trialDays", platform.trialDays(), "usage", limits.usage(), "parts", parts, "requests", jdbc.queryForList("""
+        // Extra lines already on the next bill (moving up mid-period) are charged with whichever plan is paid for.
+        long extra = billing.quote(TenantContext.tenantId(), billing.billPlan(TenantContext.tenantId()), "MONTHLY").extra();
+        return Map.ofEntries(Map.entry("plans", plansForTenant()), Map.entry("tools", planFeatures.describe()), Map.entry("needs", planFeatures.needed(TenantContext.tenantId())),
+                Map.entry("fits", planFeatures.fittingPlan(TenantContext.tenantId()).get("code")), Map.entry("trialDays", platform.trialDays()), Map.entry("usage", limits.usage()), Map.entry("parts", parts),
+                Map.entry("extra", extra), Map.entry("nextBill", billing.nextBill(TenantContext.tenantId(), "MONTHLY")),
+                Map.entry("requests", jdbc.queryForList("""
                 SELECT plan, billing_cycle, amount, status, created_at FROM subscription_requests
-                WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId()));
+                WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5""", TenantContext.tenantId())));
+    }
+
+    /** The next bill: its date and every line, and what moving to another plan would do (the plan sheet). */
+    @GetMapping("/api/billing/next-bill")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public Map<String, Object> nextBill(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "MONTHLY") String cycle) {
+        TenantContext.caller();
+        return billing.nextBill(TenantContext.tenantId(), "ANNUAL".equalsIgnoreCase(cycle) ? "ANNUAL" : "MONTHLY");
+    }
+
+    @GetMapping("/api/billing/plan-change/preview")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public Map<String, Object> previewChange(@org.springframework.web.bind.annotation.RequestParam(required = false) String feature,
+                                             @org.springframework.web.bind.annotation.RequestParam(required = false) String limit,
+                                             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int adding,
+                                             @org.springframework.web.bind.annotation.RequestParam(required = false) String toPlan) {
+        TenantContext.caller();
+        Map<String, Object> out = new java.util.LinkedHashMap<>(billing.preview(TenantContext.tenantId(), feature, limit, adding, toPlan));
+        out.put("owner", "OWNER".equals(TenantContext.caller().role()));
+        return out;
+    }
+
+    /** Move to another plan. The sheet's "Yes" button sends this; see {@link PlanBilling#change}. */
+    @PostMapping("/api/billing/plan-change")
+    public Map<String, Object> changePlan(@RequestBody Map<String, Object> raw) {
+        Body b = new Body(raw);
+        return billing.change(b.str("plan"), b.str("reason", null));
     }
 
     /**
@@ -202,9 +245,17 @@ public class SettingsController {
         String cycle = b.str("cycle", "MONTHLY").toUpperCase();
         platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
                 .orElseThrow(() -> ApiException.bad("Unknown plan"));
-        // The price after the best live offer for this business.
-        var price = offers.price(TenantContext.tenantId(), plan, cycle);
-        BigDecimal amount = BigDecimal.valueOf(price.amount());
+        // A paid business moves to another plan through the plan sheet first, so the bill has the right lines.
+        Map<String, Object> own = jdbc.queryForMap("SELECT status, plan, next_plan, paid_until FROM tenants WHERE id = ?", TenantContext.tenantId());
+        java.sql.Timestamp until = (java.sql.Timestamp) own.get("paid_until");
+        String billed = own.get("next_plan") != null ? (String) own.get("next_plan") : (String) own.get("plan");
+        if ("ACTIVE".equals(own.get("status")) && until != null && until.toInstant().isAfter(java.time.Instant.now()) && !plan.equals(billed)) {
+            throw new ApiException(org.springframework.http.HttpStatus.CONFLICT, "MOVE_FIRST", "To pay for " + platform.planName(TenantContext.tenantId(), plan) + ", move to it first. Open Your plan and choose it, and the next bill will be worked out for you.");
+        }
+        // The price after the best live offer for this business, plus any extra lines already on the next bill: one total.
+        var quote = billing.quote(TenantContext.tenantId(), plan, cycle);
+        var price = quote.price();
+        BigDecimal amount = BigDecimal.valueOf(quote.total());
         // The page asks for the price it showed. If it changed since (an offer ended or began), say so with the new price and ask again.
         if (raw.get("expectedAmount") != null) {
             BigDecimal shown;
@@ -214,8 +265,9 @@ public class SettingsController {
                 throw ApiException.bad("Reload the page and try again");
             }
             if (shown.compareTo(amount) != 0) {
-                throw ApiException.conflict("The price changed, here is the new price: KES " + String.format("%,d", price.amount()) + ".")
-                        .with("amount", amount).with("full", price.full()).with("offer", price.offerTitle());
+                throw ApiException.conflict("The price changed, here is the new price: KES " + String.format("%,d", quote.total()) + ".")
+                        .with("amount", amount).with("full", price.full()).with("offer", price.offerTitle())
+                        .with("lines", quote.lines().stream().map(PlanBilling.Line::map).toList());
             }
         }
         if (amount.signum() == 0 && price.credit() == 0) {
@@ -224,13 +276,14 @@ public class SettingsController {
         // Waiting requests older than 48 hours are closed: a new one is made at today's price.
         planActivation.expireStale();
         java.util.UUID id = jdbc.queryForObject("""
-                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone, offer_id, credit_used) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id""",
-                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null), price.offerId(), BigDecimal.valueOf(price.credit()));
+                INSERT INTO subscription_requests (tenant_id, plan, billing_cycle, amount, mpesa_phone, offer_id, credit_used, lines) VALUES (?, ?, ?, ?, ?, ?, ?, cast(? as jsonb)) RETURNING id""",
+                java.util.UUID.class, TenantContext.tenantId(), plan, cycle, amount, b.str("mpesaPhone", null), price.offerId(), BigDecimal.valueOf(price.credit()),
+                billing.linesJson(quote));
         if (amount.signum() == 0 && price.credit() > 0) {
             // Thank-you credit covers it all: nothing to pay, the plan is on now.
             planActivation.activate(id, "CREDIT", null);
             return Map.of("ok", true, "amount", amount, "requestId", id, "paid", true,
-                    "message", "Paid with your thank-you credit. Your " + plan.charAt(0) + plan.substring(1).toLowerCase() + " plan is on.");
+                    "message", "Paid with your thank-you credit. Your " + quote.planName() + " plan is on.");
         }
         return Map.of("ok", true, "amount", amount, "requestId", id,
                 "message", "Request received. Pay KES " + amount.toPlainString()

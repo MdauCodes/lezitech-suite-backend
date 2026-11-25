@@ -39,7 +39,7 @@ class PlanLimitsTest extends IntegrationTest {
         Res fourth = addStaff(owner);
         assertThat(fourth.status()).isEqualTo(403);
         assertThat(fourth.at("/code").asText()).isEqualTo("PLAN_LIMIT");
-        assertThat(fourth.at("/message").asText()).contains("Lite plan includes 3").contains("Growth allows up to 8");
+        assertThat(fourth.at("/message").asText()).contains("Corner Shop plan includes 3").contains("Busy Shop allows up to 8");
 
         // The price list says so too.
         JsonNode lite = null;

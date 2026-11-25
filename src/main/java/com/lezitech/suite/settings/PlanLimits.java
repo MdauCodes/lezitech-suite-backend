@@ -38,8 +38,7 @@ public class PlanLimits {
     }
 
     private String nameOf(String code) {
-        Map<String, Object> p = platform.plan(code);
-        return p == null ? code : (String) p.get("name");
+        return platform.plan(code) == null ? code : platform.planName(TenantContext.tenantId(), code);
     }
 
     /** The next plan up (by price), or null for the top one. */
@@ -107,7 +106,7 @@ public class PlanLimits {
                 : " " + nameOf(next) + " allows " + (limitsOf(next).get(key) == 0 ? "unlimited " + what : "up to " + limitsOf(next).get(key) + " " + what)
                 + ". The owner can upgrade under Your plan.";
         throw new ApiException(HttpStatus.FORBIDDEN, "PLAN_LIMIT",
-                "Your " + nameOf(plan) + " plan includes " + limit + " " + what + " and you have " + used + "." + more);
+                "Your " + nameOf(plan) + " plan includes " + limit + " " + what + " and you have " + used + "." + more).with("limit", key).with("adding", adding);
     }
 
     public Map<String, Object> usage() {

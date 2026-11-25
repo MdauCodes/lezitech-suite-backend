@@ -35,6 +35,10 @@ public class TrialNudgeService {
     private final com.lezitech.suite.platform.PlanFeatures planFeatures;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.platform.Offers offers;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.settings.PlanBilling billing;
 
     public TrialNudgeService(JdbcTemplate jdbc, Mailer mailer, com.lezitech.suite.platform.PlanFeatures planFeatures) {
         this.jdbc = jdbc;
@@ -55,7 +59,13 @@ public class TrialNudgeService {
 
     @Scheduled(fixedDelayString = "${suite.nudges.every-ms:3600000}", initialDelay = 60000)
     public int run() {
-        return process(dueNow());
+        int sent = process(dueNow());
+        try {
+            runBills();
+        } catch (RuntimeException e) {
+            log.warn("Bill reminders failed: {}", e.toString());
+        }
+        return sent;
     }
 
     private static final java.util.concurrent.atomic.AtomicBoolean RUNNING = new java.util.concurrent.atomic.AtomicBoolean();
@@ -124,7 +134,7 @@ public class TrialNudgeService {
             // What this business would be charged now (any plan offer or its own offer taken off), the normal price shown as "was".
             var month = offers.price(tenant, (String) plan.get("code"), "MONTHLY");
             var year = offers.price(tenant, (String) plan.get("code"), "ANNUAL");
-            cost = "Everything you use is on the " + plan.get("name") + " plan: "
+            cost = "Everything you use is on the " + platform.planName(tenant, (String) plan.get("code")) + " plan: "
                     + (month.amount() < monthly ? "now KSh " + String.format("%,d", month.amount()) + " a month, was KSh " + String.format("%,d", monthly)
                     : "KSh " + String.format("%,d", monthly) + " a month")
                     + ", or " + (year.amount() < monthly * 10 ? "now KSh " + String.format("%,d", year.amount()) + " for a year, was KSh " + String.format("%,d", monthly * 10)
@@ -175,6 +185,106 @@ public class TrialNudgeService {
             }
         }
         jdbc.update("UPDATE trial_nudges SET email_status = ?, email_error = ? WHERE tenant_id = ? AND kind = ?", status, error, tenant, kind);
+        return "SENT".equals(status);
+    }
+
+    // ---------- reminders for paid plans: 3 days before the bill date, and on it ----------
+
+    /**
+     * Paid plans: a reminder 3 days before the bill date (BEFORE3) and one on the day (DAY, also sent once if the date has
+     * just passed and the business is in its days of grace). Each goes out once per bill date: paying moves the date on,
+     * so the next bill gets its own. Plain words, the amount and what it is made of.
+     *
+     * @return how many emails went out
+     */
+    public int runBills() {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT t.id, t.name, t.phone, t.paid_until,
+                       (SELECT u.email FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS email,
+                       (SELECT u.name FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS owner
+                FROM tenants t
+                WHERE t.status = 'ACTIVE' AND NOT t.is_demo AND NOT t.in_setup AND t.paid_until IS NOT NULL
+                  AND t.paid_until <= now() + interval '4 days' AND t.paid_until > now() - interval '3 days'""");
+        int sent = 0;
+        java.time.LocalDate today = java.time.LocalDate.now(NAIROBI);
+        for (Map<String, Object> t : rows) {
+            Instant date = ((Timestamp) t.get("paid_until")).toInstant();
+            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, date.atZone(NAIROBI).toLocalDate());
+            String kind = daysLeft <= 0 ? "DAY" : daysLeft <= 3 ? "BEFORE3" : null;
+            if (kind != null && billReminder(t, kind, date, daysLeft)) {
+                sent++;
+            }
+        }
+        return sent;
+    }
+
+    private boolean billReminder(Map<String, Object> t, String kind, Instant date, long daysLeft) {
+        UUID tenant = (UUID) t.get("id");
+        java.time.LocalDate billDay = date.atZone(NAIROBI).toLocalDate();
+        Map<String, Object> bill = billing.nextBill(tenant, "MONTHLY");
+        long total = ((Number) bill.get("total")).longValue();
+        String owner = first((String) t.get("owner"));
+        String business = (String) t.get("name");
+        String link = appUrl + "/billing";
+        String dateText = com.lezitech.suite.settings.PlanBilling.day(date);
+        String graceText = com.lezitech.suite.settings.PlanBilling.day(date.plus(com.lezitech.suite.config.TrialGuard.GRACE_DAYS, java.time.temporal.ChronoUnit.DAYS));
+        String amount = com.lezitech.suite.settings.PlanBilling.kes(total);
+        StringBuilder lines = new StringBuilder();
+        StringBuilder htmlLines = new StringBuilder();
+        for (Object o : (List<?>) bill.get("lines")) {
+            Map<?, ?> l = (Map<?, ?>) o;
+            long a = ((Number) l.get("amount")).longValue();
+            String label = String.valueOf(l.get("label"));
+            String value = (a < 0 ? "minus " : "") + com.lezitech.suite.settings.PlanBilling.kes(Math.abs(a));
+            lines.append("- ").append(label).append(": ").append(value).append("\n");
+            htmlLines.append("<li>").append(esc(label)).append(": ").append(esc(value)).append("</li>");
+        }
+        String when = daysLeft < 0 ? "was on " + dateText : daysLeft == 0 ? "is today" : daysLeft == 1 ? "is tomorrow" : "is on " + dateText;
+        String subject = daysLeft < 0 ? "Your Busynez bill date was " + dateText + ": " + amount
+                : daysLeft == 0 ? "Your Busynez bill is today: " + amount
+                : "Your Busynez bill on " + dateText + ": " + amount;
+        String grace = "Busynez keeps working for " + com.lezitech.suite.config.TrialGuard.GRACE_DAYS + " days after the bill date, until "
+                + graceText + ". After that it is view-only until the bill is paid: you can still look at everything and download your reports.";
+        String pay = "To pay, open " + link + " and pay by M-Pesa: a prompt comes to your phone.";
+        String text = "Hi " + owner + ",\n\nYour next Busynez bill for " + business + " " + when + ": " + amount + ".\n\nWhat it is made of:\n" + lines
+                + "\n" + pay + "\n" + grace + "\n\n" + (support.isBlank() ? "" : "Questions? WhatsApp us on " + support + ".\n\n") + "Thank you,\nLeziTech";
+        String html = "<p>Hi " + esc(owner) + ",</p><p>Your next Busynez bill for <b>" + esc(business) + "</b> " + when + ": <b>" + esc(amount) + "</b>.</p>"
+                + "<p>What it is made of:</p><ul>" + htmlLines + "</ul><p>To pay, <a href=\"" + link + "\">open Billing</a> and pay by M-Pesa: a prompt comes to your phone.</p>"
+                + "<p>" + esc(grace) + "</p>" + (support.isBlank() ? "" : "<p>Questions? WhatsApp us on " + esc(support) + ".</p>") + "<p>Thank you,<br>LeziTech</p>";
+        String wa = "Hi " + owner + ", this is LeziTech. Your next Busynez bill for " + business + " " + when + ": " + amount + ". "
+                + lines.toString().replace("\n", "; ") + "Pay by M-Pesa here: " + link + ". It keeps working until " + graceText + " after the bill date.";
+        String to = (String) t.get("email");
+        // Claim this reminder for this bill date first: if two servers run the job, or the job runs again, only one sends it.
+        int claimed = jdbc.update("""
+                INSERT INTO bill_reminders (tenant_id, bill_date, kind, amount, email_to, email_status, whatsapp_to, whatsapp_text)
+                VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?) ON CONFLICT (tenant_id, bill_date, kind) DO NOTHING""",
+                tenant, java.sql.Date.valueOf(billDay), kind, total, to, t.get("phone"), wa);
+        if (claimed == 0) {
+            return false;
+        }
+        if ("DAY".equals(kind)) {
+            jdbc.update("INSERT INTO bill_reminders (tenant_id, bill_date, kind, email_status) VALUES (?, ?, 'BEFORE3', 'SKIPPED') ON CONFLICT DO NOTHING",
+                    tenant, java.sql.Date.valueOf(billDay));
+        }
+        String status;
+        String error = null;
+        EmailSender email = mailer.sender();
+        if (email == null) {
+            status = "OFF";
+        } else if (to == null || to.isBlank()) {
+            status = "NO_EMAIL";
+        } else {
+            try {
+                email.send(new EmailSender.Email(to, owner, subject, text, mailer.layout(html)));
+                status = "SENT";
+            } catch (RuntimeException e) {
+                status = "FAILED";
+                error = e.getMessage();
+                log.warn("Bill reminder email to {} failed: {}", to, e.getMessage());
+            }
+        }
+        jdbc.update("UPDATE bill_reminders SET email_status = ?, email_error = ? WHERE tenant_id = ? AND bill_date = ? AND kind = ?",
+                status, error, tenant, java.sql.Date.valueOf(billDay), kind);
         return "SENT".equals(status);
     }
 

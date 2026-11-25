@@ -49,17 +49,23 @@ public class TrialGuard implements WebMvcConfigurer, HandlerInterceptor {
         if (isLocked((String) t.get("status"), (Timestamp) t.get("trial_ends_at"), (Timestamp) t.get("paid_until"))) {
             res.setStatus(402);
             res.setContentType("application/json");
-            res.getWriter().write("{\"code\":\"TRIAL_EXPIRED\",\"message\":\"Your free trial has ended. Choose a plan to keep working; your data is safe.\"}");
+            String msg = "ACTIVE".equals(t.get("status"))
+                    ? "Your bill was not paid and the " + GRACE_DAYS + " extra days are over. Pay it to keep working. You can still look at everything and download your reports; your data is safe."
+                    : "Your free trial has ended. Choose a plan to keep working; your data is safe.";
+            res.getWriter().write("{\"code\":\"TRIAL_EXPIRED\",\"message\":\"" + msg + "\"}");
             return false;
         }
         return true;
     }
 
+    /** Days a paid plan keeps working after its bill date before the workspace turns read-only. */
+    public static final int GRACE_DAYS = 3;
+
     public static boolean isLocked(String status, Timestamp trialEnds, Timestamp paidUntil) {
         Instant now = Instant.now();
         return switch (status) {
             case "TRIAL" -> trialEnds.toInstant().isBefore(now);
-            case "ACTIVE" -> paidUntil != null && paidUntil.toInstant().isBefore(now);
+            case "ACTIVE" -> paidUntil != null && paidUntil.toInstant().plus(GRACE_DAYS, java.time.temporal.ChronoUnit.DAYS).isBefore(now);
             default -> true;
         };
     }

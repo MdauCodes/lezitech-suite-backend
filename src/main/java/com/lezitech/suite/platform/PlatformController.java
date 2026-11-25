@@ -63,7 +63,8 @@ public class PlatformController {
         Body b = new Body(raw);
         int months = b.integer("months", 1);
         jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?,
+                UPDATE tenants SET status = 'ACTIVE', plan = ?, next_plan = NULL, plan_switch_at = NULL,
+                       period_start = greatest(coalesce(paid_until, now()), now()),
                        paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?) WHERE id = ?""",
                 b.str("plan").toUpperCase(), months, id);
         jdbc.update("UPDATE subscription_requests SET status = 'PAID' WHERE tenant_id = ? AND status = 'PENDING'", id);

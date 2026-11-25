@@ -28,6 +28,9 @@ public class PlanActivation {
     private com.lezitech.suite.growth.MallOffer mallOffer;
 
     @org.springframework.beans.factory.annotation.Autowired
+    private PlanBilling billing;
+
+    @org.springframework.beans.factory.annotation.Autowired
     void events(org.springframework.context.ApplicationEventPublisher events) {
         this.events = events;
     }
@@ -55,9 +58,18 @@ public class PlanActivation {
         Integer paidBefore = jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID' AND paid_via IS DISTINCT FROM 'CREDIT'",
                 Integer.class, tenant);
         int months = "ANNUAL".equals(r.get("billing_cycle")) ? 12 : 1;
+        // A move down that was chosen earlier starts on the bill date: paid ahead, the business keeps its plan until then.
+        Map<String, Object> own = jdbc.queryForMap("SELECT status, plan, next_plan, paid_until FROM tenants WHERE id = ?", tenant);
+        java.sql.Timestamp oldEnd = (java.sql.Timestamp) own.get("paid_until");
+        boolean ahead = "ACTIVE".equals(own.get("status")) && oldEnd != null && oldEnd.toInstant().isAfter(java.time.Instant.now());
+        boolean waits = ahead && own.get("next_plan") != null && own.get("next_plan").equals(r.get("plan")) && own.get("plan") != null && !own.get("plan").equals(r.get("plan"));
         jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?, paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?)
-                WHERE id = ?""", r.get("plan"), months, tenant);
+                UPDATE tenants SET status = 'ACTIVE', plan = ?, next_plan = ?, plan_switch_at = ?,
+                       period_start = greatest(coalesce(paid_until, now()), now()),
+                       paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?)
+                WHERE id = ?""", waits ? own.get("plan") : r.get("plan"), waits ? own.get("next_plan") : null, waits ? oldEnd : null, months, tenant);
+        // The extra lines this payment covered (days of a higher plan) are paid.
+        billing.markPaid(tenant, requestId, (java.sql.Timestamp) r.get("created_at"));
         jdbc.update("UPDATE subscription_requests SET status = 'PAID', paid_via = ?, mpesa_receipt = ? WHERE id = ?", paidVia, receipt, requestId);
 
         jdbc.update("UPDATE tenants SET billing_credit = greatest(0, billing_credit - ?) WHERE id = ?", r.get("credit_used"), tenant);

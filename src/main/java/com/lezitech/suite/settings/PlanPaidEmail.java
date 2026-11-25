@@ -37,6 +37,8 @@ public class PlanPaidEmail {
     private final Mailer mailer;
     private final Referrals referrals;
     private final String siteUrl;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.platform.PlatformSettings platform;
 
     public PlanPaidEmail(JdbcTemplate jdbc, Mailer mailer, Referrals referrals,
                          @Value("${suite.site-url:https://lezitech.site/suite}") String siteUrl) {
@@ -58,7 +60,7 @@ public class PlanPaidEmail {
     /** Builds and sends the receipt; returns the plain text (tests), or null when there's no one to send it to. */
     public String send(PlanPaid e) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT t.name AS business, t.paid_until, t.is_demo, r.plan, r.billing_cycle, r.amount, r.mpesa_receipt,
+                SELECT t.name AS business, t.sector, t.paid_until, t.is_demo, r.plan, r.billing_cycle, r.amount, r.mpesa_receipt,
                        (SELECT u.email FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS email,
                        (SELECT u.name FROM users u WHERE u.tenant_id = t.id AND u.role = 'OWNER' AND u.active ORDER BY u.created_at LIMIT 1) AS owner
                 FROM tenants t JOIN subscription_requests r ON r.tenant_id = t.id WHERE t.id = ? AND r.id = ?""", e.tenant(), e.requestId());
@@ -71,7 +73,7 @@ public class PlanPaidEmail {
             return null;
         }
         String owner = first((String) r.get("owner"));
-        String plan = word((String) r.get("plan"));
+        String plan = platform.planName((String) r.get("sector"), (String) r.get("plan"));
         String cycle = "ANNUAL".equals(r.get("billing_cycle")) ? "a year" : "a month";
         String amount = String.format("%,d", ((BigDecimal) r.get("amount")).longValue());
         String until = r.get("paid_until") == null ? "" : DAY.format(((Timestamp) r.get("paid_until")).toInstant());
@@ -96,10 +98,6 @@ public class PlanPaidEmail {
             log.warn("Plan receipt email to {} {}", email, status);
         }
         return text;
-    }
-
-    private static String word(String plan) {
-        return plan == null || plan.isBlank() ? "" : plan.charAt(0) + plan.substring(1).toLowerCase();
     }
 
     private static String first(String name) {

@@ -61,7 +61,7 @@ public class PlatformSettings {
         Map<String, String> c = cache;
         if (c == null || System.currentTimeMillis() - cachedAt > 30_000) {
             Map<String, String> fresh = new LinkedHashMap<>();
-            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'planOffers', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
+            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'planOffers', 'sectorPlanNames', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
             cache = c = fresh;
             cachedAt = System.currentTimeMillis();
         }
@@ -138,6 +138,100 @@ public class PlatformSettings {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // ---------- plan names for each kind of business ----------
+
+    /** The names a kind of business sees for LITE, GROWTH and PRO until LeziTech edits them (other kinds see the plans' own names). */
+    public static final Map<String, List<String>> DEFAULT_SECTOR_NAMES = Map.ofEntries(
+            Map.entry("restaurant", List.of("Starter Kitchen", "Busy Kitchen", "Kitchen Group")),
+            Map.entry("hotel", List.of("Guest House", "Full House", "Hotel Group")),
+            Map.entry("retail", List.of("Corner Shop", "Busy Shop", "Shop Chain")),
+            Map.entry("beauty", List.of("Salon Chair", "Busy Salon", "Salon Group")),
+            Map.entry("wholesale", List.of("Stockist", "Distributor", "Distribution Network")),
+            Map.entry("services", List.of("Solo", "Team", "Firm")),
+            Map.entry("tours", List.of("Trips", "Tour Company", "Tour Group")),
+            Map.entry("property", List.of("Landlord", "Property Manager", "Portfolio")));
+
+    private static final List<String> CODES = List.of("LITE", "GROWTH", "PRO");
+
+    /** What LeziTech saved for each kind of business: sector key to the names that were changed. */
+    public Map<String, Map<String, String>> savedSectorNames() {
+        String v = all().get("sectorPlanNames");
+        if (v == null) {
+            return Map.of();
+        }
+        try {
+            return json.readValue(v, new TypeReference<Map<String, Map<String, String>>>() { });
+        } catch (Exception e) {
+            return Map.of();
+        }
+    }
+
+    /** The name this kind of business has until it is edited: the table above, or the plan's own name. */
+    public String defaultPlanName(String sector, String code) {
+        List<String> d = sector == null ? null : DEFAULT_SECTOR_NAMES.get(sector);
+        int i = CODES.indexOf(code);
+        if (d != null && i >= 0) {
+            return d.get(i);
+        }
+        Map<String, Object> p = plan(code);
+        return p == null ? code : String.valueOf(p.get("name"));
+    }
+
+    /** The name this kind of business sees for a plan code. */
+    public String planName(String sector, String code) {
+        String saved = sector == null ? null : savedSectorNames().getOrDefault(sector, Map.of()).get(code);
+        return saved != null && !saved.isBlank() ? saved : defaultPlanName(sector, code);
+    }
+
+    /** The name this business sees for a plan code (its own kind of business decides). */
+    public String planName(java.util.UUID tenant, String code) {
+        List<String> s = jdbc.queryForList("SELECT sector FROM tenants WHERE id = ?", String.class, tenant);
+        return planName(s.isEmpty() ? null : s.get(0), code);
+    }
+
+    /** All three names for a kind of business, in plan order. */
+    public Map<String, String> planNames(String sector) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (String c : CODES) {
+            out.put(c, planName(sector, c));
+        }
+        return out;
+    }
+
+    /** Save the names for one kind of business. A blank name goes back to the default; the three must differ. */
+    public Map<String, String> setSectorPlanNames(String sector, Map<String, Object> names, String by) {
+        Map<String, Map<String, String>> all = new LinkedHashMap<>(savedSectorNames());
+        Map<String, String> mine = new LinkedHashMap<>();
+        for (String c : CODES) {
+            Object raw = names == null ? null : names.get(c);
+            String n = raw == null ? "" : String.valueOf(raw).trim();
+            if (n.length() > 30) {
+                throw ApiException.bad("Keep each plan name under 30 letters");
+            }
+            if (!n.isEmpty() && !n.equals(defaultPlanName(sector, c))) {
+                mine.put(c, n);
+            }
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String c : CODES) {
+            result.put(c, mine.getOrDefault(c, defaultPlanName(sector, c)));
+        }
+        if (new java.util.HashSet<>(result.values()).size() < 3) {
+            throw ApiException.bad("Give the three plans different names");
+        }
+        if (mine.isEmpty()) {
+            all.remove(sector);
+        } else {
+            all.put(sector, mine);
+        }
+        try {
+            put("sectorPlanNames", json.writeValueAsString(all), by);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+        return result;
     }
 
     // ---------- plan offers: a crossed-out normal price and a lower price for a while ----------
