@@ -69,7 +69,7 @@ class SupplyRoundsTest extends IntegrationTest {
         Res saved = post("/rounds/" + id + "/load", storekeeper, Map.of("lines", load));
         assertThat(saved.status()).as(saved.body().toString()).isEqualTo(200);
         assertThat(saved.at("/loadedByName").asText()).isEqualTo("STOREKEEPER person");
-        Res accepted = post("/rounds/" + id + "/accept", driver.token(), Map.of());
+        Res accepted = post("/rounds/" + id + "/accept", driver.token(), Map.of("loadedAt", saved.at("/loadedAt").asText()));
         assertThat(accepted.status()).as(accepted.body().toString()).isEqualTo(200);
         return accepted.body();
     }
@@ -121,16 +121,17 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(post("/rounds", owner, Map.of("runDate", "2030-01-15", "driverUserId", joe.id(), "orderIds", List.of(order.get("id").asText()))).status()).isEqualTo(400);
 
         // Name 1: the store loads. Name 2: only the driver accepts, and only once the load is saved.
-        assertThat(post("/rounds/" + runId + "/accept", joe.token(), Map.of()).status()).isEqualTo(400);
+        assertThat(post("/rounds/" + runId + "/accept", joe.token(), Map.of("loadedAt", "2030-01-01T00:00:00Z")).status()).isEqualTo(400);
         JsonNode loadLine = run.at("/load/0");
         Res saved = post("/rounds/" + runId + "/load", storekeeper, Map.of("lines", List.of(Map.of("itemId", loadLine.get("itemId").asText(), "qtyLoaded", 24))));
         assertThat(saved.status()).as(saved.body().toString()).isEqualTo(200);
-        assertThat(post("/rounds/" + runId + "/accept", other.token(), Map.of()).status()).isEqualTo(403);
-        assertThat(post("/rounds/" + runId + "/accept", owner, Map.of()).status()).isEqualTo(403);
+        Map<String, Object> seen = Map.of("loadedAt", saved.at("/loadedAt").asText());
+        assertThat(post("/rounds/" + runId + "/accept", other.token(), seen).status()).isEqualTo(403);
+        assertThat(post("/rounds/" + runId + "/accept", owner, seen).status()).isEqualTo(403);
         assertThat(get("/rounds/" + runId, other.token()).status()).isEqualTo(403);
         assertThat(get("/rounds/" + runId, joe.token()).status()).isEqualTo(200);
         assertThat(get("/rounds/mine", other.token()).body()).isEmpty();
-        Res accepted = post("/rounds/" + runId + "/accept", joe.token(), Map.of());
+        Res accepted = post("/rounds/" + runId + "/accept", joe.token(), seen);
         assertThat(accepted.status()).as(accepted.body().toString()).isEqualTo(200);
         assertThat(accepted.at("/status").asText()).isEqualTo("OUT");
         assertThat(accepted.at("/acceptedByName").asText()).isEqualTo("Joe Driver");
@@ -295,9 +296,8 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(failed.at("/message").asText()).contains("did not go out");
 
         itMailer.useSender(new EmailSender.LogSender());
-        assertThat(post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of("email", "not an email")).status()).isEqualTo(400);
         for (int i = 0; i < 3; i++) {
-            assertThat(post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of("email", "clerk@savanna.test")).at("/emailed").asBoolean()).isTrue();
+            assertThat(post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of("email", "driver-picked@evil.test")).at("/emailed").asBoolean()).isTrue();
         }
         assertThat(post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of()).status()).isEqualTo(400);
     }
@@ -317,5 +317,130 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(post("/rounds/" + runId + "/load", stranger, Map.of("lines", List.of())).status()).isEqualTo(404);
         assertThat(post("/rounds/stops/" + run.at("/stops/0/id").asText() + "/arrived", stranger, Map.of()).status()).isIn(403, 404);
         assertThat(get("/rounds?date=2030-01-15", owner).at("/0/id").asText()).isEqualTo(runId);
+    }
+
+    @Test
+    void onlyTheOfficeChoosesTheEmailAddressAndTheDriverCannot() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        String noEmail = post("/customers", owner, Map.of("name", "No Mail Ltd")).at("/id").asText();
+        JsonNode order = order(owner, noEmail, item(owner, ""), 3);
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, order));
+        String stop = run.at("/stops/0/id").asText();
+        var box = new EmailSender.LogSender();
+        itMailer.useSender(box);
+
+        Res none = post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of("email", "driver-picked@evil.test"));
+        assertThat(none.status()).isEqualTo(400);
+        assertThat(none.at("/message").asText()).isEqualTo("This client has no email yet. Ask the office to add one.");
+        assertThat(box.sent).isEmpty();
+
+        assertThat(post("/rounds/stops/" + stop + "/email", joe.token(), Map.of("email", "clerk@nomail.test")).status()).isEqualTo(403);
+        assertThat(post("/rounds/stops/" + stop + "/email", storekeeper, Map.of("email", "clerk@nomail.test")).status()).isEqualTo(403);
+        Res staffMail = post("/rounds/stops/" + stop + "/email", owner, Map.of("email", s.get("email").asText()));
+        assertThat(staffMail.status()).isEqualTo(400);
+        assertThat(staffMail.at("/message").asText()).isEqualTo("That address belongs to one of your staff");
+
+        Res set = post("/rounds/stops/" + stop + "/email", owner, Map.of("email", "clerk@nomail.test"));
+        assertThat(set.status()).as(set.body().toString()).isEqualTo(200);
+        assertThat(set.at("/email").asText()).isEqualTo("clerk@nomail.test");
+        assertThat(set.at("/emailSetBy").asText()).isEqualTo("Owner");
+        assertThat(concern(owner, "EMAIL_CHANGED")).isNotNull();
+
+        assertThat(post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of("email", "driver-picked@evil.test")).at("/emailed").asBoolean()).isTrue();
+        assertThat(box.sent.get(0).to()).isEqualTo("clerk@nomail.test");
+        String firstToken = tokenOf(box);
+        // A new address cancels the link and code already sent.
+        assertThat(post("/rounds/stops/" + stop + "/email", owner, Map.of("email", "other@nomail.test")).status()).isEqualTo(200);
+        assertThat(get("/public/delivery/" + firstToken, null).status()).isEqualTo(404);
+    }
+
+    @Test
+    void twoConfirmationsAtTheSameMomentLetOnlyOneThrough() throws Exception {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        JsonNode order = order(owner, customer(owner), item(owner, ""), 6);
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, order));
+        String stop = run.at("/stops/0/id").asText();
+        var box = new EmailSender.LogSender();
+        itMailer.useSender(box);
+        post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of());
+        String token = tokenOf(box);
+        String lineId = get("/public/delivery/" + token, null).at("/lines/0/lineId").asText();
+        Map<String, Object> body = Map.of("receivedByName", "Mary", "signature", PNG, "agreed", true,
+                "lines", List.of(Map.of("lineId", lineId, "qtyReceived", 6, "qtySentBack", 0)));
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        List<java.util.concurrent.Future<Integer>> results = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            results.add(pool.submit(() -> post("/public/delivery/" + token, null, body).status()));
+        }
+        int ok = 0;
+        int conflict = 0;
+        for (var f : results) {
+            int st = f.get();
+            ok += st == 200 ? 1 : 0;
+            conflict += st == 409 ? 1 : 0;
+        }
+        pool.shutdown();
+        assertThat(ok).isEqualTo(1);
+        assertThat(conflict).isEqualTo(3);
+        // A resend after the confirmation cannot bring it back to waiting.
+        assertThat(post("/rounds/stops/" + stop + "/arrived", joe.token(), Map.of()).status()).isEqualTo(409);
+        assertThat(get("/rounds/" + run.get("id").asText(), owner).at("/stops/0/status").asText()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void theDriverMustAcceptTheLoadHeSawNotOneTheStoreChangedAfterwards() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        JsonNode run = plan(owner, joe, order(owner, customer(owner), item(owner, ""), 8));
+        String runId = run.get("id").asText();
+        String itemId = run.at("/load/0/itemId").asText();
+        Res first = post("/rounds/" + runId + "/load", storekeeper, Map.of("lines", List.of(Map.of("itemId", itemId, "qtyLoaded", 8))));
+        String seen = first.at("/loadedAt").asText();
+        Res second = post("/rounds/" + runId + "/load", storekeeper, Map.of("lines", List.of(Map.of("itemId", itemId, "qtyLoaded", 7))));
+        assertThat(second.status()).isEqualTo(200);
+        assertThat(post("/rounds/" + runId + "/accept", joe.token(), Map.of()).status()).isEqualTo(400);
+        Res stale = post("/rounds/" + runId + "/accept", joe.token(), Map.of("loadedAt", seen));
+        assertThat(stale.status()).isEqualTo(409);
+        assertThat(stale.at("/message").asText()).isEqualTo("The store changed the load. Check it again before you accept.");
+        assertThat(post("/rounds/" + runId + "/accept", joe.token(), Map.of("loadedAt", second.at("/loadedAt").asText())).status()).isEqualTo(200);
+    }
+
+    @Test
+    void aDriverCannotCloseARoundWithUnconfirmedStopsButTheOfficeCanAndTheGoodsCountAsMissing() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        String cust = customer(owner);
+        JsonNode item = item(owner, "");
+        JsonNode one = order(owner, cust, item, 5);
+        JsonNode two = order(owner, cust, item, 4);
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, one, two));
+        String runId = run.get("id").asText();
+        var box = new EmailSender.LogSender();
+        itMailer.useSender(box);
+        post("/rounds/stops/" + run.at("/stops/1/id").asText() + "/arrived", joe.token(), Map.of());
+        String token = tokenOf(box);
+
+        Res refused = post("/rounds/" + runId + "/back", joe.token(), Map.of());
+        assertThat(refused.status()).isEqualTo(409);
+        assertThat(refused.at("/message").asText()).isEqualTo("Stops 1 and 2 are not confirmed yet. Ask the office to close the round.");
+
+        Res closed = post("/rounds/" + runId + "/back", owner, Map.of());
+        assertThat(closed.status()).as(closed.body().toString()).isEqualTo(200);
+        assertThat(closed.at("/status").asText()).isEqualTo("BACK");
+        assertThat(closed.at("/stops/0/status").asText()).isEqualTo("MISSED");
+        assertThat(closed.at("/stops/1/status").asText()).isEqualTo("MISSED");
+        assertThat(closed.at("/totals/0/missing").asDouble()).isEqualTo(9);
+        assertThat(concern(owner, "DELIVERY_MISSED")).isNotNull();
+        assertThat(get("/public/delivery/" + token, null).status()).isEqualTo(404);
     }
 }

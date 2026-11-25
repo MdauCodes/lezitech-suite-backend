@@ -118,21 +118,31 @@ public class RoundsService {
         return db.one("Round", "SELECT * FROM delivery_runs WHERE id = :id", "id", id);
     }
 
+    /** The round, locked until this transaction ends, so two changes to it cannot cross. */
+    private Map<String, Object> runRowLock(UUID id) {
+        return db.one("Round", "SELECT * FROM delivery_runs WHERE id = :id FOR UPDATE", "id", id);
+    }
+
     private void requireDriver(Map<String, Object> run, String what) {
         if (!TenantContext.userId().toString().equals(run.get("driverUserId"))) {
             throw ApiException.forbidden("Only the driver of this round can " + what + ".");
         }
     }
 
-    /** The stop, once the signed-in user is shown to be the driver of its round. */
+    /** The stop, locked until this transaction ends, once the signed-in user is shown to be the driver of its round. */
     private Map<String, Object> stopForDriver(UUID stopId) {
-        Map<String, Object> s = db.one("Stop", "SELECT * FROM delivery_stops WHERE id = :id", "id", stopId);
+        Map<String, Object> s = db.one("Stop", "SELECT * FROM delivery_stops WHERE id = :id FOR UPDATE", "id", stopId);
         requireDriver(runRow(uuid(s.get("runId"))), "do this");
         return s;
     }
 
     private static boolean isDone(Object status) {
         return "CONFIRMED".equals(status) || "PART".equals(status);
+    }
+
+    /** Confirmed, or closed by the office without a confirmation. */
+    private static boolean isResolved(Object status) {
+        return isDone(status) || "MISSED".equals(status);
     }
 
     // ---------------- lists ----------------
@@ -276,7 +286,7 @@ public class RoundsService {
     }
 
     public Map<String, Object> saveLoad(UUID runId, Map<String, Object> body) {
-        Map<String, Object> run = runRow(runId);
+        Map<String, Object> run = runRowLock(runId);
         if (!"LOADING".equals(run.get("status"))) {
             throw ApiException.conflict("This round has already gone out, so the load can no longer change");
         }
@@ -305,18 +315,35 @@ public class RoundsService {
             db.exec("UPDATE delivery_run_lines SET qty_loaded = :q WHERE run_id = :r AND item_id = :i", "q", e.getValue(), "r", runId, "i", e.getKey());
         }
         TenantContext.Caller me = TenantContext.caller();
-        db.exec("UPDATE delivery_runs SET loaded_by = :u, loaded_by_name = :n, loaded_at = now() WHERE id = :id", "n", me.name(), "id", runId);
+        int saved = db.exec("UPDATE delivery_runs SET loaded_by = :u, loaded_by_name = :n, loaded_at = clock_timestamp() WHERE id = :id AND status = 'LOADING'",
+                "n", me.name(), "id", runId);
+        if (saved == 0) {
+            throw ApiException.conflict("This round has already gone out, so the load can no longer change");
+        }
         return detail(runId);
     }
 
-    public Map<String, Object> accept(UUID runId) {
-        Map<String, Object> run = runRow(runId);
+    public Map<String, Object> accept(UUID runId, Map<String, Object> body) {
+        Map<String, Object> run = runRowLock(runId);
         requireDriver(run, "accept this load");
         if (!"LOADING".equals(run.get("status"))) {
             throw ApiException.conflict("This load was already accepted");
         }
         if (run.get("loadedAt") == null) {
             throw ApiException.bad("The store has not saved the load yet");
+        }
+        Object seen = body.get("loadedAt");
+        if (seen == null || seen.toString().isBlank()) {
+            throw ApiException.bad("Open the round again so you see what was loaded, then accept");
+        }
+        boolean same;
+        try {
+            same = java.time.Instant.parse(seen.toString()).equals(java.time.Instant.parse(run.get("loadedAt").toString()));
+        } catch (RuntimeException e) {
+            same = false;
+        }
+        if (!same) {
+            throw ApiException.conflict("The store changed the load. Check it again before you accept.");
         }
         if (TenantContext.userId().toString().equals(run.get("loadedBy"))) {
             throw ApiException.bad("Someone else must load the vehicle. The driver cannot load and accept his own load");
@@ -334,12 +361,33 @@ public class RoundsService {
     }
 
     public Map<String, Object> back(UUID runId) {
-        Map<String, Object> run = runRow(runId);
-        if ("RIDER".equals(TenantContext.caller().role())) {
+        Map<String, Object> run = runRowLock(runId);
+        boolean driver = "RIDER".equals(TenantContext.caller().role());
+        if (driver) {
             requireDriver(run, "close this round");
         }
         if ("BACK".equals(run.get("status"))) {
             throw ApiException.conflict("This round is already closed");
+        }
+        List<Map<String, Object>> open = db.list("""
+                SELECT id, sort, note_no, customer_name, order_id FROM delivery_stops
+                WHERE run_id = :r AND status IN ('PENDING', 'EMAILED') ORDER BY sort FOR UPDATE""", "r", runId);
+        if (!open.isEmpty() && driver) {
+            List<String> nums = open.stream().map(o -> String.valueOf(((Number) o.get("sort")).intValue() + 1)).toList();
+            throw ApiException.conflict((nums.size() == 1 ? "Stop " + nums.get(0) + " is" : "Stops " + String.join(" and ", nums) + " are")
+                    + " not confirmed yet. Ask the office to close the round.");
+        }
+        TenantContext.Caller me = TenantContext.caller();
+        for (Map<String, Object> o : open) {
+            UUID id = uuid(o.get("id"));
+            db.exec("""
+                    UPDATE delivery_stops SET status = 'MISSED', token_hash = NULL, code_hash = NULL WHERE id = :s""", "s", id);
+            db.exec("DELETE FROM delivery_links WHERE stop_id = :s", "s", id);
+            db.exec("UPDATE delivery_stop_lines SET qty_received = 0, qty_sent_back = 0 WHERE stop_id = :s", "s", id);
+            activity.record("DELIVERY_MISSED", ActivityLog.CONCERN,
+                    me.name() + " closed the round with " + noteNo(o.get("noteNo")) + " to " + o.get("customerName")
+                            + " not confirmed by the client. Its goods count as missing.",
+                    uuid(o.get("orderId")), null, null, null, Map.of("noteNo", noteNo(o.get("noteNo")), "driver", run.get("driverName")));
         }
         db.exec("UPDATE delivery_runs SET status = 'BACK', back_at = now() WHERE id = :id", "id", runId);
         return detail(runId);
@@ -390,7 +438,7 @@ public class RoundsService {
         Map<String, BigDecimal[]> sums = new LinkedHashMap<>();
         List<Map<String, Object>> stopOut = new ArrayList<>();
         for (Map<String, Object> s : stops) {
-            boolean done = isDone(s.get("status"));
+            boolean done = isResolved(s.get("status"));
             allDone &= done;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", s.get("id"));
@@ -400,6 +448,7 @@ public class RoundsService {
             m.put("orderNumber", s.get("orderNumber"));
             m.put("customerName", s.get("customerName"));
             m.put("email", s.get("confirmEmail"));
+            m.put("emailSetBy", s.get("emailSetBy"));
             m.put("status", s.get("status"));
             m.put("emailedAt", s.get("emailedAt"));
             m.put("sends", s.get("sends"));
@@ -468,18 +517,16 @@ public class RoundsService {
         if (!"OUT".equals(run.get("status"))) {
             throw ApiException.bad("Accept the load first. The round is not out yet");
         }
-        if (isDone(s.get("status"))) {
-            throw ApiException.conflict("The client has already confirmed this delivery");
+        if (!"PENDING".equals(s.get("status")) && !"EMAILED".equals(s.get("status"))) {
+            throw ApiException.conflict("This delivery is already closed. It cannot be sent again");
         }
         if (((Number) s.get("sends")).intValue() >= MAX_SENDS) {
             throw ApiException.bad("The email has been sent " + MAX_SENDS + " times already. Ask the client to check their inbox, or ask the office to help");
         }
-        String email = body.get("email") == null ? null : body.get("email").toString().trim();
-        if (email == null || email.isEmpty()) {
-            email = (String) s.get("confirmEmail");
-        }
-        if (email == null || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$") || email.length() > 200) {
-            throw ApiException.bad("Type the clerk's email address first");
+        // The driver never chooses where the email goes: the address is the one the office has on the stop.
+        String email = (String) s.get("confirmEmail");
+        if (email == null || email.isBlank()) {
+            throw ApiException.bad("This client has no email yet. Ask the office to add one.");
         }
         String token = newToken();
         String code = String.format("%04d", RANDOM.nextInt(10000));
@@ -508,11 +555,15 @@ public class RoundsService {
             out.put("stop", stopDetail(stopId));
             return out;
         }
-        db.exec("DELETE FROM delivery_links WHERE stop_id = :s", "s", stopId);
-        db.exec("""
+        // The stop row stays locked from the start of this call, so a clerk's confirmation can never be undone by a resend.
+        int changed = db.exec("""
                 UPDATE delivery_stops SET status = 'EMAILED', token_hash = :h, code_hash = :c, code_tries = 0, sends = sends + 1,
-                       emailed_at = now(), expires_at = now() + interval '3 days', confirm_email = :e
-                WHERE id = :s""", "h", sha(token), "c", codeHash(stopId, code), "e", email, "s", stopId);
+                       emailed_at = now(), expires_at = now() + interval '3 days'
+                WHERE id = :s AND status IN ('PENDING', 'EMAILED')""", "h", sha(token), "c", codeHash(stopId, code), "s", stopId);
+        if (changed == 0) {
+            throw ApiException.conflict("This delivery is already closed. It cannot be sent again");
+        }
+        db.exec("DELETE FROM delivery_links WHERE stop_id = :s", "s", stopId);
         db.exec("INSERT INTO delivery_links (token_hash, tenant_id, stop_id, expires_at) VALUES (:h, :t, :s, now() + interval '3 days')",
                 "h", sha(token), "s", stopId);
         out.put("emailed", true);
@@ -522,6 +573,38 @@ public class RoundsService {
     }
 
     /** 32 random bytes as base64url. One with a capital letter or underscore, so a link can never be mistaken for a business slug. */
+    /** The office sets where a stop's confirm email goes. Any link and code already sent stop working. */
+    public Map<String, Object> setEmail(UUID stopId, Map<String, Object> body) {
+        TenantContext.requireRole("MANAGER");
+        Map<String, Object> s = db.one("Stop", "SELECT * FROM delivery_stops WHERE id = :id FOR UPDATE", "id", stopId);
+        if (!"PENDING".equals(s.get("status")) && !"EMAILED".equals(s.get("status"))) {
+            throw ApiException.conflict("This delivery is already closed, so the address cannot change");
+        }
+        String email = body.get("email") == null ? "" : body.get("email").toString().trim();
+        if (!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$") || email.length() > 200) {
+            throw ApiException.bad("Type a proper email address");
+        }
+        Boolean staff = db.value("SELECT exists(SELECT 1 FROM users WHERE lower(email) = lower(:e))", Boolean.class, "e", email);
+        if (Boolean.TRUE.equals(staff)) {
+            throw ApiException.bad("That address belongs to one of your staff");
+        }
+        String customerEmail = db.value("""
+                SELECT c.email FROM delivery_stops s JOIN orders o ON o.id = s.order_id JOIN customers c ON c.id = o.customer_id
+                WHERE s.id = :s""", String.class, "s", stopId);
+        TenantContext.Caller me = TenantContext.caller();
+        db.exec("""
+                UPDATE delivery_stops SET confirm_email = :e, email_set_by = :by, status = 'PENDING', token_hash = NULL, code_hash = NULL,
+                       code_tries = 0, expires_at = NULL WHERE id = :s""", "e", email, "by", me.name(), "s", stopId);
+        db.exec("DELETE FROM delivery_links WHERE stop_id = :s", "s", stopId);
+        if (customerEmail == null || !customerEmail.equalsIgnoreCase(email)) {
+            activity.record("EMAIL_CHANGED", ActivityLog.CONCERN,
+                    me.name() + " set the confirm email for " + noteNo(s.get("noteNo")) + " to " + email
+                            + (customerEmail == null ? " (the customer has none on file)" : " (the customer's is " + customerEmail + ")"),
+                    uuid(s.get("orderId")), null, null, null, Map.of("noteNo", noteNo(s.get("noteNo")), "email", email));
+        }
+        return stopDetail(stopId);
+    }
+
     private static String newToken() {
         while (true) {
             byte[] b = new byte[32];
@@ -543,6 +626,9 @@ public class RoundsService {
             throw ApiException.bad("Send the email to the client first");
         }
         BigDecimal cash = bd(body.get("cashCollected"), "The cash collected");
+        if (s.get("expiresAt") == null || java.time.Instant.parse(s.get("expiresAt").toString()).isBefore(java.time.Instant.now())) {
+            return new CodeResult(false, "This code has expired. Send the email again.", null);
+        }
         String given = body.get("code") == null ? "" : body.get("code").toString().trim();
         // The try is counted in the same statement that checks the limit, so parallel guesses cannot get past the lock.
         int n = db.exec("UPDATE delivery_stops SET code_tries = code_tries + 1 WHERE id = :s AND status = 'EMAILED' AND code_tries < :max",
@@ -560,7 +646,7 @@ public class RoundsService {
         for (Map<String, Object> l : db.list("SELECT id, qty_sent FROM delivery_stop_lines WHERE stop_id = :s", "s", stopId)) {
             lines.add(Map.of("id", uuid(l.get("id")), "received", l.get("qtySent"), "sentBack", BigDecimal.ZERO, "reason", ""));
         }
-        confirm(s, lines, "CODE", "Client, by code", null, cash);
+        confirm(s, lines, "CODE", "Client, by code", null, cash, null);
         return new CodeResult(true, "Confirmed. Everything counted as received.", stopDetail(stopId));
     }
 
@@ -698,7 +784,7 @@ public class RoundsService {
         if (seen.size() != sent.size()) {
             throw ApiException.bad("Fill in every line of the delivery note");
         }
-        confirm(s, lines, "LINK", name, sig, null);
+        confirm(s, lines, "LINK", name, sig, null, sha(token));
         String status = db.value("SELECT status FROM delivery_stops WHERE id = :s", String.class, "s", stopId);
         return Map.of("status", status, "message", "Thank you. Your confirmation is saved.");
     }
@@ -710,8 +796,11 @@ public class RoundsService {
      * confirmation (or two at the same moment) changes nothing and gets a 409. Then each order line is set to what was
      * received through the order's own recalculation, so the invoice follows what the client confirmed.
      */
-    private void confirm(Map<String, Object> stop, List<Map<String, Object>> lines, String via, String receivedBy, String signature, BigDecimal cash) {
+    private void confirm(Map<String, Object> stop, List<Map<String, Object>> lines, String via, String receivedBy, String signature, BigDecimal cash,
+                         String linkHash) {
         UUID stopId = uuid(stop.get("id"));
+        // Locked first: a resend, an address change or a second confirmation waits here and then finds the stop already settled.
+        db.value("SELECT 1 FROM delivery_stops WHERE id = :s FOR UPDATE", Integer.class, "s", stopId);
         Map<UUID, Map<String, Object>> sent = new LinkedHashMap<>();
         for (Map<String, Object> l : db.list("""
                 SELECT sl.id, sl.name, sl.qty_sent, sl.order_line_id, sl.item_id, ol.unit_price
@@ -727,8 +816,8 @@ public class RoundsService {
         int n = db.exec("""
                 UPDATE delivery_stops SET status = :st, confirmed_at = now(), confirmed_via = :via, received_by_name = :by,
                        signature = :sig, cash_collected = coalesce(:cash, cash_collected)
-                WHERE id = :s AND status = 'EMAILED'""",
-                "st", part ? "PART" : "CONFIRMED", "via", via, "by", receivedBy, "sig", signature, "cash", cash, "s", stopId);
+                WHERE id = :s AND status = 'EMAILED' AND (cast(:h as text) IS NULL OR token_hash = :h)""",
+                "h", linkHash, "st", part ? "PART" : "CONFIRMED", "via", via, "by", receivedBy, "sig", signature, "cash", cash, "s", stopId);
         if (n == 0) {
             throw ApiException.conflict("This delivery was already confirmed. It cannot be changed.");
         }
@@ -738,7 +827,8 @@ public class RoundsService {
         String dn = noteNo(stop.get("noteNo"));
         String driver = db.value("SELECT driver_name FROM delivery_runs WHERE id = :r", String.class, "r", stop.get("runId"));
         String client = (String) stop.get("customerName");
-        boolean changed = false;
+        BigDecimal unbilled = BigDecimal.ZERO;
+        List<String> unbilledLines = new ArrayList<>();
         for (Map<String, Object> l : lines) {
             UUID id = (UUID) l.get("id");
             Map<String, Object> was = sent.get(id);
@@ -770,20 +860,17 @@ public class RoundsService {
                         orderId, itemId, back.multiply(price), null, Map.of("noteNo", dn, "driver", driver, "reason", reason));
             }
             if (open && was.get("orderLineId") != null) {
-                changed = true;
-                UUID orderLine = uuid(was.get("orderLineId"));
-                if (got.signum() == 0) {
-                    orders.removeLine(orderLine, orderId, " because " + client + " did not receive it on " + dn);
-                } else {
-                    db.exec("""
-                            UPDATE order_lines SET qty = :q,
-                                   line_total = greatest(round(unit_price * :q - discount, CASE WHEN unit_name = 'kg' THEN 0 ELSE 2 END), 0)
-                            WHERE id = :id AND order_id = :o""", "q", got, "id", orderLine, "o", orderId);
-                }
+                orders.setDeliveredQty(orderId, uuid(was.get("orderLineId")), got, " because " + client + " received less on " + dn);
+            } else if (!open) {
+                unbilled = unbilled.add(shortBy.multiply(price));
+                unbilledLines.add(qty(shortBy) + " x " + was.get("name"));
             }
         }
-        if (changed) {
-            orders.recalc(orderId);
+        if (!unbilledLines.isEmpty()) {
+            activity.record("DELIVERY_NOT_BILLED_RIGHT", ActivityLog.CONCERN,
+                    "Order " + order.get("number") + " was already paid or closed when " + receivedBy + " confirmed " + dn + ": short "
+                            + String.join(", ", unbilledLines) + " (KES " + unbilled.setScale(0, RoundingMode.HALF_UP) + "). Make a credit or refund.",
+                    orderId, null, unbilled, null, Map.of("noteNo", dn, "short", unbilledLines));
         }
     }
 }

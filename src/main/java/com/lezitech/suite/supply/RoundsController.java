@@ -58,8 +58,8 @@ public class RoundsController {
     }
 
     @PostMapping("/{id}/accept")
-    public Map<String, Object> accept(@PathVariable UUID id) {
-        return rounds.accept(id);
+    public Map<String, Object> accept(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> body) {
+        return rounds.accept(id, body == null ? Map.of() : body);
     }
 
     @PostMapping("/{id}/back")
@@ -70,6 +70,11 @@ public class RoundsController {
     @PostMapping("/stops/{stopId}/arrived")
     public Map<String, Object> arrived(@PathVariable UUID stopId, @RequestBody(required = false) Map<String, Object> body) {
         return rounds.arrived(stopId, body == null ? Map.of() : body);
+    }
+
+    @PostMapping("/stops/{stopId}/email")
+    public Map<String, Object> email(@PathVariable UUID stopId, @RequestBody Map<String, Object> body) {
+        return rounds.setEmail(stopId, body);
     }
 
     @PostMapping("/stops/{stopId}/code")

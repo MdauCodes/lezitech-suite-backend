@@ -107,6 +107,7 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(WRITES, "/api/rounds/[^/]+/load", "load a round", "MANAGER", "STOREKEEPER"),
             rule(WRITES, "/api/rounds/[^/]+/back", "close a round", "MANAGER", "RIDER"),
             rule(WRITES, "/api/rounds/[^/]+/accept", "accept a load", "RIDER"),
+            rule(WRITES, "/api/rounds/stops/[^/]+/email", "change where a delivery is confirmed", "MANAGER"),
             rule(WRITES, "/api/rounds/stops/[^/]+/(arrived|code|cash)", "deliver on a round", "RIDER"),
             // Delivery: riders see their own run sheet (checked again in Delivery); the rest is for the floor team.
             rule(ANY, "/api/delivery(/.*)?", "use deliveries", "MANAGER", "CASHIER", "WAITER", "ACCOUNTANT", "RIDER"));

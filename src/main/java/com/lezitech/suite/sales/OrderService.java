@@ -319,6 +319,44 @@ public class OrderService {
         removeLine(lineId, orderId, why, false);
     }
 
+    /**
+     * Goods that arrived in a smaller amount than billed (a delivery confirmed short): the line goes down to {@code qty},
+     * its discount scales with it, the line total, tax and order totals follow, and the change is written down.
+     * Zero takes the whole line off the usual way. An amount at or above what is billed changes nothing.
+     */
+    public void setDeliveredQty(UUID orderId, UUID lineId, BigDecimal qty, String why) {
+        Map<String, Object> l = db.find("""
+                SELECT name, qty, unit_price, discount, unit_name, item_id FROM order_lines WHERE id = :id AND order_id = :o""",
+                "id", lineId, "o", orderId).orElse(null);
+        if (l == null) {
+            return;
+        }
+        BigDecimal before = (BigDecimal) l.get("qty");
+        if (qty.signum() < 0) {
+            throw com.lezitech.suite.common.ApiException.bad("The amount cannot be below zero");
+        }
+        if (qty.signum() == 0) {
+            removeLine(lineId, orderId, why);
+            recalc(orderId);
+            return;
+        }
+        if (qty.compareTo(before) >= 0) {
+            return;
+        }
+        BigDecimal discount = ((BigDecimal) l.get("discount")).multiply(qty).divide(before, 2, RoundingMode.HALF_UP);
+        int places = "kg".equals(l.get("unitName")) ? 0 : 2;
+        BigDecimal total = ((BigDecimal) l.get("unitPrice")).multiply(qty).subtract(discount).setScale(places, RoundingMode.HALF_UP).max(BigDecimal.ZERO);
+        db.exec("UPDATE order_lines SET qty = :q, discount = :d, line_total = :t2 WHERE id = :id", "q", qty, "d", discount, "t2", total, "id", lineId);
+        recalc(orderId);
+        BigDecimal off = before.subtract(qty);
+        BigDecimal value = off.multiply((BigDecimal) l.get("unitPrice"));
+        Object number = db.value("SELECT number FROM orders WHERE id = :o", Object.class, "o", orderId);
+        activity.record("ITEM_REMOVED", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                "Took " + off.stripTrailingZeros().toPlainString() + " × " + l.get("name") + " off #" + number + (why == null ? "" : why)
+                        + " (KES " + value.setScale(0, RoundingMode.HALF_UP) + ")",
+                orderId, l.get("itemId") == null ? null : UUID.fromString(l.get("itemId").toString()), value, null, Map.of("qty", off));
+    }
+
     /** {@code routine}: a charge the system itself added and withdrew (a payment fee), noted but never raised as a concern. */
     public void removeLine(UUID lineId, UUID orderId, String why, boolean routine) {
         Map<String, Object> l = db.find("""
