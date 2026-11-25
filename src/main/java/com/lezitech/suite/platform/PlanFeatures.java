@@ -48,7 +48,7 @@ public class PlanFeatures {
 
     /** In the order shown on plan pages. Rules: null where the check sits in the code (quotes, owner powers...). */
     public static final List<Feature> CATALOG = List.of(
-            new Feature("purchasing", "Buying from suppliers", "Order stock, record deliveries and see what you owe each supplier.", "GROWTH",
+            new Feature("purchasing", "Buying from suppliers", "Order stock, record deliveries and see what is left to pay each supplier.", "GROWTH",
                     List.of(writes("/api/(purchases|suppliers)(/.*)?"))),
             new Feature("transfers", "Moving stock between branches", "Send stock from the store to a shop, or between branches, with a record of who moved what.", "GROWTH",
                     List.of(writes("/api/stock/transfer"))),
@@ -63,7 +63,7 @@ public class PlanFeatures {
                     List.of(all("/api/customers/[^/]+/statement(/.*)?"))),
             new Feature("loyalty", "Loyalty points", "Customers earn points as they buy and spend them at the till.", "GROWTH",
                     List.of(writes("/api/customers/[^/]+/loyalty/adjust"), writes("/api/orders/[^/]+/loyalty/redeem"))),
-            new Feature("commissions", "Staff commissions", "What each staff member earned, what was paid and what is still owed.", "GROWTH",
+            new Feature("commissions", "Staff commissions", "What each staff member earned, what was paid and what is left to pay.", "GROWTH",
                     List.of(all("/api/reports/commissions(/.*)?"))),
             new Feature("tips", "Tips report", "Tips per waiter for any day or week.", "GROWTH",
                     List.of(all("/api/reports/tips.*"))),
