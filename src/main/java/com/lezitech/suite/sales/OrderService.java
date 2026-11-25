@@ -558,13 +558,26 @@ public class OrderService {
     }
 
     private Map<String, Object> payInternal(UUID orderId, Body b, boolean allowDeposit) {
+        return payInternal(orderId, b, allowDeposit, false);
+    }
+
+    /** A rider's cash hand-in is never blocked: an unconfirmed 18+ order in it is written down as skipped and the cash goes in. */
+    public Map<String, Object> payCashHandIn(UUID orderId, BigDecimal amount) {
+        tills.requireOpenTill();
+        noteAgeSkipped(orderId, "the rider handed in the cash");
+        return payInternal(orderId, new Body(Map.of("payments", List.of(Map.of("method", "CASH", "amount", amount)))), false, true);
+    }
+
+    private Map<String, Object> payInternal(UUID orderId, Body b, boolean allowDeposit, boolean skipAge) {
         Map<String, Object> o = requireOpen(orderId);
         if ("QUOTE".equals(o.get("kind"))) {
             throw ApiException.bad("Convert the quotation to a sale before taking payment");
         }
         // 18+ items need the customer's age confirmed first, on every way of paying. The two business-side
         // closings (a deposit put on a bill, a bill cleared as owed by a waiter) are not a customer buying.
-        if (!(allowDeposit && (b.bool("deposit", false) || "WAITER".equals(firstMethod(b))))) {
+        if (allowDeposit && "WAITER".equals(firstMethod(b))) {
+            noteAgeSkipped(orderId, "the bill was cleared as owed by a waiter");
+        } else if (!(skipAge || (allowDeposit && b.bool("deposit", false)))) {
             requireAgeConfirmed(orderId);
         }
         if (b.has("discount")) {
@@ -666,16 +679,44 @@ public class OrderService {
         if (!ageCheckOn()) {
             return false;
         }
-        // An item added after the confirmation (from the till or a customer's phone) needs a fresh answer.
+        // An item added after the confirmation (from the till or a customer's phone) needs a fresh answer: both times
+        // come from clock_timestamp(), so a line added while someone was confirming is never missed.
+        // Orders from a delivery app are exempt: the app checks the customer's age.
         return Boolean.TRUE.equals(db.value("""
                 SELECT EXISTS (SELECT 1 FROM order_lines l JOIN items i ON i.id = l.item_id JOIN orders o ON o.id = l.order_id
-                                WHERE o.id = :o AND i.age_restricted
+                                WHERE o.id = :o AND i.age_restricted AND o.delivery_app IS NULL
                                   AND (o.age_confirmed_at IS NULL OR l.created_at > o.age_confirmed_at))""", Boolean.class, "o", orderId));
+    }
+
+    /** Words every age refusal contains (so other code can tell it from a closed sale). */
+    public static final String AGE_REFUSAL = "18+ items";
+
+    /** Our own delivery that has not been handed over yet: the rider checks the customer's age at the door. */
+    private boolean checkedAtTheDoor(UUID orderId) {
+        return Boolean.TRUE.equals(db.value(
+                "SELECT EXISTS (SELECT 1 FROM deliveries d WHERE d.order_id = :o AND d.status IN ('WAITING', 'ON_THE_WAY'))", Boolean.class, "o", orderId));
+    }
+
+    /** The rider's own check: refuses (409) until the age is confirmed, whatever the state of the bill. */
+    public void requireAgeConfirmedAtDoor(UUID orderId) {
+        if (needsAgeCheck(orderId)) {
+            throw ApiException.conflict("This order has 18+ items. Check the customer is 18 or older and confirm it before marking it delivered or taking payment.");
+        }
+    }
+
+    /** Written down when an 18+ bill is closed without the age being confirmed (a waiter's clearing, a rider's cash hand-in). */
+    private void noteAgeSkipped(UUID orderId, String how) {
+        if (needsAgeCheck(orderId)) {
+            Object number = db.value("SELECT number FROM orders WHERE id = :o", Object.class, "o", orderId);
+            activity.record("AGE_CHECK_SKIPPED", com.lezitech.suite.activity.ActivityLog.CONCERN,
+                    "Bill #" + number + " has 18+ items and the customer's age was never confirmed; " + how,
+                    orderId, null, null, null, Map.of());
+        }
     }
 
     /** Refuses (409, in plain words) while a bill has 18+ items and no staff member has confirmed the customer is 18 or older. */
     public void requireAgeConfirmed(UUID orderId) {
-        if (needsAgeCheck(orderId)) {
+        if (needsAgeCheck(orderId) && !checkedAtTheDoor(orderId)) {
             throw ApiException.conflict("This sale has 18+ items. Check the customer is 18 or older and confirm it before taking payment. "
                     + "If it was ordered from the customer's phone, a staff member confirms it at the till.");
         }
@@ -683,7 +724,10 @@ public class OrderService {
 
     /** A staff member confirms the customer is 18 or older (who and when are kept on the bill). */
     public void confirmAge(UUID orderId, boolean idChecked) {
-        Map<String, Object> o = requireOpen(orderId);
+        Map<String, Object> o = db.one("Order", "SELECT * FROM orders WHERE id = :id FOR UPDATE", "id", orderId);
+        if ("VOID".equals(o.get("status"))) {
+            throw ApiException.conflict("This bill was cancelled");
+        }
         if (!needsAgeCheck(orderId)) {
             return;
         }
@@ -707,7 +751,15 @@ public class OrderService {
         if (lines.isEmpty()) {
             return;
         }
-        boolean cooking = lines.stream().anyMatch(l -> !"PENDING".equals(l.get("kitchenStatus")));
+        // A combo counts as sent only when its parts went to the kitchen (the combo line itself is born "served").
+        boolean cooking = false;
+        for (Map<String, Object> l : lines) {
+            UUID top = UUID.fromString(String.valueOf(l.get("parentLineId") != null ? l.get("parentLineId") : l.get("id")));
+            cooking |= Boolean.TRUE.equals(db.value("""
+                    SELECT EXISTS (SELECT 1 FROM order_lines x WHERE x.order_id = :o AND x.kitchen_status <> 'PENDING'
+                                    AND (x.parent_line_id = :id OR (x.id = :id AND NOT EXISTS (SELECT 1 FROM order_lines c WHERE c.parent_line_id = x.id))))""",
+                    Boolean.class, "o", orderId, "id", top));
+        }
         approvals.requireManagerForValueOff(orderId, cooking, approval, "taking 18+ items off this bill");
         List<String> names = new ArrayList<>();
         java.util.Set<UUID> done = new java.util.HashSet<>();
@@ -859,7 +911,16 @@ public class OrderService {
         if (folio.equals(orderId)) {
             throw ApiException.bad("That's already the room folio");
         }
+        // 18+ items going onto a room bill need the customer's age confirmed now; the folio then keeps that answer.
+        requireAgeConfirmed(orderId);
+        boolean folioWasFine = !needsAgeCheck(folio);
         db.exec("UPDATE order_lines SET order_id = :folio WHERE order_id = :id", "folio", folio, "id", orderId);
+        if (folioWasFine) {
+            db.exec("""
+                    UPDATE orders f SET age_confirmed_at = s.age_confirmed_at, age_confirmed_by = s.age_confirmed_by, age_id_checked = s.age_id_checked
+                    FROM orders s WHERE s.id = :id AND f.id = :folio AND s.age_confirmed_at IS NOT NULL
+                      AND (f.age_confirmed_at IS NULL OR f.age_confirmed_at < s.age_confirmed_at)""", "id", orderId, "folio", folio);
+        }
         // If the customer had already seen the bill, the room folio knows it: otherwise moving a printed bill
         // onto a fresh folio would be a way to take items off it for nothing.
         db.exec("""

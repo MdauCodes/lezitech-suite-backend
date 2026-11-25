@@ -742,8 +742,11 @@ public class MpesaService {
         } catch (RuntimeException e) {
             // e.g. the sale was paid in cash meanwhile. Keep the money visible so staff can refund or apply it.
             log.warn("M-Pesa {} confirmed but couldn't be put on order {}: {}", receipt, orderId, e.getMessage());
+            boolean ageRefused = e.getMessage() != null && e.getMessage().contains(com.lezitech.suite.sales.OrderService.AGE_REFUSAL);
             jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
-                    "Money received but the sale was already closed (" + e.getMessage() + "). Refund the customer or use it on another sale.", id);
+                    ageRefused ? "Money received, but this sale has 18+ items and the customer's age was not confirmed, so it was not put on the sale. "
+                            + "Confirm the age at the till and use this payment on the sale, or refund the customer."
+                            : "Money received but the sale was already closed (" + e.getMessage() + "). Refund the customer or use it on another sale.", id);
             announce(r, "UNAPPLIED");
         }
     }

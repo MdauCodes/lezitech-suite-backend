@@ -58,6 +58,8 @@ public class Delivery {
     private final TableOrderService tableOrders;
     private final MpesaService mpesa;
     @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.activity.ActivityLog activity;
+    @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.notify.WebPush push;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.config.AccessPolicy access;
@@ -417,6 +419,7 @@ public class Delivery {
     }
 
     private Map<String, Object> withStage(Map<String, Object> d) {
+        d.put("needsAgeCheck", d.get("orderId") != null && orders.needsAgeCheck(UUID.fromString(d.get("orderId").toString())));
         String stage;
         if (!"WAITING".equals(d.get("status"))) {
             stage = (String) d.get("status");
@@ -626,6 +629,11 @@ public class Delivery {
             throw ApiException.bad("Choose the rider who took it first");
         }
         UUID orderId = UUID.fromString(d.get("orderId").toString());
+        // Our own riders check the customer's age at the door, before handing over or taking payment.
+        if (b.has("ageConfirm")) {
+            orders.confirmAge(orderId, new Body(b.map("ageConfirm")).bool("idChecked", false));
+        }
+        orders.requireAgeConfirmedAtDoor(orderId);
         Map<String, Object> o = db.one("Order", "SELECT status, total, paid FROM orders WHERE id = :id", "id", orderId);
         BigDecimal left = ((BigDecimal) o.get("total")).subtract((BigDecimal) o.get("paid")).max(BigDecimal.ZERO);
         BigDecimal collected = BigDecimal.ZERO;
@@ -663,6 +671,10 @@ public class Delivery {
         }
         UUID orderId = UUID.fromString(d.get("orderId").toString());
         db.exec("UPDATE deliveries SET status = 'FAILED', failed_reason = :r WHERE id = :id", "id", id, "r", reason);
+        if (b.bool("ageDeclined", false)) {
+            activity.record("AGE_CHECK_NO", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                    "Customer is under 18 at the door: the rider brought the 18+ items back (" + reason + ")", orderId, null, null, null, Map.of());
+        }
         Map<String, Object> o = db.one("Order", "SELECT status, paid, number FROM orders WHERE id = :id", "id", orderId);
         if ("OPEN".equals(o.get("status")) && ((BigDecimal) o.get("paid")).signum() == 0) {
             TenantContext.Caller me = TenantContext.caller();
@@ -729,7 +741,7 @@ public class Delivery {
             UUID orderId = UUID.fromString(x.get("orderId").toString());
             Map<String, Object> o = db.one("Order", "SELECT status FROM orders WHERE id = :id", "id", orderId);
             if ("OPEN".equals(o.get("status"))) {
-                orders.pay(orderId, new Body(Map.of("payments", List.of(Map.of("method", "CASH", "amount", x.get("collected"))))));
+                orders.payCashHandIn(orderId, (BigDecimal) x.get("collected"));
             }
             db.exec("UPDATE deliveries SET handed_in_at = now(), handed_in_to = :u WHERE id = :id", "id", x.get("id"));
         }
