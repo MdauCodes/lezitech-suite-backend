@@ -49,7 +49,9 @@ public class TrialGuard implements WebMvcConfigurer, HandlerInterceptor {
         if (isLocked((String) t.get("status"), (Timestamp) t.get("trial_ends_at"), (Timestamp) t.get("paid_until"))) {
             res.setStatus(402);
             res.setContentType("application/json");
-            String msg = "ACTIVE".equals(t.get("status"))
+            String msg = "SUSPENDED".equals(t.get("status"))
+                    ? "Your workspace is paused. Talk to us and we will sort it out together. You can still look at everything and download your reports; your data is safe."
+                    : "ACTIVE".equals(t.get("status"))
                     ? "Your bill was not paid and the " + GRACE_DAYS + " extra days are over. Pay it to keep working. You can still look at everything and download your reports; your data is safe."
                     : "Your free trial has ended. Choose a plan to keep working; your data is safe.";
             res.getWriter().write("{\"code\":\"TRIAL_EXPIRED\",\"message\":\"" + msg + "\"}");

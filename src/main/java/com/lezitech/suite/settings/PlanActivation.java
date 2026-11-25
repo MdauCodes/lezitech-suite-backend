@@ -50,6 +50,11 @@ public class PlanActivation {
 
     /** @return the request row as it was before activation */
     public Map<String, Object> activate(UUID requestId, String paidVia, String receipt) {
+        return activate(requestId, paidVia, receipt, null, null);
+    }
+
+    /** As above, for a payment confirmed by a person at LeziTech: who did it and why are kept with the payment. */
+    public Map<String, Object> activate(UUID requestId, String paidVia, String receipt, String by, String reason) {
         Map<String, Object> r = jdbc.queryForMap("SELECT * FROM subscription_requests WHERE id = ? FOR UPDATE", requestId);
         if ("PAID".equals(r.get("status"))) {
             return r;
@@ -61,6 +66,7 @@ public class PlanActivation {
         // A move down that was chosen earlier starts on the bill date: paid ahead, the business keeps its plan until then.
         Map<String, Object> own = jdbc.queryForMap("SELECT status, plan, next_plan, plan_switch_at, paid_until FROM tenants WHERE id = ?", tenant);
         java.sql.Timestamp oldEnd = (java.sql.Timestamp) own.get("paid_until");
+        java.time.Instant periodFrom = oldEnd != null && oldEnd.toInstant().isAfter(java.time.Instant.now()) ? oldEnd.toInstant() : java.time.Instant.now();
         boolean ahead = "ACTIVE".equals(own.get("status")) && oldEnd != null && oldEnd.toInstant().isAfter(java.time.Instant.now());
         boolean waits = ahead && own.get("next_plan") != null && own.get("next_plan").equals(r.get("plan")) && own.get("plan") != null && !own.get("plan").equals(r.get("plan"));
         // A request made for another plan than the one the business is on or moving to is out of date (it moved since): the money
@@ -75,7 +81,8 @@ public class PlanActivation {
                 stale ? own.get("plan_switch_at") : waits ? oldEnd : null, months, tenant);
         // The extra lines this payment covered (days of a higher plan) are paid.
         billing.markPaid(tenant, requestId, (java.sql.Timestamp) r.get("created_at"));
-        jdbc.update("UPDATE subscription_requests SET status = 'PAID', paid_via = ?, mpesa_receipt = ? WHERE id = ?", paidVia, receipt, requestId);
+        jdbc.update("UPDATE subscription_requests SET status = 'PAID', paid_via = ?, mpesa_receipt = ?, paid_at = now(), activated_by = ?, activated_reason = ?, period_from = ?, period_to = (SELECT paid_until FROM tenants WHERE id = ?) WHERE id = ?",
+                paidVia, receipt, by, reason, java.sql.Timestamp.from(periodFrom), tenant, requestId);
 
         jdbc.update("UPDATE tenants SET billing_credit = greatest(0, billing_credit - ?) WHERE id = ?", r.get("credit_used"), tenant);
         // A plan switched on entirely by thank-you credit moved no money, so it is not a first payment (no rewards, no Subscribe).

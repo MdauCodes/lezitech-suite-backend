@@ -124,7 +124,8 @@ public class PlanBilling {
     /** The business's billing row; locked when a change is about to be made, so two taps cannot both go through. */
     private Map<String, Object> tenantRow(UUID tenant, boolean lock) {
         return jdbc.queryForMap("""
-                SELECT sector, status, plan, next_plan, plan_switch_at, trial_ends_at, paid_until, period_start
+                SELECT sector, CASE WHEN status = 'SUSPENDED' THEN coalesce(suspended_from, 'TRIAL') ELSE status END AS status,
+                       (status = 'SUSPENDED') AS suspended, suspended_reason, plan, next_plan, plan_switch_at, trial_ends_at, paid_until, period_start
                 FROM tenants WHERE id = ?""" + (lock ? " FOR UPDATE" : ""), tenant);
     }
 
@@ -234,13 +235,16 @@ public class PlanBilling {
         m.put("graceEndsText", graceEnds == null ? null : day(graceEnds));
         boolean inGrace = late && graceEnds.isAfter(now);
         m.put("inGrace", inGrace);
-        m.put("locked", !trial && graceEnds != null && !graceEnds.isAfter(now));
+        boolean paused = Boolean.TRUE.equals(t.get("suspended"));
+        m.put("suspended", paused);
+        m.put("locked", paused || !trial && graceEnds != null && !graceEnds.isAfter(now));
         String next = (String) t.get("next_plan");
         if (!trial && next != null) {
             m.put("movingTo", next);
             m.put("movingToName", nameOf(tenant, next));
         }
-        m.put("summary", trial
+        m.put("summary", paused ? "Your workspace is paused. Talk to us and we will sort it out together. When it is back, your next bill is " + kes(q.total()) + "."
+                : trial
                 ? "Nothing to pay today. When your free days end on " + (date == null ? "" : day(date)) + ", the next bill is " + kes(q.total()) + "."
                 : late ? "Your bill date was " + day(date) + ". Pay " + kes(q.total()) + (inGrace ? " by " + day(graceEnds) + " to keep working." : " to keep working.")
                 : "Nothing to pay today. Your next bill on " + (date == null ? "" : day(date)) + " is " + kes(q.total()) + ".");
@@ -424,7 +428,16 @@ public class PlanBilling {
     @Transactional
     public Map<String, Object> change(String toPlan, String reason) {
         TenantContext.requireRole("OWNER");
-        UUID tenant = TenantContext.tenantId();
+        return apply(TenantContext.tenantId(), toPlan, reason, null);
+    }
+
+    /** LeziTech changes the plan for a business (same rules, same sheet wording). Call inside TenantContext.runAs for that business. */
+    @Transactional
+    public Map<String, Object> changeBy(UUID tenant, String toPlan, String reason, String actor) {
+        return apply(tenant, toPlan, reason, actor);
+    }
+
+    private Map<String, Object> apply(UUID tenant, String toPlan, String reason, String actor) {
         String to = toPlan == null ? "" : toPlan.toUpperCase(Locale.ROOT);
         if (platform.plan(to) == null) {
             throw ApiException.bad("Choose a plan");
@@ -439,7 +452,7 @@ public class PlanBilling {
             if (!"TRIAL".equals(t.get("status"))) {
                 throw ApiException.bad("Choose a plan and pay to switch your workspace back on");
             }
-            record(tenant, from, to, "TRIAL_SETUP", why, 0, Instant.now());
+            record(tenant, from, to, "TRIAL_SETUP", why, 0, Instant.now(), actor);
             return Map.of("ok", true, "kind", "TRIAL_SETUP", "plan", to, "planName", toName, "proration", 0,
                     "message", "Noted. When your free days end on " + (date == null ? "" : day(date)) + ", this setup is " + toName + ". Nothing to pay today.");
         }
@@ -452,7 +465,7 @@ public class PlanBilling {
             long gap = prepaidGap(tenant, t, to);
             String gapText = gap > 0 ? gapLabel(tenant, t, to) : null;
             jdbc.update("UPDATE tenants SET next_plan = NULL, plan_switch_at = NULL WHERE id = ?", tenant);
-            UUID id = record(tenant, from, to, "CANCEL_DOWNGRADE", "Stayed on " + toName, gap, Instant.now());
+            UUID id = record(tenant, from, to, "CANCEL_DOWNGRADE", "Stayed on " + toName, gap, Instant.now(), actor);
             supersedeRequests(tenant);
             if (gap > 0) {
                 jdbc.update("INSERT INTO bill_lines (tenant_id, plan_change_id, kind, label, amount) VALUES (?, ?, 'DIFFERENCE', ?, ?)", tenant, id, gapText, gap);
@@ -467,7 +480,7 @@ public class PlanBilling {
             }
             jdbc.update("UPDATE tenants SET next_plan = ?, plan_switch_at = NULL WHERE id = ?", to, tenant);
             supersedeRequests(tenant);
-            record(tenant, from, to, "DOWNGRADE", why, 0, date == null ? Instant.now() : date);
+            record(tenant, from, to, "DOWNGRADE", why, 0, date == null ? Instant.now() : date, actor);
             return Map.of("ok", true, "kind", "DOWNGRADE", "plan", from, "planName", fromName, "movingTo", to, "movingToName", toName, "proration", 0,
                     "message", "You move to " + toName + " on " + (date == null ? "your next bill date" : day(date)) + ". Until then you keep " + fromName
                             + ". Nothing is refunded for the days you have already paid for.");
@@ -476,7 +489,7 @@ public class PlanBilling {
         long extra = extraFor(monthlyNow(tenant, from), monthlyNow(tenant, to), days);
         long gap = prepaidGap(tenant, t, to);
         String gapText = gap > 0 ? gapLabel(tenant, t, to) : null;
-        UUID changeId = record(tenant, from, to, "UPGRADE", why, extra + gap, Instant.now());
+        UUID changeId = record(tenant, from, to, "UPGRADE", why, extra + gap, Instant.now(), actor);
         jdbc.update("UPDATE tenants SET plan = ?, next_plan = NULL, plan_switch_at = NULL WHERE id = ?", to, tenant);
         supersedeRequests(tenant);
         if (gap > 0) {
@@ -498,11 +511,11 @@ public class PlanBilling {
                 WHERE tenant_id = ? AND status = 'PENDING'""", tenant);
     }
 
-    private UUID record(UUID tenant, String from, String to, String kind, String why, long proration, Instant effective) {
+    private UUID record(UUID tenant, String from, String to, String kind, String why, long proration, Instant effective, String actor) {
         UUID id = jdbc.queryForObject("""
                 INSERT INTO plan_changes (tenant_id, changed_by, changed_by_name, from_plan, to_plan, kind, reason, proration, effective_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""", UUID.class,
-                tenant, TenantContext.userId(), TenantContext.caller().name(), from, to, kind, why, proration, Timestamp.from(effective));
+                tenant, actor == null ? TenantContext.userId() : null, actor == null ? TenantContext.caller().name() : actor, from, to, kind, why, proration, Timestamp.from(effective));
         try {
             activity.record("PLAN_CHANGE", ActivityLog.NOTICE,
                     ("TRIAL_SETUP".equals(kind) ? "Setup moved to " : "DOWNGRADE".equals(kind) ? "Plan will move to " : "Plan changed to ") + nameOf(tenant, to) + " (from " + nameOf(tenant, from) + ")");

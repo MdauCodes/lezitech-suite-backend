@@ -33,6 +33,8 @@ class RlsCoverageTest extends IntegrationTest {
             Map.entry("mpesa_c2b", "Safaricom's till payment arrives without a sign-in; matched by till number"),
             Map.entry("etims_queue", "background retry job works across businesses, then acts as each one"),
             Map.entry("trial_nudges", "trial reminder job and control panel only"),
+            Map.entry("tenant_notes", "LeziTech team notes about a business; control panel only, never shown to the business"),
+            Map.entry("tenant_price_holds", "a paying business keeps its old plan price for one more bill; read by the billing code and control panel only"),
             Map.entry("setup_requests", "website form and control panel only"),
             Map.entry("team_messages", "messages to the LeziTech team; the app only adds, the control panel reads"),
             Map.entry("login_codes", "6-digit email codes, used before sign-in"),
