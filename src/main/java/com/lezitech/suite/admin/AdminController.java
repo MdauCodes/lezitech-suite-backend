@@ -386,11 +386,42 @@ public class AdminController {
     // ---------- workspaces ----------
 
     @GetMapping("/tenants")
-    public List<Map<String, Object>> tenants(@RequestParam(required = false) String q, @RequestParam(required = false) String status,
-                                             @RequestParam(required = false) String sector, @RequestParam(defaultValue = "false") boolean demo) {
+    public Object tenants(@RequestParam(required = false) String q, @RequestParam(required = false) String status,
+                          @RequestParam(required = false) String sector, @RequestParam(defaultValue = "false") boolean demo,
+                          @RequestParam(required = false) Integer limit, @RequestParam(required = false) String before) {
         AdminContext.require("read");
         String st = status == null || status.isBlank() ? null : status;
-        return jdbc.queryForList("""
+        String term = q == null ? null : q.trim();
+        String pattern = term == null || term.length() < 2 ? null
+                : "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        boolean paged = limit != null;
+        int size = paged ? Math.max(1, Math.min(100, limit)) : 500;
+        String cursorSql = "";
+        List<Object> args = new ArrayList<>();
+        args.add(demo);
+        args.add(pattern);
+        args.add(pattern);
+        args.add(pattern);
+        args.add(pattern);
+        args.add(blank(sector));
+        args.add(blank(sector));
+        args.add(st);
+        args.add(st);
+        if (paged && before != null && !before.isBlank()) {
+            int tilde = before.indexOf('~');
+            try {
+                if (tilde < 0) {
+                    throw new IllegalArgumentException("no separator");
+                }
+                args.add(Timestamp.from(Instant.parse(before.substring(0, tilde))));
+                args.add(UUID.fromString(before.substring(tilde + 1)));
+            } catch (RuntimeException e) {
+                throw ApiException.bad("Invalid cursor");
+            }
+            cursorSql = " AND (x.created_at, x.id) < (cast(? as timestamptz), cast(? as uuid))";
+        }
+        args.add(paged ? size + 1 : size);
+        List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT b.id, b.slug, b.name, b.sector, b.sub_sector, b.status, b.plan, b.trial_ends_at, b.paid_until, b.created_at,
                        b.last_active_at, b.phone, b.brand_color, b.logo_url, b.is_demo, b.state,
                        u.owner_email, u.users, u.last_login_at, r.pending_request
@@ -403,12 +434,13 @@ public class AdminController {
                                     WHEN t.status = 'ACTIVE' AND t.paid_until < now() THEN 'LAPSED' ELSE t.status END AS state
                         FROM tenants t
                         WHERE t.is_demo = ?
-                          AND (cast(? as text) IS NULL OR t.name ILIKE '%' || cast(? as text) || '%' OR t.slug ILIKE '%' || cast(? as text) || '%'
-                               OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE '%' || cast(? as text) || '%'))
+                          AND (cast(? as text) IS NULL OR t.name ILIKE cast(? as text) ESCAPE '\\' OR t.slug ILIKE cast(? as text) ESCAPE '\\'
+                               OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE cast(? as text) ESCAPE '\\'))
                           AND (cast(? as text) IS NULL OR t.sector = cast(? as text))
                     ) x
-                    WHERE cast(? as text) IS NULL OR x.state = cast(? as text)
-                    ORDER BY x.created_at DESC LIMIT 500
+                    WHERE (cast(? as text) IS NULL OR x.state = cast(? as text))""" + cursorSql + """
+
+                    ORDER BY x.created_at DESC, x.id DESC LIMIT ?
                 ) b
                 LEFT JOIN LATERAL (
                     SELECT count(*) AS users, max(last_login_at) AS last_login_at,
@@ -417,10 +449,25 @@ public class AdminController {
                 LEFT JOIN LATERAL (
                     SELECT plan || ' ' || billing_cycle AS pending_request FROM subscription_requests
                     WHERE tenant_id = b.id AND status = 'PENDING' ORDER BY created_at DESC LIMIT 1) r ON true
-                ORDER BY b.created_at DESC""",
-                demo, blank(q), blank(q), blank(q), blank(q), blank(sector), blank(sector), st, st)
-                .stream().map(this::clean).toList();
+                ORDER BY b.created_at DESC, b.id DESC""", args.toArray());
+        if (!paged) {
+            return rows.stream().map(this::clean).toList();
+        }
+        boolean more = rows.size() > size;
+        List<Map<String, Object>> page = more ? rows.subList(0, size) : rows;
+        String next = null;
+        if (more) {
+            Map<String, Object> last = page.get(page.size() - 1);
+            next = MICROS.format(((Timestamp) last.get("created_at")).toInstant()) + "~" + last.get("id");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", page.stream().map(this::clean).toList());
+        out.put("next", next);
+        return out;
     }
+
+    private static final java.time.format.DateTimeFormatter MICROS =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'").withZone(java.time.ZoneOffset.UTC);
 
     @GetMapping("/tenants/{id}")
     public Map<String, Object> tenant(@PathVariable UUID id) throws Exception {
