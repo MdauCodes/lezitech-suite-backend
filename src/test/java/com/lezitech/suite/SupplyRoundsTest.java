@@ -585,4 +585,74 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(balanceOf(owner, cust)).isEqualTo(total);
         assertThat(concern(owner, "DELIVERY_NOT_BILLED_RIGHT")).isNotNull();
     }
+
+    private JsonNode stocked(String owner) {
+        for (JsonNode i : get("/items", owner).body()) {
+            if (i.path("trackStock").asBoolean(false) && i.path("onHand").asDouble() >= 30) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("no stocked item");
+    }
+
+    private double movedBy(String owner, JsonNode item, String reason) {
+        double sum = 0;
+        for (JsonNode m : get("/stock/moves?itemId=" + item.get("id").asText(), owner).body()) {
+            if (reason.equals(m.get("reason").asText())) {
+                sum += m.get("qty").asDouble();
+            }
+        }
+        return sum;
+    }
+
+    private int confirmWith(Driver joe, JsonNode run, Map<String, Object> line) {
+        var box = new EmailSender.LogSender();
+        itMailer.useSender(box);
+        post("/rounds/stops/" + run.at("/stops/0/id").asText() + "/arrived", joe.token(), Map.of());
+        String token = tokenOf(box);
+        String lineId = get("/public/delivery/" + token, null).at("/lines/0/lineId").asText();
+        Map<String, Object> l = new java.util.HashMap<>(line);
+        l.put("lineId", lineId);
+        return post("/public/delivery/" + token, null, Map.of("receivedByName", "Grace", "signature", PNG, "agreed", true, "lines", List.of(l))).status();
+    }
+
+    @Test
+    void goodsThatLeftAndWereNotSentBackAreGoneFromStockAndSentBackGoodsReturnForAnAccountOrder() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        post("/shifts/open", owner, Map.of("openingCash", 0));
+        String cust = post("/customers", owner, Map.of("name", "Hotel Savanna", "email", "stores@savanna.test", "creditLimit", 10000000)).at("/id").asText();
+        JsonNode item = stocked(owner);
+
+        // An open order: 10 left, 7 received, 1 sent back, 2 missing. The sale will take off the 7; the 2 are taken off now.
+        JsonNode open = order(owner, cust, item, 10);
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, open));
+        assertThat(confirmWith(joe, run, Map.of("qtyReceived", 7, "qtySentBack", 1, "reason", "Wrong size"))).isEqualTo(200);
+        assertThat(movedBy(owner, item, "DELIVERY_SHORT")).isEqualTo(-2);
+        assertThat(movedBy(owner, item, "DELIVERY_SENT_BACK")).isZero();
+        assertThat(get("/orders/" + open.get("id").asText(), owner).at("/lines/0/qty").asDouble()).isEqualTo(7);
+
+        // An account order is already closed with all 10 taken off: the 3 sent back go in again, nothing else moves.
+        JsonNode acct = onAccount(owner, cust, item, 10);
+        JsonNode run2 = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, acct));
+        assertThat(confirmWith(joe, run2, Map.of("qtyReceived", 6, "qtySentBack", 3, "reason", "Not ordered"))).isEqualTo(200);
+        assertThat(movedBy(owner, item, "DELIVERY_SENT_BACK")).isEqualTo(3);
+        assertThat(movedBy(owner, item, "DELIVERY_SHORT")).isEqualTo(-2);
+    }
+
+    @Test
+    void anOrderAlreadyConfirmedCannotGoOnAnotherRound() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        JsonNode order = order(owner, customer(owner), item(owner, ""), 4);
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, order));
+        assertThat(confirmWith(joe, run, Map.of("qtyReceived", 3, "qtySentBack", 0))).isEqualTo(200);
+        assertThat(post("/rounds/" + run.get("id").asText() + "/back", owner, Map.of()).status()).isEqualTo(200);
+        assertThat(get("/rounds/orders-ready", owner).body()).isEmpty();
+        assertThat(post("/rounds", owner, Map.of("runDate", "2030-01-16", "driverUserId", joe.id(), "orderIds", List.of(order.get("id").asText()))).status()).isEqualTo(400);
+    }
 }

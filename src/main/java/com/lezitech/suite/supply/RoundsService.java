@@ -53,10 +53,12 @@ public class RoundsService {
     private final Mailer mailer;
     private final BrandedEmail brands;
     private final com.lezitech.suite.crm.CustomerLedger customerLedger;
+    private final com.lezitech.suite.stock.StockService stock;
 
     public RoundsService(Db db, OrderService orders, ActivityLog activity, Mailer mailer, BrandedEmail brands,
-                         com.lezitech.suite.crm.CustomerLedger customerLedger) {
+                         com.lezitech.suite.crm.CustomerLedger customerLedger, com.lezitech.suite.stock.StockService stock) {
         this.customerLedger = customerLedger;
+        this.stock = stock;
         this.db = db;
         this.orders = orders;
         this.activity = activity;
@@ -219,7 +221,8 @@ public class RoundsService {
         for (Map<String, Object> o : db.list("""
                 SELECT o.id, o.number, o.status, o.total, c.name AS customer_name, c.email AS customer_email
                 FROM orders o JOIN customers c ON c.id = o.customer_id
-                WHERE (o.status = 'OPEN' OR (o.status = 'CREDIT' AND coalesce((SELECT sum(p.amount) FROM payments p WHERE p.order_id = o.id AND p.method <> 'CREDIT'), 0) = 0)) AND o.kind <> 'QUOTE'
+                WHERE (o.status = 'OPEN' OR (o.status = 'CREDIT' AND coalesce((SELECT sum(p.amount) FROM payments p WHERE p.order_id = o.id AND p.method <> 'CREDIT'), 0) = 0))
+                  AND NOT EXISTS (SELECT 1 FROM delivery_stops d WHERE d.order_id = o.id AND d.status IN ('CONFIRMED', 'PART')) AND o.kind <> 'QUOTE'
                   AND NOT EXISTS (SELECT 1 FROM delivery_stops s JOIN delivery_runs r ON r.id = s.run_id
                                   WHERE s.order_id = o.id AND r.status <> 'BACK')
                 ORDER BY o.number DESC LIMIT 200""")) {
@@ -279,7 +282,8 @@ public class RoundsService {
         for (String oid : ids) {
             Map<String, Object> o = db.find("""
                     SELECT o.id, o.number, o.status, o.kind, c.name AS customer_name, c.email AS customer_email,
-                           (o.status = 'OPEN' OR (o.status = 'CREDIT' AND coalesce((SELECT sum(p.amount) FROM payments p WHERE p.order_id = o.id AND p.method <> 'CREDIT'), 0) = 0)) AS takes_round
+                           (o.status = 'OPEN' OR (o.status = 'CREDIT' AND coalesce((SELECT sum(p.amount) FROM payments p WHERE p.order_id = o.id AND p.method <> 'CREDIT'), 0) = 0))
+                  AND NOT EXISTS (SELECT 1 FROM delivery_stops d WHERE d.order_id = o.id AND d.status IN ('CONFIRMED', 'PART')) AS takes_round
                     FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = :id FOR UPDATE OF o""", "id", oid).orElse(null);
             if (o == null) {
                 throw ApiException.bad("One of the orders was not found");
@@ -858,7 +862,7 @@ public class RoundsService {
         db.value("SELECT 1 FROM delivery_stops WHERE id = :s FOR UPDATE", Integer.class, "s", stopId);
         Map<UUID, Map<String, Object>> sent = new LinkedHashMap<>();
         for (Map<String, Object> l : db.list("""
-                SELECT sl.id, sl.name, sl.qty_sent, sl.order_line_id, sl.item_id, ol.unit_price
+                SELECT sl.id, sl.name, sl.qty_sent, sl.order_line_id, sl.item_id, ol.unit_price, coalesce(ol.pack_size, 1) AS pack_size
                 FROM delivery_stop_lines sl LEFT JOIN order_lines ol ON ol.id = sl.order_line_id
                 WHERE sl.stop_id = :s ORDER BY sl.pos""", "s", stopId)) {
             sent.put(uuid(l.get("id")), l);
@@ -888,6 +892,9 @@ public class RoundsService {
         String dn = noteNo(stop.get("noteNo"));
         String driver = db.value("SELECT driver_name FROM delivery_runs WHERE id = :r", String.class, "r", stop.get("runId"));
         String client = (String) stop.get("customerName");
+        UUID where = db.value("SELECT location_id FROM orders WHERE id = :o", UUID.class, "o", orderId);
+        UUID stockAt = where == null ? stock.defaultLocation() : where;
+        boolean closed = "PAID".equals(order.get("status")) || "CREDIT".equals(order.get("status"));
         BigDecimal unbilled = BigDecimal.ZERO;
         List<String> unbilledLines = new ArrayList<>();
         for (Map<String, Object> l : lines) {
@@ -902,6 +909,17 @@ public class RoundsService {
             BigDecimal shortBy = full.subtract(got);
             if (shortBy.signum() <= 0) {
                 continue;
+            }
+            // Goods that left on the vehicle are gone from stock unless they came back. An open order's own sale takes off
+            // only what is on its lowered lines (what was received), so what went missing is taken off here. A closed order
+            // already took the full amount off, so only what was sent back goes in again.
+            if (was.get("itemId") != null) {
+                BigDecimal pack = (BigDecimal) was.get("packSize");
+                if (realOpen && shortBy.subtract(back).signum() > 0) {
+                    stock.move(uuid(was.get("itemId")), stockAt, shortBy.subtract(back).multiply(pack).negate(), "DELIVERY_SHORT", dn, "Missing on delivery " + dn, true);
+                } else if (closed && back.signum() > 0) {
+                    stock.move(uuid(was.get("itemId")), stockAt, back.multiply(pack), "DELIVERY_SENT_BACK", dn, "Sent back on delivery " + dn, true);
+                }
             }
             UUID itemId = uuid(was.get("itemId"));
             BigDecimal price = was.get("unitPrice") == null ? BigDecimal.ZERO : (BigDecimal) was.get("unitPrice");
@@ -938,9 +956,16 @@ public class RoundsService {
                         "Delivery " + dn + " short, confirmed by " + receivedBy);
                 db.exec("""
                         INSERT INTO payments (tenant_id, order_id, method, amount, kind, refund_reason, user_id)
-                        VALUES (:t, :o, 'CREDIT', :a, 'REFUND', :why, cast(:u as uuid))""",
+                        VALUES (:t, :o, 'CREDIT', :a, 'ADJUST', :why, cast(:u as uuid))""",
                         "o", orderId, "a", drop.negate(), "why", "Delivery " + dn + " short");
                 db.exec("UPDATE orders SET paid = greatest(paid - :d, 0) WHERE id = :o", "d", drop, "o", orderId);
+                // eTIMS signs one credit note for the whole bill as it stands, so a drop after the sale was sent needs one by hand.
+                if (db.value("SELECT etims_status FROM orders WHERE id = :o", String.class, "o", orderId) != null) {
+                    activity.record("DELIVERY_ETIMS_CREDIT", ActivityLog.CONCERN,
+                            "Order " + order.get("number") + " went down by KES " + drop.setScale(0, RoundingMode.HALF_UP) + " after delivery " + dn
+                                    + " was confirmed short. Make a credit note in eTIMS for KES " + drop.setScale(0, RoundingMode.HALF_UP) + ".",
+                            orderId, null, drop, null, Map.of("noteNo", dn));
+                }
             }
         }
         if (realOpen) {
