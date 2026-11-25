@@ -198,4 +198,41 @@ class TrafficTest extends IntegrationTest {
         assertThat(traffic.purge()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM visits", Long.class)).isEqualTo(1);
     }
+
+    /** Seeded views give exact numbers in every part of the report. */
+    @Test
+    void reportNumbersOnSeededVisits() {
+        String a = UUID.randomUUID().toString();
+        String b = UUID.randomUUID().toString();
+        String ins = "INSERT INTO visits (created_at, site, path, referrer_host, device, visitor_id, first_visit, source) VALUES ";
+        jdbc.update(ins + "(now(), 'website', '/', 'google.com', 'phone', ?, true, 'google_search'),"
+                + "(now(), 'website', '/pricing', 'google.com', 'phone', ?, false, 'google_search'),"
+                + "(now(), 'website', '/', NULL, 'desktop', ?, true, 'direct'),"
+                + "(now(), 'website', NULL, NULL, 'desktop', ?, true, 'direct'),"
+                + "(now() - interval '60 days', 'website', '/', NULL, 'phone', ?, true, 'direct')", a, a, b, b, a);
+        String admin = post("/admin/auth/demo", null, Map.of("role", "ADMIN")).at("/token").asText();
+        Res r = get("/admin/traffic?range=7", admin);
+        assertThat(r.at("/visits").asLong()).isEqualTo(4);
+        assertThat(r.at("/visitors").asLong()).isEqualTo(2);
+        assertThat(row(r, "google_search", "visits")).isEqualTo(2);
+        assertThat(row(r, "google_search", "visitors")).isEqualTo(1);
+        assertThat(row(r, "direct", "visits")).isEqualTo(2);
+        assertThat(row(r, "direct", "visitors")).isEqualTo(1);
+        // Pages count first visits only; a missing path shows as "/".
+        assertThat(r.at("/pages").size()).isEqualTo(1);
+        assertThat(r.at("/pages/0/path").asText()).isEqualTo("/");
+        assertThat(r.at("/pages/0/visits").asLong()).isEqualTo(3);
+        assertThat(r.at("/pages/0/visitors").asLong()).isEqualTo(2);
+        assertThat(r.at("/referrers").size()).isEqualTo(1);
+        assertThat(r.at("/referrers/0/host").asText()).isEqualTo("google.com");
+        assertThat(r.at("/referrers/0/visits").asLong()).isEqualTo(2);
+        assertThat(r.at("/referrers/0/visitors").asLong()).isEqualTo(1);
+        assertThat(r.at("/devices").size()).isEqualTo(2);
+        assertThat(r.at("/devices/0/visits").asLong()).isEqualTo(2);
+        assertThat(r.at("/devices/1/visits").asLong()).isEqualTo(2);
+        assertThat(r.at("/perDay").size()).isEqualTo(7);
+        assertThat(r.at("/perDay/6/visits").asLong()).isEqualTo(4);
+        assertThat(r.at("/perDay/0/visits").asLong()).isZero();
+        assertThat(get("/admin/traffic?range=90", admin).at("/visits").asLong()).isEqualTo(5);
+    }
 }

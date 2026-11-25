@@ -122,28 +122,98 @@ public class TrafficController {
             case "90" -> 90;
             default -> 30;
         };
-        String since = "(date_trunc('day', now() AT TIME ZONE '" + ZONE + "') - make_interval(days => " + (days - 1) + ")) AT TIME ZONE '" + ZONE + "'";
+        java.time.ZoneId zone = java.time.ZoneId.of(ZONE);
+        java.time.LocalDate today = java.time.LocalDate.now(zone);
+        java.sql.Timestamp since = java.sql.Timestamp.from(today.minusDays(days - 1L).atStartOfDay(zone).toInstant());
 
-        Map<String, Object> totals = jdbc.queryForMap("SELECT count(*) AS visits, count(DISTINCT visitor_id) AS visitors FROM visits WHERE created_at >= " + since);
-        long visits = ((Number) totals.get("visits")).longValue();
-        long visitors = ((Number) totals.get("visitors")).longValue();
-        long signups = jdbc.queryForObject("SELECT count(*) FROM tenants WHERE NOT is_demo AND created_at >= " + since, Long.class);
-
+        // One pass over visits for the totals and the per-source numbers (ROLLUP adds the grand-total row).
+        long visits = 0;
+        long visitors = 0;
         Map<String, Map<String, Object>> bySource = new LinkedHashMap<>();
-        for (Map<String, Object> r : jdbc.queryForList("SELECT source, count(*) AS visits, count(DISTINCT visitor_id) AS visitors FROM visits WHERE created_at >= "
-                + since + " GROUP BY source")) {
-            bySource.put((String) r.get("source"), row((String) r.get("source"), ((Number) r.get("visits")).longValue(), ((Number) r.get("visitors")).longValue()));
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT source, count(*) AS visits, count(DISTINCT visitor_id) AS visitors, GROUPING(source) AS total
+                FROM visits WHERE created_at >= ? GROUP BY ROLLUP(source)""", since)) {
+            long v = ((Number) r.get("visits")).longValue();
+            long u = ((Number) r.get("visitors")).longValue();
+            if (((Number) r.get("total")).intValue() == 1) {
+                visits = v;
+                visitors = u;
+            } else {
+                bySource.put((String) r.get("source"), row((String) r.get("source"), v, u));
+            }
         }
-        for (Map<String, Object> r : jdbc.queryForList("SELECT coalesce(signup_source->>'source', 'unknown') AS source, count(*) AS n FROM tenants WHERE NOT is_demo AND created_at >= "
-                + since + " GROUP BY 1")) {
+        // One pass over tenants for the sign-up total and its sources.
+        long signups = 0;
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT coalesce(signup_source->>'source', 'unknown') AS source, count(*) AS n
+                FROM tenants WHERE NOT is_demo AND created_at >= ? GROUP BY 1""", since)) {
+            long n = ((Number) r.get("n")).longValue();
+            signups += n;
             String key = (String) r.get("source");
-            bySource.computeIfAbsent(key, k -> row(k, 0, 0)).put("signups", ((Number) r.get("n")).longValue());
+            bySource.computeIfAbsent(key, k -> row(k, 0, 0)).put("signups", n);
         }
         List<Map<String, Object>> sources = new ArrayList<>(bySource.values());
         for (Map<String, Object> s : sources) {
             s.put("rate", rate(((Number) s.get("signups")).longValue(), ((Number) s.get("visitors")).longValue()));
         }
         sources.sort((a, b) -> Long.compare(((Number) b.get("visits")).longValue(), ((Number) a.get("visits")).longValue()));
+
+        // One more pass for pages, referrers, devices and the per-day bars (GROUPING SETS).
+        List<Map<String, Object>> pages = new ArrayList<>();
+        List<Map<String, Object>> referrers = new ArrayList<>();
+        List<Map<String, Object>> devices = new ArrayList<>();
+        Map<String, Long> dayVisits = new java.util.HashMap<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT site, path, referrer_host, device, day,
+                       GROUPING(site) AS g_page, GROUPING(referrer_host) AS g_ref, GROUPING(device) AS g_dev, GROUPING(day) AS g_day,
+                       count(*) AS visits, count(DISTINCT visitor_id) AS visitors,
+                       count(*) FILTER (WHERE first_visit) AS first_visits,
+                       count(DISTINCT visitor_id) FILTER (WHERE first_visit) AS first_visitors
+                FROM (SELECT site, coalesce(path, '/') AS path, referrer_host, device, visitor_id, first_visit,
+                             to_char(created_at AT TIME ZONE ?, 'YYYY-MM-DD') AS day
+                      FROM visits WHERE created_at >= ?) v
+                GROUP BY GROUPING SETS ((site, path), (referrer_host), (device), (day))""", ZONE, since)) {
+            long v = ((Number) r.get("visits")).longValue();
+            long u = ((Number) r.get("visitors")).longValue();
+            if (((Number) r.get("g_page")).intValue() == 0) {
+                long fv = ((Number) r.get("first_visits")).longValue();
+                if (fv > 0) {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("site", r.get("site"));
+                    m.put("path", r.get("path"));
+                    m.put("visits", fv);
+                    m.put("visitors", ((Number) r.get("first_visitors")).longValue());
+                    pages.add(m);
+                }
+            } else if (((Number) r.get("g_ref")).intValue() == 0) {
+                if (r.get("referrer_host") != null) {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("host", r.get("referrer_host"));
+                    m.put("visits", v);
+                    m.put("visitors", u);
+                    referrers.add(m);
+                }
+            } else if (((Number) r.get("g_dev")).intValue() == 0) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("device", r.get("device"));
+                m.put("visits", v);
+                devices.add(m);
+            } else if (((Number) r.get("g_day")).intValue() == 0) {
+                dayVisits.put((String) r.get("day"), v);
+            }
+        }
+        java.util.Comparator<Map<String, Object>> byVisits = (a, b) -> Long.compare(((Number) b.get("visits")).longValue(), ((Number) a.get("visits")).longValue());
+        pages.sort(byVisits.thenComparing(m -> (String) m.get("path")).thenComparing(m -> (String) m.get("site")));
+        referrers.sort(byVisits.thenComparing(m -> (String) m.get("host")));
+        devices.sort(byVisits.thenComparing(m -> String.valueOf(m.get("device"))));
+        List<Map<String, Object>> perDay = new ArrayList<>();
+        for (int i = days - 1; i >= 0; i--) {
+            String day = today.minusDays(i).toString();
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("day", day);
+            m.put("visits", dayVisits.getOrDefault(day, 0L));
+            perDay.add(m);
+        }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("range", days == 1 ? "today" : String.valueOf(days));
@@ -153,16 +223,10 @@ public class TrafficController {
         out.put("signups", signups);
         out.put("rate", rate(signups, visitors));
         out.put("sources", sources);
-        out.put("pages", jdbc.queryForList("SELECT site, coalesce(path, '/') AS path, count(*) AS visits, count(DISTINCT visitor_id) AS visitors FROM visits WHERE created_at >= "
-                + since + " AND first_visit GROUP BY 1, 2 ORDER BY 3 DESC, 2 LIMIT 10"));
-        out.put("referrers", jdbc.queryForList("SELECT referrer_host AS host, count(*) AS visits, count(DISTINCT visitor_id) AS visitors FROM visits WHERE referrer_host IS NOT NULL AND created_at >= "
-                + since + " GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 10"));
-        out.put("devices", jdbc.queryForList("SELECT device, count(*) AS visits FROM visits WHERE created_at >= " + since + " GROUP BY 1 ORDER BY 2 DESC"));
-        out.put("perDay", jdbc.queryForList("""
-                SELECT to_char(d, 'YYYY-MM-DD') AS day, coalesce(v.visits, 0) AS visits
-                FROM generate_series(date_trunc('day', now() AT TIME ZONE '%1$s') - make_interval(days => %2$d), date_trunc('day', now() AT TIME ZONE '%1$s'), interval '1 day') d
-                LEFT JOIN (SELECT date_trunc('day', created_at AT TIME ZONE '%1$s') AS day, count(*) AS visits FROM visits WHERE created_at >= %3$s GROUP BY 1) v ON v.day = d
-                ORDER BY d""".formatted(ZONE, days - 1, since)));
+        out.put("pages", pages.subList(0, Math.min(10, pages.size())));
+        out.put("referrers", referrers.subList(0, Math.min(10, referrers.size())));
+        out.put("devices", devices);
+        out.put("perDay", perDay);
         return out;
     }
 

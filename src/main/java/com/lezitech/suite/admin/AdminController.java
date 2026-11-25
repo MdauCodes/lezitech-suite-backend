@@ -358,7 +358,7 @@ public class AdminController {
         out.put("demoWorkspaces", c.get("demos"));
         // Monthly recurring revenue from paying workspaces at list price.
         long mrr = 0;
-        for (Map<String, Object> r : jdbc.queryForList("SELECT plan, count(*) AS n" + real + "AND status = 'ACTIVE' GROUP BY plan")) {
+        for (Map<String, Object> r : jdbc.queryForList("SELECT plan, count(*) AS n" + real + "AND status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now()) GROUP BY plan")) {
             mrr += platform.plans().stream().filter(p -> p.get("code").equals(r.get("plan")))
                     .mapToLong(p -> ((Number) p.get("monthly")).longValue() * ((Number) r.get("n")).longValue()).sum();
         }

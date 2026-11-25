@@ -132,8 +132,9 @@ public class TrialNudgeService {
             Map<String, Object> plan = planFeatures.fittingPlan(tenant);
             long monthly = ((Number) plan.get("monthly")).longValue();
             // What this business would be charged now (any plan offer or its own offer taken off), the normal price shown as "was".
-            var month = offers.price(tenant, (String) plan.get("code"), "MONTHLY");
-            var year = offers.price(tenant, (String) plan.get("code"), "ANNUAL");
+            var ctx = offers.context(tenant);
+            var month = offers.price(ctx, (String) plan.get("code"), "MONTHLY");
+            var year = offers.price(ctx, (String) plan.get("code"), "ANNUAL");
             cost = "Everything you use is on the " + platform.planName(tenant, (String) plan.get("code")) + " plan: "
                     + (month.amount() < monthly ? "now KSh " + String.format("%,d", month.amount()) + " a month, was KSh " + String.format("%,d", monthly)
                     : "KSh " + String.format("%,d", monthly) + " a month")

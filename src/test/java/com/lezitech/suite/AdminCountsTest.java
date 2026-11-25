@@ -45,4 +45,30 @@ class AdminCountsTest extends IntegrationTest {
         String owner = token(signup("retail"));
         assertThat(get("/admin/counts", owner).status()).isIn(401, 403);
     }
+
+    /** MRR counts only workspaces that are paid up, the same ones the "paying" number counts. */
+    @Test
+    void mrrLeavesOutLapsedActiveWorkspacesAndAgreesWithPaying() {
+        String admin = admin("ADMIN");
+        Res base = get("/admin/overview", admin);
+        long mrr0 = base.at("/mrr").asLong();
+        long paying0 = base.at("/paying").asLong();
+        String id = signup("retail").at("/tenant/id").asText();
+        long lite = 2650;
+
+        jdbc.update("UPDATE tenants SET status = 'ACTIVE', plan = 'LITE', paid_until = now() - interval '2 days' WHERE id = ?::uuid", id);
+        Res lapsed = get("/admin/overview", admin);
+        assertThat(lapsed.at("/mrr").asLong()).isEqualTo(mrr0);
+        assertThat(lapsed.at("/paying").asLong()).isEqualTo(paying0);
+
+        jdbc.update("UPDATE tenants SET paid_until = now() + interval '20 days' WHERE id = ?::uuid", id);
+        Res paid = get("/admin/overview", admin);
+        assertThat(paid.at("/mrr").asLong()).isEqualTo(mrr0 + lite);
+        assertThat(paid.at("/paying").asLong()).isEqualTo(paying0 + 1);
+
+        jdbc.update("UPDATE tenants SET paid_until = NULL WHERE id = ?::uuid", id);
+        Res open = get("/admin/overview", admin);
+        assertThat(open.at("/mrr").asLong()).isEqualTo(mrr0 + lite);
+        assertThat(open.at("/paying").asLong()).isEqualTo(paying0 + 1);
+    }
 }

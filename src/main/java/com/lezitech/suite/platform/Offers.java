@@ -175,6 +175,21 @@ public class Offers {
      * The price never goes below 0. Annual is ten times the monthly price.
      */
     public Price price(UUID tenant, String plan, String cycle) {
+        return price(context(tenant), plan, cycle);
+    }
+
+    /** What one price calculation needs about a business: its live offers, discount and credit. Load once, price many plans. */
+    public record Context(UUID tenant, List<Map<String, Object>> offers, int mall, long credit) {
+    }
+
+    /** Loads the business's offers and tenant row once, so a caller looping over plans does not repeat the queries. */
+    public Context context(UUID tenant) {
+        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit FROM tenants WHERE id = ?", tenant);
+        return new Context(tenant, forTenant(tenant), ((Number) own.get("mall_discount")).intValue(), ((Number) own.get("billing_credit")).longValue());
+    }
+
+    /** Same as {@link #price(UUID, String, String)} using an already loaded {@link Context}. */
+    public Price price(Context ctx, String plan, String cycle) {
         Map<String, Object> p = platform.plan(plan);
         if (p == null) {
             throw ApiException.bad("Unknown plan");
@@ -189,7 +204,7 @@ public class Offers {
             String label = String.valueOf(planOffer.getOrDefault("label", "")).trim();
             best = new Price(annual ? m * 10 : m, full, null, label.isEmpty() ? "Offer" : label);
         }
-        for (Map<String, Object> o : forTenant(tenant)) {
+        for (Map<String, Object> o : ctx.offers()) {
             long amount = full;
             switch ((String) o.get("kind")) {
                 case "PERCENT" -> {
@@ -213,15 +228,14 @@ public class Offers {
                 best = new Price(amount, full, (UUID) o.get("id"), (String) o.get("title"));
             }
         }
-        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit FROM tenants WHERE id = ?", tenant);
-        int mall = ((Number) own.get("mall_discount")).intValue();
+        int mall = ctx.mall();
         if (mall > 0) {
             long amount = Math.round(full * (100 - mall) / 100.0);
             if (amount < best.amount()) {
                 best = new Price(amount, full, null, "Tenants' offer: " + mall + "% off");
             }
         }
-        long credit = Math.min(best.amount(), ((Number) own.get("billing_credit")).longValue());
+        long credit = Math.min(best.amount(), ctx.credit());
         if (credit > 0) {
             best = new Price(best.amount() - credit, full, best.offerId(),
                     (best.offerTitle() == null ? "" : best.offerTitle() + " · ") + "KSh " + String.format("%,d", credit) + " thank-you credit", credit);

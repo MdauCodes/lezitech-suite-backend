@@ -120,4 +120,29 @@ class OffersTest extends IntegrationTest {
         assertThat(r.at("/tenant/settings/modules").toString()).doesNotContain("purchasing");
         assertThat(get("/billing/keep", r.body().get("token").asText()).at("/plan/code").asText()).isEqualTo("LITE");
     }
+
+    @Autowired
+    com.lezitech.suite.platform.Offers offers;
+
+    /** The batched path (offers and tenant row loaded once) gives exactly what the one-call path gives, for every plan and cycle. */
+    @Test
+    void batchedPricesMatchTheSingleCallPricesWithAPercentOffer() {
+        String admin = admin();
+        JsonNode s = signup("tours");
+        UUID tenant = UUID.fromString(s.at("/tenant/id").asText());
+        assertThat(post("/admin/offers", admin, Map.of("kind", "PERCENT", "title", "30% off", "percent", 30, "months", 2,
+                "audience", "ALL", "sector", "tours", "endsOn", LocalDate.now().plusDays(10).toString())).status()).isEqualTo(200);
+        jdbc.update("UPDATE tenants SET billing_credit = 100 WHERE id = ?", tenant);
+
+        var ctx = offers.context(tenant);
+        for (String plan : List.of("LITE", "GROWTH", "PRO")) {
+            for (String cycle : List.of("MONTHLY", "ANNUAL")) {
+                assertThat(offers.price(ctx, plan, cycle)).as(plan + " " + cycle).isEqualTo(offers.price(tenant, plan, cycle));
+            }
+        }
+        // 2650 less 30% = 1855, less the 100 credit; annual ignores the percent offer.
+        assertThat(offers.price(ctx, "LITE", "MONTHLY").amount()).isEqualTo(1755);
+        assertThat(offers.price(ctx, "LITE", "MONTHLY").credit()).isEqualTo(100);
+        assertThat(offers.price(ctx, "LITE", "ANNUAL").amount()).isEqualTo(26400);
+    }
 }

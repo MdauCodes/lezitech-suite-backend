@@ -55,10 +55,11 @@ public class SettingsController {
     private List<Map<String, Object>> plansForTenant() {
         java.util.UUID t = TenantContext.tenantId();
         String sector = jdbc.queryForList("SELECT sector FROM tenants WHERE id = ?", String.class, t).stream().findFirst().orElse(null);
+        var ctx = offers.context(t);
         return plansWithTools(sector).stream().map(p -> {
             Map<String, Object> m = new java.util.LinkedHashMap<>(p);
-            var month = offers.price(t, (String) p.get("code"), "MONTHLY");
-            var year = offers.price(t, (String) p.get("code"), "ANNUAL");
+            var month = offers.price(ctx, (String) p.get("code"), "MONTHLY");
+            var year = offers.price(ctx, (String) p.get("code"), "ANNUAL");
             m.put("pay", month.amount());
             m.put("payYear", year.amount());
             m.put("offer", month.offerTitle() != null ? month.offerTitle() : year.offerTitle());

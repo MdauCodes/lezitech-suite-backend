@@ -90,17 +90,22 @@ public class SupportAccess {
         requireOwnerInPerson();
         UUID tenant = TenantContext.tenantId();
         String n = note == null || note.isBlank() ? null : note.trim().length() > 200 ? note.trim().substring(0, 200) : note.trim();
-        Optional<Map<String, Object>> now = active(tenant);
-        if (now.isPresent()) {
-            jdbc.update("UPDATE support_grants SET expires_at = now() + make_interval(hours => ?), note = coalesce(?, note) WHERE id = ?",
-                    HOURS, n, now.get().get("id"));
-        } else {
-            jdbc.update("INSERT INTO support_grants (tenant_id, granted_by, expires_at, note) VALUES (?, ?, now() + make_interval(hours => ?), ?)",
-                    tenant, TenantContext.userId(), HOURS, n);
-        }
-        jdbc.update("UPDATE support_requests SET resolved_at = now(), outcome = 'ALLOWED' WHERE tenant_id = ? AND resolved_at IS NULL", tenant);
-        activity.record("SUPPORT_GRANTED", com.lezitech.suite.activity.ActivityLog.NOTICE,
-                "Let LeziTech help for " + HOURS + " hours" + (n == null ? "" : ": " + n));
+        UUID by = TenantContext.userId();
+        tx.executeWithoutResult(s -> {
+            // Lock the business row first so two grants at once cannot both find nothing active and both insert.
+            jdbc.queryForList("SELECT id FROM tenants WHERE id = ? FOR NO KEY UPDATE", tenant);
+            Optional<Map<String, Object>> now = active(tenant);
+            if (now.isPresent()) {
+                jdbc.update("UPDATE support_grants SET expires_at = now() + make_interval(hours => ?), note = coalesce(?, note) WHERE id = ?",
+                        HOURS, n, now.get().get("id"));
+            } else {
+                jdbc.update("INSERT INTO support_grants (tenant_id, granted_by, expires_at, note) VALUES (?, ?, now() + make_interval(hours => ?), ?)",
+                        tenant, by, HOURS, n);
+            }
+            jdbc.update("UPDATE support_requests SET resolved_at = now(), outcome = 'ALLOWED' WHERE tenant_id = ? AND resolved_at IS NULL", tenant);
+            activity.record("SUPPORT_GRANTED", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                    "Let LeziTech help for " + HOURS + " hours" + (n == null ? "" : ": " + n));
+        });
         return status();
     }
 
