@@ -44,6 +44,9 @@ public class ShiftController {
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.activity.ActivityLog activity;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.bottle.BottleCountController bottleCounts;
+
     public ShiftController(Db db) {
         this.db = db;
     }
@@ -97,6 +100,7 @@ public class ShiftController {
         if (!"OPEN".equals(shift.get("status"))) {
             throw ApiException.conflict("This till is already closed");
         }
+        bottleCounts.requireBeforeClose();
         Body b = new Body(raw);
         if (!b.has("countedCash")) {
             throw ApiException.bad("Count the cash in the drawer and enter it");

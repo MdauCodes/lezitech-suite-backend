@@ -221,7 +221,8 @@
         "tables": true,
         "kitchen": true,
         "tips": true,
-        "ageCheck": true
+        "ageCheck": true,
+        "bottleCount": true
       },
       "kpis": [
         "sales_today",
@@ -2099,7 +2100,8 @@
       "features": {
         "barcode": true,
         "credit": false,
-        "ageCheck": true
+        "ageCheck": true,
+        "bottleCount": true
       },
       "kpis": [
         "sales_today",

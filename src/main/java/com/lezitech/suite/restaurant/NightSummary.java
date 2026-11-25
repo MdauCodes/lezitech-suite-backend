@@ -53,6 +53,9 @@ public class NightSummary {
     private final Mailer mailer;
     private final WebPush push;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.bottle.BottleCountController bottleCounts;
+
     public NightSummary(Db db, JdbcTemplate jdbc, ObjectMapper json, Recipes recipes, Mailer mailer, WebPush push) {
         this.db = db;
         this.jdbc = jdbc;
@@ -232,6 +235,10 @@ public class NightSummary {
         out.put("countsShort", db.list("""
                 SELECT summary, amount FROM activity_log WHERE kind = 'STOCK_COUNT' AND created_at >= :from AND created_at < :to
                 ORDER BY amount DESC NULLS LAST LIMIT 10""", p));
+        Map<String, Object> bottles = bottleCounts.nightLine(day);
+        if (bottles != null) {
+            out.put("bottleCount", bottles);
+        }
         out.put("voidsAndDiscounts", db.one("Voids", """
                 SELECT count(*) FILTER (WHERE kind = 'VOID') AS voids, coalesce(sum(amount) FILTER (WHERE kind = 'VOID'), 0) AS void_value,
                        count(*) FILTER (WHERE kind IN ('DISCOUNT', 'PRICE_CHANGE', 'BELOW_LOWEST_PRICE')) AS discounts,
@@ -463,6 +470,10 @@ public class NightSummary {
         Map<String, Object> waste = (Map<String, Object>) s.get("waste");
         if (n(waste.get("value")).signum() > 0) {
             facts.add(new String[]{"Waste", kes(waste.get("value")) + " at cost"});
+        }
+        Map<String, Object> bottles = (Map<String, Object>) s.get("bottleCount");
+        if (bottles != null) {
+            facts.add(new String[]{"Bottle count", ((String) bottles.get("text")).replaceFirst("^Bottle count: ", "")});
         }
         Map<String, Object> v = (Map<String, Object>) s.get("voidsAndDiscounts");
         facts.add(new String[]{"Cancelled bills", v.get("voids") + (n(v.get("voidValue")).signum() > 0 ? " (" + kes(v.get("voidValue")) + ")" : "")});

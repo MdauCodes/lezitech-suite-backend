@@ -32,7 +32,7 @@ public class CatalogController {
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
             i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price, i.pack_price,
             (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
-            i.sold_by_weight, i.age_restricted, i.baked_daily, i.day_old_of, i.variant_of, i.variant_values, i.variant_axes,
+            i.sold_by_weight, i.age_restricted, i.count_nightly, i.baked_daily, i.day_old_of, i.variant_of, i.variant_values, i.variant_axes,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id
                       -- Staff at a branch see that branch's stock; the owner and the main place see it all.
                       AND s.location_id = coalesce((SELECT location_id FROM users WHERE id = cast(:u as uuid)), s.location_id)), 0) AS on_hand""";
@@ -229,6 +229,10 @@ public class CatalogController {
                 activity.record("ITEM_AGE_FLAG", com.lezitech.suite.activity.ActivityLog.INFO,
                         b.str("name") + (now ? " is now marked 18+ only" : " is no longer marked 18+ only"), null, id, null, null, Map.of());
             }
+        }
+        // The owner's "Count every night" choice for the nightly bottle count. Only changed when sent.
+        if (b.has("countNightly")) {
+            db.exec("UPDATE items SET count_nightly = :c WHERE id = :id", "id", id, "c", b.bool("countNightly", false));
         }
         // A service's own commission rate (overrides the staff member's); only changed when sent.
         if (b.has("commissionRate")) {
