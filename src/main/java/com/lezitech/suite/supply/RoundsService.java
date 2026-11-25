@@ -110,6 +110,40 @@ public class RoundsService {
         }
     }
 
+    /** An address the way the mail system sees it: no capitals, no +tag, and no dots in the name for gmail. */
+    static String normEmail(String e) {
+        if (e == null) {
+            return "";
+        }
+        String s = e.trim().toLowerCase(java.util.Locale.ROOT);
+        int at = s.lastIndexOf('@');
+        if (at < 1) {
+            return s;
+        }
+        String name = s.substring(0, at);
+        String host = s.substring(at + 1);
+        int plus = name.indexOf('+');
+        if (plus > 0) {
+            name = name.substring(0, plus);
+        }
+        if (host.equals("gmail.com") || host.equals("googlemail.com")) {
+            name = name.replace(".", "");
+            host = "gmail.com";
+        }
+        return name + "@" + host;
+    }
+
+    /** True when the address is one of this business's staff (compared the way normEmail does). */
+    private boolean isStaffEmail(String email) {
+        String want = normEmail(email);
+        for (Map<String, Object> u : db.list("SELECT email FROM users WHERE email IS NOT NULL")) {
+            if (normEmail((String) u.get("email")).equals(want)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean sees() {
         return SEE.contains(TenantContext.caller().role());
     }
@@ -266,7 +300,14 @@ public class RoundsService {
                     INSERT INTO delivery_stops (tenant_id, run_id, sort, note_no, order_id, customer_name, confirm_email)
                     VALUES (:t, :run, :sort, :dn, :o, :cn, :ce) RETURNING id""",
                     "run", run, "sort", sort++, "dn", dn, "o", oid, "cn", o.get("customerName"),
-                    "ce", o.get("customerEmail") == null || o.get("customerEmail").toString().isBlank() ? null : o.get("customerEmail"));
+                    "ce", o.get("customerEmail") == null || o.get("customerEmail").toString().isBlank() || isStaffEmail(o.get("customerEmail").toString())
+                            ? null : o.get("customerEmail"));
+            if (o.get("customerEmail") != null && !o.get("customerEmail").toString().isBlank() && isStaffEmail(o.get("customerEmail").toString())) {
+                activity.record("EMAIL_CHANGED", ActivityLog.CONCERN,
+                        "The email on file for " + o.get("customerName") + " (" + o.get("customerEmail") + ") is one of your staff's addresses, so "
+                                + noteNo(dn) + " has no confirm email. Set the client's own address.",
+                        uuid(oid), null, null, null, Map.of("noteNo", noteNo(dn), "email", o.get("customerEmail").toString()));
+            }
             int pos = 0;
             for (Map<String, Object> l : lines) {
                 db.exec("""
@@ -368,6 +409,15 @@ public class RoundsService {
         }
         if ("BACK".equals(run.get("status"))) {
             throw ApiException.conflict("This round is already closed");
+        }
+        if ("LOADING".equals(run.get("status"))) {
+            // Never went out: a plain cancel. Nothing was delivered, so nothing counts as missing.
+            db.exec("UPDATE delivery_stops SET status = 'CANCELLED', token_hash = NULL, code_hash = NULL WHERE run_id = :r", "r", runId);
+            db.exec("DELETE FROM delivery_links WHERE stop_id IN (SELECT id FROM delivery_stops WHERE run_id = :r)", "r", runId);
+            db.exec("UPDATE delivery_runs SET status = 'BACK', back_at = now() WHERE id = :id", "id", runId);
+            activity.record("ROUND_CANCELLED", ActivityLog.INFO,
+                    TenantContext.caller().name() + " cancelled the round of " + run.get("runDate") + " before it went out");
+            return detail(runId);
         }
         List<Map<String, Object>> open = db.list("""
                 SELECT id, sort, note_no, customer_name, order_id FROM delivery_stops
@@ -584,8 +634,7 @@ public class RoundsService {
         if (!email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$") || email.length() > 200) {
             throw ApiException.bad("Type a proper email address");
         }
-        Boolean staff = db.value("SELECT exists(SELECT 1 FROM users WHERE lower(email) = lower(:e))", Boolean.class, "e", email);
-        if (Boolean.TRUE.equals(staff)) {
+        if (isStaffEmail(email)) {
             throw ApiException.bad("That address belongs to one of your staff");
         }
         String customerEmail = db.value("""
@@ -596,7 +645,7 @@ public class RoundsService {
                 UPDATE delivery_stops SET confirm_email = :e, email_set_by = :by, status = 'PENDING', token_hash = NULL, code_hash = NULL,
                        code_tries = 0, expires_at = NULL WHERE id = :s""", "e", email, "by", me.name(), "s", stopId);
         db.exec("DELETE FROM delivery_links WHERE stop_id = :s", "s", stopId);
-        if (customerEmail == null || !customerEmail.equalsIgnoreCase(email)) {
+        if (customerEmail == null || !normEmail(customerEmail).equals(normEmail(email))) {
             activity.record("EMAIL_CHANGED", ActivityLog.CONCERN,
                     me.name() + " set the confirm email for " + noteNo(s.get("noteNo")) + " to " + email
                             + (customerEmail == null ? " (the customer has none on file)" : " (the customer's is " + customerEmail + ")"),
@@ -864,6 +913,19 @@ public class RoundsService {
             } else if (!open) {
                 unbilled = unbilled.add(shortBy.multiply(price));
                 unbilledLines.add(qty(shortBy) + " x " + was.get("name"));
+            }
+        }
+        if (open) {
+            Map<String, Object> now = db.one("Order", "SELECT total, paid FROM orders WHERE id = :o", "o", orderId);
+            BigDecimal paid = (BigDecimal) now.get("paid");
+            BigDecimal total = (BigDecimal) now.get("total");
+            if (paid.compareTo(total) > 0) {
+                BigDecimal extra = paid.subtract(total);
+                activity.record("DELIVERY_OVERPAID", ActivityLog.CONCERN,
+                        "Order " + order.get("number") + ": the client already paid KES " + paid.setScale(0, RoundingMode.HALF_UP)
+                                + ", the confirmed goods come to KES " + total.setScale(0, RoundingMode.HALF_UP) + ". Give back or credit KES "
+                                + extra.setScale(0, RoundingMode.HALF_UP) + ".",
+                        orderId, null, extra, null, Map.of("noteNo", dn, "paid", paid, "total", total));
             }
         }
         if (!unbilledLines.isEmpty()) {

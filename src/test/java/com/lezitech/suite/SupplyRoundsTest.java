@@ -443,4 +443,71 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(concern(owner, "DELIVERY_MISSED")).isNotNull();
         assertThat(get("/public/delivery/" + token, null).status()).isEqualTo(404);
     }
+
+    @org.springframework.beans.factory.annotation.Value("${spring.datasource.url}")
+    String dbUrl;
+
+    /** Straight to the test database as its owner (no row fences), for setting up a state the app has no button for. */
+    private void asDbOwner(String sql, Object... args) throws Exception {
+        try (java.sql.Connection c = java.sql.DriverManager.getConnection(dbUrl, "postgres", "");
+             java.sql.PreparedStatement ps = c.prepareStatement(sql)) {
+            for (int i = 0; i < args.length; i++) {
+                ps.setObject(i + 1, args[i]);
+            }
+            ps.executeUpdate();
+        }
+    }
+
+    @Test
+    void aClientWhoAlreadyPaidMoreThanTheConfirmedGoodsIsFlaggedAndNothingIsChangedAutomatically() throws Exception {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        JsonNode order = order(owner, customer(owner), item(owner, ""), 10);
+        asDbOwner("UPDATE orders SET paid = total WHERE id = ?::uuid", order.get("id").asText());
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, order));
+        var box = new EmailSender.LogSender();
+        itMailer.useSender(box);
+        post("/rounds/stops/" + run.at("/stops/0/id").asText() + "/arrived", joe.token(), Map.of());
+        String token = tokenOf(box);
+        String lineId = get("/public/delivery/" + token, null).at("/lines/0/lineId").asText();
+        assertThat(post("/public/delivery/" + token, null, Map.of("receivedByName", "Mary", "signature", PNG, "agreed", true,
+                "lines", List.of(Map.of("lineId", lineId, "qtyReceived", 8, "qtySentBack", 0)))).status()).isEqualTo(200);
+        JsonNode row = concern(owner, "DELIVERY_OVERPAID");
+        assertThat(row).isNotNull();
+        assertThat(row.get("severity").asText()).isEqualTo("CONCERN");
+        assertThat(row.get("amount").asDouble()).isCloseTo(order.get("total").asDouble() / 5, org.assertj.core.data.Offset.offset(0.05));
+        assertThat(row.get("summary").asText()).contains("Give back or credit");
+        JsonNode now = get("/orders/" + order.get("id").asText(), owner).body();
+        assertThat(now.get("paid").asDouble()).isEqualTo(order.get("total").asDouble());
+    }
+
+    @Test
+    void aRoundThatNeverWentOutIsCancelledPlainlyAndItsOrdersAreFreeAgain() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        Driver joe = rider(owner, "Joe Driver");
+        JsonNode order = order(owner, customer(owner), item(owner, ""), 3);
+        JsonNode run = plan(owner, joe, order);
+        Res closed = post("/rounds/" + run.get("id").asText() + "/back", owner, Map.of());
+        assertThat(closed.status()).as(closed.body().toString()).isEqualTo(200);
+        assertThat(closed.at("/status").asText()).isEqualTo("BACK");
+        assertThat(closed.at("/stops/0/status").asText()).isEqualTo("CANCELLED");
+        assertThat(concern(owner, "ROUND_CANCELLED").get("severity").asText()).isEqualTo("INFO");
+        assertThat(concern(owner, "DELIVERY_MISSED")).isNull();
+        assertThat(get("/rounds/orders-ready", owner).at("/0/orderId").asText()).isEqualTo(order.get("id").asText());
+    }
+
+    @Test
+    void aCustomerEmailThatIsAStaffAddressInDisguiseIsNotCopiedToTheStop() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        Driver joe = rider(owner, "Joe Driver");
+        String disguised = s.get("email").asText().toUpperCase().replace("@", "+deliveries@");
+        String cust = post("/customers", owner, Map.of("name", "Sneaky Ltd", "email", disguised)).at("/id").asText();
+        JsonNode run = plan(owner, joe, order(owner, cust, item(owner, ""), 2));
+        assertThat(run.at("/stops/0/email").isNull()).isTrue();
+        assertThat(concern(owner, "EMAIL_CHANGED")).isNotNull();
+    }
 }
