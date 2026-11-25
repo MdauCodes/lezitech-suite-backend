@@ -159,7 +159,29 @@ public class BottleCountController {
         out.put("day", today());
         out.put("items", items);
         out.put("countedToday", countedOn(today()));
+        if (items.isEmpty()) {
+            out.put("pickable", db.list("""
+                    SELECT i.id AS item_id, i.name, c.name AS category FROM items i LEFT JOIN categories c ON c.id = i.category_id
+                    WHERE i.active AND i.variant_axes IS NULL AND i.kind NOT IN ('SERVICE', 'INGREDIENT', 'BATCH') AND NOT i.count_nightly
+                      AND (i.area = 'BAR' OR i.station = 'Bar' OR c.name ~* :drinks) ORDER BY c.name NULLS LAST, i.name""", "drinks", DRINKS));
+        }
         return out;
+    }
+
+    /** {itemIds}: the owner or a manager picks which drinks to count every night (they start counting stock too). */
+    @PostMapping("/pick")
+    public Map<String, Object> pick(@RequestBody Map<String, Object> raw) {
+        requireOn();
+        TenantContext.requireRole("MANAGER", "STOREKEEPER");
+        List<?> ids = raw.get("itemIds") instanceof List<?> l ? l : List.of();
+        if (ids.isEmpty()) {
+            throw ApiException.bad("Tick at least one drink");
+        }
+        int n = 0;
+        for (Object id : ids) {
+            n += db.exec("UPDATE items SET count_nightly = true, track_stock = true WHERE id = cast(:id as uuid) AND active AND kind <> 'SERVICE'", "id", String.valueOf(id));
+        }
+        return Map.of("picked", n);
     }
 
     // ---------------- saving a count ----------------

@@ -43,7 +43,7 @@ class BottleCountTest extends IntegrationTest {
     @Test
     void aShortageCorrectsStockIsRecordedAndLogged() {
         String owner = barOwner();
-        JsonNode tusker = sheetItem(owner, "Tusker");
+        JsonNode tusker = sheetItem(owner, "Zz Tusker");
         String id = tusker.get("itemId").asText();
         assertThat(tusker.get("expected").asInt()).isEqualTo(96);
         assertThat(tusker.has("costPerBottle")).isTrue(); // the owner sees costs
@@ -70,7 +70,7 @@ class BottleCountTest extends IntegrationTest {
     @Test
     void noShortageMeansNoConcern() {
         String owner = barOwner();
-        JsonNode guinness = sheetItem(owner, "Guinness");
+        JsonNode guinness = sheetItem(owner, "Zz Guinness");
         Res r = count(owner, guinness.get("itemId").asText(), guinness.get("expected").asInt());
         assertThat(r.status()).isEqualTo(200);
         assertThat(r.at("/allThere").asBoolean()).isTrue();
@@ -98,7 +98,7 @@ class BottleCountTest extends IntegrationTest {
         assertThat(stopped.at("/message").asText()).startsWith("Count the bottles first");
 
         // The cashier counts (no costs shown), then closing works.
-        JsonNode tusker = sheetItem(cashier, "Tusker");
+        JsonNode tusker = sheetItem(cashier, "Zz Tusker");
         assertThat(tusker.has("costPerBottle")).isFalse();
         Res r = count(cashier, tusker.get("itemId").asText(), 95);
         assertThat(r.status()).as(r.body().toString()).isEqualTo(200);
@@ -113,7 +113,7 @@ class BottleCountTest extends IntegrationTest {
     void anotherBusinessSeesNothingAndCannotCountOurBottles() {
         String ours = barOwner();
         String theirs = barOwner();
-        String ourTusker = sheetItem(ours, "Tusker").get("itemId").asText();
+        String ourTusker = sheetItem(ours, "Zz Tusker").get("itemId").asText();
         assertThat(count(ours, ourTusker, 90).status()).isEqualTo(200);
         assertThat(get("/bottle-counts/history", theirs).at("/nightsCounted").asInt()).isZero();
         assertThat(count(theirs, ourTusker, 1).status()).isEqualTo(400);
@@ -134,5 +134,36 @@ class BottleCountTest extends IntegrationTest {
         String shop = token(signup("retail"));
         assertThat(get("/bottle-counts/sheet", shop).status()).isEqualTo(403);
         assertThat(get("/bottle-counts/status", shop).at("/enabled").asBoolean()).isFalse();
+    }
+
+    @Test
+    void signUpStartersAreReadyToCountAndAnEmptySheetOffersAPickList() {
+        for (String[] kind : new String[][]{{"restaurant", "bar"}, {"retail", "liquor"}}) {
+            String email = "owner-" + UUID.randomUUID().toString().substring(0, 8) + "@test.local";
+            Res r = post("/auth/signup", null, Map.of("businessName", "Starter " + email.substring(6, 10), "sector", kind[0], "subSector", kind[1],
+                    "name", "Owner", "email", email, "password", "password123", "withSamples", true));
+            assertThat(r.status()).as(r.body().toString()).isEqualTo(200);
+            String owner = token(r.body());
+            JsonNode sheet = get("/bottle-counts/sheet", owner).body();
+            assertThat(sheet.at("/items").size()).as(kind[1]).isGreaterThanOrEqualTo(3);
+            assertThat(sheet.toString()).contains("Tusker");
+            assertThat(sheet.toString()).doesNotContain("Nyama choma");
+        }
+        // A bar whose drinks are not ticked: the sheet is empty but offers the drinks to pick.
+        String owner = token(signup("restaurant"));
+        String email = "owner-" + UUID.randomUUID().toString().substring(0, 8) + "@test.local";
+        Res r = post("/auth/signup", null, Map.of("businessName", "Plain bar", "sector", "restaurant", "subSector", "bar", "name", "Owner",
+                "email", email, "password", "password123", "withSamples", false));
+        String bare = token(r.body());
+        String cat = post("/categories", bare, Map.of("name", "Spirits")).at("/id").asText();
+        String vodka = post("/items", bare, Map.of("name", "Zz Vodka", "kind", "MENU", "categoryId", cat, "price", 300)).at("/id").asText();
+        JsonNode sheet = get("/bottle-counts/sheet", bare).body();
+        assertThat(sheet.at("/items").size()).isZero();
+        assertThat(sheet.at("/pickable").toString()).contains("Zz Vodka");
+        String cashier = staff(bare, "CASHIER");
+        assertThat(post("/bottle-counts/pick", cashier, Map.of("itemIds", List.of(vodka))).status()).isEqualTo(403);
+        assertThat(post("/bottle-counts/pick", bare, Map.of("itemIds", List.of(vodka))).status()).isEqualTo(200);
+        assertThat(get("/bottle-counts/sheet", bare).at("/items/0/name").asText()).isEqualTo("Zz Vodka");
+        assertThat(owner).isNotNull();
     }
 }

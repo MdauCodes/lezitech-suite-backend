@@ -63,6 +63,7 @@ public class RoleGuard implements WebMvcConfigurer, HandlerInterceptor {
             rule(ANY, "/api/stock/counts(/.*)?", "count stock", "MANAGER", "ACCOUNTANT", "STOREKEEPER", "CASHIER", "KITCHEN", "RECEPTION"),
             // The nightly bottle count: whoever closes a till can count; costs and history are for managers (checked again in the controller).
             rule(WRITES, "/api/bottle-counts/settings", "change the bottle count rule"),
+            rule(WRITES, "/api/bottle-counts/pick", "pick which drinks to count", "MANAGER", "STOREKEEPER"),
             rule(READS, "/api/bottle-counts/history", "see past bottle counts", "MANAGER", "ACCOUNTANT"),
             rule(ANY, "/api/bottle-counts(/.*)?", "count the bottles", "MANAGER", "CASHIER", "WAITER", "SALES", "STYLIST", "RECEPTION", "ACCOUNTANT", "STOREKEEPER"),
             rule(READS, "/api/carcasses(/.*)?", "see carcasses", "MANAGER", "ACCOUNTANT", "STOREKEEPER"),

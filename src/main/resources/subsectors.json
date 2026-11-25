@@ -243,6 +243,7 @@
                 "cost": 210,
                 "station": "Bar",
                 "stock": 96,
+                "countNightly": true,
                 "reorder": 48
               },
               {
@@ -252,6 +253,7 @@
                 "cost": 235,
                 "station": "Bar",
                 "stock": 72,
+                "countNightly": true,
                 "reorder": 36
               },
               {
@@ -261,6 +263,7 @@
                 "cost": 210,
                 "station": "Bar",
                 "stock": 60,
+                "countNightly": true,
                 "reorder": 36
               }
             ]
@@ -290,6 +293,7 @@
                 "cost": 1650,
                 "station": "Bar",
                 "stock": 12,
+                "countNightly": true,
                 "reorder": 4
               }
             ]
@@ -2122,6 +2126,7 @@
                 "cost": 2750,
                 "barcode": "5011007003001",
                 "stock": 12,
+                "countNightly": true,
                 "reorder": 4
               },
               {
@@ -2131,6 +2136,7 @@
                 "cost": 1050,
                 "barcode": "6161101000002",
                 "stock": 24,
+                "countNightly": true,
                 "reorder": 6
               },
               {
@@ -2140,6 +2146,7 @@
                 "cost": 760,
                 "barcode": "6161101000003",
                 "stock": 30,
+                "countNightly": true,
                 "reorder": 10
               }
             ]
@@ -2155,6 +2162,7 @@
                 "cost": 180,
                 "barcode": "6161101000004",
                 "stock": 96,
+                "countNightly": true,
                 "reorder": 48
               },
               {
@@ -2164,6 +2172,7 @@
                 "cost": 165,
                 "barcode": "6161101000005",
                 "stock": 72,
+                "countNightly": true,
                 "reorder": 36
               },
               {
@@ -2173,6 +2182,7 @@
                 "cost": 220,
                 "barcode": "6001108000006",
                 "stock": 48,
+                "countNightly": true,
                 "reorder": 24
               }
             ]
@@ -2188,6 +2198,7 @@
                 "cost": 850,
                 "barcode": "6001495000007",
                 "stock": 18,
+                "countNightly": true,
                 "reorder": 6
               },
               {
@@ -2195,6 +2206,7 @@
                 "price": 120,
                 "cost": 80,
                 "stock": 48,
+                "countNightly": true,
                 "reorder": 24
               }
             ]

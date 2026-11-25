@@ -76,7 +76,8 @@ public class SeedService {
             for (JsonNode i : c.path("items")) {
                 String kind = i.has("kind") ? i.get("kind").asText()
                         : "RESTAURANT".equals(pack.get("posMode").asText()) ? "MENU" : "PRODUCT";
-                boolean tracks = "PRODUCT".equals(kind);
+                boolean counts = i.path("countNightly").asBoolean(false);
+                boolean tracks = "PRODUCT".equals(kind) || counts;
                 UUID itemId = db.insert("""
                         INSERT INTO items (tenant_id, category_id, name, kind, unit, price, cost, wholesale_price, wholesale_min_qty,
                                            barcode, track_stock, reorder_level, duration_min, station, needs_prescription, options, color, tax_rate)
@@ -93,6 +94,9 @@ public class SeedService {
                         "tax", new BigDecimal(i.path("tax").asText("16")),
                         "station", i.path("station").asText(null), "rx", i.path("rx").asBoolean(false),
                         "options", i.has("options") ? i.get("options").toString() : "[]", "color", c.path("color").asText(null));
+                if (counts) {
+                    db.exec("UPDATE items SET count_nightly = true WHERE id = :id", "id", itemId);
+                }
                 // R7: grill meat priced per kg; bakery items baked fresh daily (with yesterday's price).
                 if (i.path("byWeight").asBoolean(false)) {
                     db.exec("UPDATE items SET sold_by_weight = true, unit = 'kg' WHERE id = :id", "id", itemId);
