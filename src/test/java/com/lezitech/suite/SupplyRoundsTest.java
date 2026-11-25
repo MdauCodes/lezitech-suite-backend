@@ -510,4 +510,79 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(run.at("/stops/0/email").isNull()).isTrue();
         assertThat(concern(owner, "EMAIL_CHANGED")).isNotNull();
     }
+
+    /** An unpaid account order: an open order put on the customer's account (status CREDIT). */
+    private JsonNode onAccount(String owner, String customerId, JsonNode item, int qty) {
+        JsonNode o = order(owner, customerId, item, qty);
+        Res paid = post("/orders/" + o.get("id").asText() + "/pay", owner, Map.of("payments", List.of(Map.of("method", "CREDIT", "amount", o.get("total").asDouble()))));
+        assertThat(paid.status()).as(paid.body().toString()).isEqualTo(200);
+        assertThat(paid.at("/status").asText()).isEqualTo("CREDIT");
+        return paid.body();
+    }
+
+    private double balanceOf(String owner, String customerId) {
+        return get("/customers/" + customerId, owner).at("/balance").asDouble();
+    }
+
+    private String confirmShort(String owner, Driver joe, JsonNode run, int received) {
+        var box = new EmailSender.LogSender();
+        itMailer.useSender(box);
+        post("/rounds/stops/" + run.at("/stops/0/id").asText() + "/arrived", joe.token(), Map.of());
+        String token = tokenOf(box);
+        String lineId = get("/public/delivery/" + token, null).at("/lines/0/lineId").asText();
+        return String.valueOf(post("/public/delivery/" + token, null, Map.of("receivedByName", "Grace", "signature", PNG, "agreed", true,
+                "lines", List.of(Map.of("lineId", lineId, "qtyReceived", received, "qtySentBack", 0)))).status());
+    }
+
+    @Test
+    void anUnpaidAccountOrderGoesOnARoundAndAShortConfirmLowersBothTheBillAndTheAccount() {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        post("/shifts/open", owner, Map.of("openingCash", 0));
+        String cust = post("/customers", owner, Map.of("name", "Hotel Savanna", "email", "stores@savanna.test", "creditLimit", 10000000)).at("/id").asText();
+        JsonNode order = onAccount(owner, cust, item(owner, ""), 10);
+        double total = order.get("total").asDouble();
+        assertThat(balanceOf(owner, cust)).isEqualTo(total);
+        assertThat(get("/rounds/orders-ready", owner).at("/0/orderStatus").asText()).isEqualTo("CREDIT");
+
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, order));
+        assertThat(run.at("/stops/0/orderStatus").asText()).isEqualTo("CREDIT");
+        assertThat(confirmShort(owner, joe, run, 8)).isEqualTo("200");
+
+        double newTotal = get("/orders/" + order.get("id").asText(), owner).at("/total").asDouble();
+        assertThat(newTotal).isLessThan(total);
+        assertThat(balanceOf(owner, cust)).isCloseTo(newTotal, org.assertj.core.data.Offset.offset(0.005));
+        JsonNode lines = get("/customers/" + cust + "/statement", owner).at("/lines");
+        int refunds = 0;
+        for (JsonNode l : lines) {
+            if ("REFUND".equals(l.get("kind").asText())) {
+                refunds++;
+                assertThat(l.get("what").asText()).isEqualTo("Delivery DN-1 short, confirmed by Grace");
+                assertThat(l.get("paid").asDouble()).isCloseTo(total - newTotal, org.assertj.core.data.Offset.offset(0.005));
+            }
+        }
+        assertThat(refunds).isEqualTo(1);
+        assertThat(concern(owner, "DELIVERY_SHORT")).isNotNull();
+    }
+
+    @Test
+    void anAccountOrderThatWasPaidInTheMeantimeIsFlaggedAndNothingIsChanged() throws Exception {
+        JsonNode s = signup("wholesale");
+        String owner = token(s);
+        String storekeeper = staff(owner, "STOREKEEPER");
+        Driver joe = rider(owner, "Joe Driver");
+        post("/shifts/open", owner, Map.of("openingCash", 0));
+        String cust = post("/customers", owner, Map.of("name", "Hotel Savanna", "email", "stores@savanna.test", "creditLimit", 10000000)).at("/id").asText();
+        JsonNode order = onAccount(owner, cust, item(owner, ""), 10);
+        double total = order.get("total").asDouble();
+        JsonNode run = loadAndAccept(owner, storekeeper, joe, plan(owner, joe, order));
+        // Money comes in against this bill after the round went out.
+        asDbOwner("INSERT INTO payments (tenant_id, order_id, method, amount) SELECT tenant_id, id, 'CASH', 100 FROM orders WHERE id = ?::uuid", order.get("id").asText());
+        assertThat(confirmShort(owner, joe, run, 8)).isEqualTo("200");
+        assertThat(get("/orders/" + order.get("id").asText(), owner).at("/total").asDouble()).isEqualTo(total);
+        assertThat(balanceOf(owner, cust)).isEqualTo(total);
+        assertThat(concern(owner, "DELIVERY_NOT_BILLED_RIGHT")).isNotNull();
+    }
 }

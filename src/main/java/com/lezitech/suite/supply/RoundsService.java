@@ -52,8 +52,11 @@ public class RoundsService {
     private final ActivityLog activity;
     private final Mailer mailer;
     private final BrandedEmail brands;
+    private final com.lezitech.suite.crm.CustomerLedger customerLedger;
 
-    public RoundsService(Db db, OrderService orders, ActivityLog activity, Mailer mailer, BrandedEmail brands) {
+    public RoundsService(Db db, OrderService orders, ActivityLog activity, Mailer mailer, BrandedEmail brands,
+                         com.lezitech.suite.crm.CustomerLedger customerLedger) {
+        this.customerLedger = customerLedger;
         this.db = db;
         this.orders = orders;
         this.activity = activity;
@@ -214,9 +217,9 @@ public class RoundsService {
     public List<Map<String, Object>> ordersReady() {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> o : db.list("""
-                SELECT o.id, o.number, o.total, c.name AS customer_name, c.email AS customer_email
+                SELECT o.id, o.number, o.status, o.total, c.name AS customer_name, c.email AS customer_email
                 FROM orders o JOIN customers c ON c.id = o.customer_id
-                WHERE o.status = 'OPEN' AND o.kind <> 'QUOTE'
+                WHERE (o.status = 'OPEN' OR (o.status = 'CREDIT' AND coalesce((SELECT sum(p.amount) FROM payments p WHERE p.order_id = o.id AND p.method <> 'CREDIT'), 0) = 0)) AND o.kind <> 'QUOTE'
                   AND NOT EXISTS (SELECT 1 FROM delivery_stops s JOIN delivery_runs r ON r.id = s.run_id
                                   WHERE s.order_id = o.id AND r.status <> 'BACK')
                 ORDER BY o.number DESC LIMIT 200""")) {
@@ -226,6 +229,7 @@ public class RoundsService {
             }
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("orderId", o.get("id"));
+            m.put("orderStatus", o.get("status"));
             m.put("number", o.get("number"));
             m.put("customerName", o.get("customerName"));
             m.put("customerEmail", o.get("customerEmail"));
@@ -274,13 +278,14 @@ public class RoundsService {
         int sort = 0;
         for (String oid : ids) {
             Map<String, Object> o = db.find("""
-                    SELECT o.id, o.number, o.status, o.kind, c.name AS customer_name, c.email AS customer_email
+                    SELECT o.id, o.number, o.status, o.kind, c.name AS customer_name, c.email AS customer_email,
+                           (o.status = 'OPEN' OR (o.status = 'CREDIT' AND coalesce((SELECT sum(p.amount) FROM payments p WHERE p.order_id = o.id AND p.method <> 'CREDIT'), 0) = 0)) AS takes_round
                     FROM orders o LEFT JOIN customers c ON c.id = o.customer_id WHERE o.id = :id FOR UPDATE OF o""", "id", oid).orElse(null);
             if (o == null) {
                 throw ApiException.bad("One of the orders was not found");
             }
-            if (!"OPEN".equals(o.get("status")) || "QUOTE".equals(o.get("kind"))) {
-                throw ApiException.bad("Order #" + o.get("number") + " is not an open order");
+            if (!Boolean.TRUE.equals(o.get("takesRound")) || "QUOTE".equals(o.get("kind"))) {
+                throw ApiException.bad("Order #" + o.get("number") + " is not an open order or an unpaid account order");
             }
             if (o.get("customerName") == null) {
                 throw ApiException.bad("Order #" + o.get("number") + " has no customer. Add the customer first");
@@ -480,7 +485,7 @@ public class RoundsService {
         }
         out.put("load", load);
         List<Map<String, Object>> stops = db.list("""
-                SELECT s.*, o.number AS order_number FROM delivery_stops s JOIN orders o ON o.id = s.order_id
+                SELECT s.*, o.number AS order_number, o.status AS order_status FROM delivery_stops s JOIN orders o ON o.id = s.order_id
                 WHERE s.run_id = :r ORDER BY s.sort""", "r", runId);
         List<Map<String, Object>> allLines = db.list("""
                 SELECT * FROM delivery_stop_lines WHERE stop_id IN (SELECT id FROM delivery_stops WHERE run_id = :r) ORDER BY pos""", "r", runId);
@@ -496,6 +501,7 @@ public class RoundsService {
             m.put("noteNo", noteNo(s.get("noteNo")));
             m.put("orderId", s.get("orderId"));
             m.put("orderNumber", s.get("orderNumber"));
+            m.put("orderStatus", s.get("orderStatus"));
             m.put("customerName", s.get("customerName"));
             m.put("email", s.get("confirmEmail"));
             m.put("emailSetBy", s.get("emailSetBy"));
@@ -871,8 +877,14 @@ public class RoundsService {
             throw ApiException.conflict("This delivery was already confirmed. It cannot be changed.");
         }
         UUID orderId = uuid(stop.get("orderId"));
-        Map<String, Object> order = db.one("Order", "SELECT number, status FROM orders WHERE id = :o FOR UPDATE", "o", orderId);
-        boolean open = "OPEN".equals(order.get("status"));
+        // The order row is locked until this ends, so a payment at the same moment waits and then sees the new total.
+        Map<String, Object> order = db.one("Order", "SELECT number, status, total, customer_id FROM orders WHERE id = :o FOR UPDATE", "o", orderId);
+        boolean realOpen = "OPEN".equals(order.get("status"));
+        // An unpaid account order: still CREDIT, and nobody has paid anything but the account itself.
+        BigDecimal otherPaid = db.value("SELECT coalesce(sum(amount), 0) FROM payments WHERE order_id = :o AND method <> 'CREDIT'", BigDecimal.class, "o", orderId);
+        boolean onAccount = "CREDIT".equals(order.get("status")) && order.get("customerId") != null && otherPaid.signum() == 0;
+        boolean open = realOpen || onAccount;
+        BigDecimal totalBefore = (BigDecimal) order.get("total");
         String dn = noteNo(stop.get("noteNo"));
         String driver = db.value("SELECT driver_name FROM delivery_runs WHERE id = :r", String.class, "r", stop.get("runId"));
         String client = (String) stop.get("customerName");
@@ -915,7 +927,23 @@ public class RoundsService {
                 unbilledLines.add(qty(shortBy) + " x " + was.get("name"));
             }
         }
-        if (open) {
+        if (onAccount) {
+            BigDecimal drop = totalBefore.subtract(db.value("SELECT total FROM orders WHERE id = :o", BigDecimal.class, "o", orderId));
+            if (drop.signum() > 0) {
+                UUID customerId = uuid(order.get("customerId"));
+                // The account goes down by exactly what the bill went down by, through the customer ledger.
+                db.value("SELECT 1 FROM customers WHERE id = :c FOR UPDATE", Integer.class, "c", customerId);
+                db.exec("UPDATE customers SET balance = balance - :d WHERE id = :c", "c", customerId, "d", drop);
+                customerLedger.record(customerId, "REFUND", drop.negate(), orderId, null, null,
+                        "Delivery " + dn + " short, confirmed by " + receivedBy);
+                db.exec("""
+                        INSERT INTO payments (tenant_id, order_id, method, amount, kind, refund_reason, user_id)
+                        VALUES (:t, :o, 'CREDIT', :a, 'REFUND', :why, cast(:u as uuid))""",
+                        "o", orderId, "a", drop.negate(), "why", "Delivery " + dn + " short");
+                db.exec("UPDATE orders SET paid = greatest(paid - :d, 0) WHERE id = :o", "d", drop, "o", orderId);
+            }
+        }
+        if (realOpen) {
             Map<String, Object> now = db.one("Order", "SELECT total, paid FROM orders WHERE id = :o", "o", orderId);
             BigDecimal paid = (BigDecimal) now.get("paid");
             BigDecimal total = (BigDecimal) now.get("total");
