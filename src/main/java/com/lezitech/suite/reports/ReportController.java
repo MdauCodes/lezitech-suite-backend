@@ -53,6 +53,8 @@ public class ReportController {
         k.put("sales_today", todayRow.get("sales"));
         k.put("transactions_today", todayRow.get("n"));
         k.put("avg_ticket", todayRow.get("avg"));
+        k.put("age_checked_today", db.value("SELECT count(*) FROM orders o WHERE " + SOLD + " AND o.age_confirmed_at IS NOT NULL AND o.closed_at >= :today",
+                Long.class, "today", today));
         k.put("sales_month", db.value("SELECT coalesce(sum(total), 0) FROM orders o WHERE " + SOLD + " AND o.closed_at >= :month",
                 java.math.BigDecimal.class, "month", month));
         k.put("open_bills", db.value("SELECT count(*) FROM orders WHERE status = 'OPEN' AND kind = 'SALE'", Long.class));

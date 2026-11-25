@@ -86,6 +86,10 @@ public class OrderController {
         }
         UUID id = orders.create(b);
         orders.bindKey(b, "sale", id);
+        if (b.has("ageConfirm")) {
+            // The till already asked "is the customer 18 or older?" (the sale may be saved first for an M-Pesa prompt).
+            orders.confirmAge(id, new Body(b.map("ageConfirm")).bool("idChecked", false));
+        }
         Map<String, Object> out = !b.list("payments").isEmpty() || b.has("discount") ? orders.pay(id, b) : orders.detail(id);
         if (b.has("offlineAt")) {
             // Rung up offline and sent when the internet came back: keep the real time of the sale.
@@ -217,6 +221,33 @@ public class OrderController {
         return out;
     }
 
+    /**
+     * The 18+ check at the till. {@code confirmed: true}: the staff member says the customer is 18 or older (optionally with
+     * "ID checked"). {@code confirmed: false}: the 18+ items come off the bill (a manager's OK may be asked, as for any item taken off).
+     */
+    @PostMapping("/{id}/age-check")
+    public Map<String, Object> ageCheck(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
+        Body b = new Body(raw);
+        orders.requireOpen(id);
+        if (b.bool("confirmed", false)) {
+            orders.confirmAge(id, b.bool("idChecked", false));
+        } else {
+            requests.requireNoOpenAsk(id, "taking anything off it");
+            orders.declineAge(id, b);
+        }
+        return orders.detail(id);
+    }
+
+    /** "No" on a sale that is not saved yet (still on the till): nothing to take off, but it is written down. */
+    @PostMapping("/age-declined")
+    public Map<String, Object> ageDeclined(@RequestBody Map<String, Object> raw) {
+        if (orders.ageCheckOn()) {
+            activity.record("AGE_CHECK_NO", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                    "Customer is under 18: took 18+ items off a sale before it was saved (" + new Body(raw).str("items", "") + ")");
+        }
+        return Map.of("ok", true);
+    }
+
     @PostMapping("/{id}/pay")
     public Map<String, Object> pay(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         Body b = new Body(raw);
@@ -249,7 +280,10 @@ public class OrderController {
         // The new bill inherits "the customer has seen this", so splitting is not a way to move items somewhere
         // they can be taken off for nothing. Splitting itself stays free: it is ordinary work on a busy floor.
         db.exec("""
-                UPDATE orders SET bill_printed_at = coalesce(bill_printed_at, (SELECT bill_printed_at FROM orders WHERE id = :id))
+                UPDATE orders SET bill_printed_at = coalesce(bill_printed_at, (SELECT bill_printed_at FROM orders WHERE id = :id)),
+                       age_confirmed_at = (SELECT age_confirmed_at FROM orders WHERE id = :id),
+                       age_confirmed_by = (SELECT age_confirmed_by FROM orders WHERE id = :id),
+                       age_id_checked = (SELECT age_id_checked FROM orders WHERE id = :id)
                 WHERE id = :newId""", "id", id, "newId", newId);
         orders.recalc(id);
         orders.recalc(newId);

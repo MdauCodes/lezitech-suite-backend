@@ -97,6 +97,9 @@ public class SeedService {
                 if (i.path("byWeight").asBoolean(false)) {
                     db.exec("UPDATE items SET sold_by_weight = true, unit = 'kg' WHERE id = :id", "id", itemId);
                 }
+                if (i.path("ageRestricted").asBoolean(false)) {
+                    db.exec("UPDATE items SET age_restricted = true WHERE id = :id", "id", itemId);
+                }
                 if (i.path("bakedDaily").asBoolean(false)) {
                     db.exec("UPDATE items SET baked_daily = true, track_stock = true, day_old_price = :p WHERE id = :id", "id", itemId,
                             "p", i.has("dayOld") ? new BigDecimal(i.get("dayOld").asText()) : null);

@@ -113,9 +113,9 @@ public class VariantsController {
             if (vid == null) {
                 vid = db.insert("""
                         INSERT INTO items (tenant_id, name, kind, category_id, unit, tax_rate, station, track_stock, photo_file_id,
-                                           color, needs_prescription, variant_of)
+                                           color, needs_prescription, age_restricted, variant_of)
                         SELECT tenant_id, :name, kind, category_id, unit, tax_rate, station, kind = 'PRODUCT', photo_file_id,
-                               color, needs_prescription, id FROM items WHERE id = :id RETURNING id""",
+                               color, needs_prescription, age_restricted, id FROM items WHERE id = :id RETURNING id""",
                         "id", id, "name", familyName + " " + label(values));
             }
             String sku = blank(v.str("sku", null));

@@ -102,6 +102,7 @@ public class MpesaService {
         if ("QUOTE".equals(o.get("kind"))) {
             throw ApiException.bad("Convert the quotation to a sale before taking payment");
         }
+        orders.requireAgeConfirmed(orderId); // 18+ items: the prompt is only sent once a staff member has checked the customer's age
         BigDecimal due = ((BigDecimal) o.get("total")).subtract((BigDecimal) o.get("paid"));
         BigDecimal amount = amountOrNull == null ? due : amountOrNull;
         if (amount.signum() <= 0) {
@@ -153,6 +154,14 @@ public class MpesaService {
             due = groupDue(batchId);
             if (due.signum() <= 0) {
                 throw ApiException.conflict("This group's bill is already paid");
+            }
+        }
+        if (batchId == null) {
+            orders.requireAgeConfirmed(orderId);
+        } else {
+            for (UUID member : jdbc.queryForList("SELECT id FROM orders WHERE tenant_id = ? AND batch_id = ? AND status = 'OPEN'", UUID.class,
+                    TenantContext.tenantId(), batchId)) {
+                orders.requireAgeConfirmed(member);
             }
         }
         BigDecimal t = tip == null ? BigDecimal.ZERO : tip;

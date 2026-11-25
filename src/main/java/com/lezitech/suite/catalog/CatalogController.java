@@ -32,7 +32,7 @@ public class CatalogController {
             i.needs_prescription, i.options, coalesce(i.color, c.color) AS color, i.active, i.commission_rate,
             i.photo_file_id, i.allergens, i.allergen_note, i.buy_unit, i.buy_size, i.buy_price, i.pack_price,
             (i.unavailable_until IS NOT NULL AND i.unavailable_until > now()) AS finished, i.finished_by_stock,
-            i.sold_by_weight, i.baked_daily, i.day_old_of, i.variant_of, i.variant_values, i.variant_axes,
+            i.sold_by_weight, i.age_restricted, i.baked_daily, i.day_old_of, i.variant_of, i.variant_values, i.variant_axes,
             coalesce((SELECT sum(qty) FROM stock_levels s WHERE s.item_id = i.id
                       -- Staff at a branch see that branch's stock; the owner and the main place see it all.
                       AND s.location_id = coalesce((SELECT location_id FROM users WHERE id = cast(:u as uuid)), s.location_id)), 0) AS on_hand""";
@@ -220,6 +220,16 @@ public class CatalogController {
             boolean kg = b.bool("soldByWeight", false);
             db.exec("UPDATE items SET sold_by_weight = :w, unit = CASE WHEN :w THEN 'kg' ELSE unit END WHERE id = :id", "id", id, "w", kg);
         }
+        // "18+ only": the till checks the customer's age before such an item is paid for. Only the owner or a manager changes it.
+        if (b.has("ageRestricted")) {
+            boolean now = b.bool("ageRestricted", false);
+            if (now != Boolean.TRUE.equals(db.value("SELECT age_restricted FROM items WHERE id = :id", Boolean.class, "id", id))) {
+                TenantContext.requireRole("MANAGER");
+                db.exec("UPDATE items SET age_restricted = :a WHERE id = :id", "id", id, "a", now);
+                activity.record("ITEM_AGE_FLAG", com.lezitech.suite.activity.ActivityLog.INFO,
+                        b.str("name") + (now ? " is now marked 18+ only" : " is no longer marked 18+ only"), null, id, null, null, Map.of());
+            }
+        }
         // A service's own commission rate (overrides the staff member's); only changed when sent.
         if (b.has("commissionRate")) {
             db.exec("UPDATE items SET commission_rate = :cr WHERE id = :id", "id", id, "cr", rate(b.num("commissionRate", null)));
@@ -302,7 +312,7 @@ public class CatalogController {
             }
             db.exec("""
                     UPDATE items c SET name = :name, category_id = p.category_id, kind = p.kind, unit = p.unit, tax_rate = p.tax_rate,
-                           station = p.station FROM items p WHERE p.id = :fid AND c.id = :vid""",
+                           station = p.station, age_restricted = p.age_restricted FROM items p WHERE p.id = :fid AND c.id = :vid""",
                     "fid", id, "vid", UUID.fromString(v.get("id").toString()), "name", f.get("name") + " " + String.join(" / ", parts));
         }
     }

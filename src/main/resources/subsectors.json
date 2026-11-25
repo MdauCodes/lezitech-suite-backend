@@ -220,7 +220,8 @@
       "features": {
         "tables": true,
         "kitchen": true,
-        "tips": true
+        "tips": true,
+        "ageCheck": true
       },
       "kpis": [
         "sales_today",
@@ -236,6 +237,7 @@
             "items": [
               {
                 "name": "Tusker lager 500ml",
+                "ageRestricted": true,
                 "price": 300,
                 "cost": 210,
                 "station": "Bar",
@@ -244,6 +246,7 @@
               },
               {
                 "name": "Guinness 500ml",
+                "ageRestricted": true,
                 "price": 330,
                 "cost": 235,
                 "station": "Bar",
@@ -252,6 +255,7 @@
               },
               {
                 "name": "White Cap 500ml",
+                "ageRestricted": true,
                 "price": 300,
                 "cost": 210,
                 "station": "Bar",
@@ -266,18 +270,21 @@
             "items": [
               {
                 "name": "Whisky single (tot)",
+                "ageRestricted": true,
                 "price": 350,
                 "cost": 120,
                 "station": "Bar"
               },
               {
                 "name": "Gin & tonic",
+                "ageRestricted": true,
                 "price": 450,
                 "cost": 150,
                 "station": "Bar"
               },
               {
                 "name": "Vodka 750ml bottle",
+                "ageRestricted": true,
                 "price": 2800,
                 "cost": 1650,
                 "station": "Bar",
@@ -2091,7 +2098,8 @@
       "tagline": "Bottle stock by brand and size, age checks and fast M-Pesa",
       "features": {
         "barcode": true,
-        "credit": false
+        "credit": false,
+        "ageCheck": true
       },
       "kpis": [
         "sales_today",
@@ -2107,6 +2115,7 @@
             "items": [
               {
                 "name": "Jameson 750ml",
+                "ageRestricted": true,
                 "price": 3300,
                 "cost": 2750,
                 "barcode": "5011007003001",
@@ -2115,6 +2124,7 @@
               },
               {
                 "name": "Richot brandy 750ml",
+                "ageRestricted": true,
                 "price": 1350,
                 "cost": 1050,
                 "barcode": "6161101000002",
@@ -2123,6 +2133,7 @@
               },
               {
                 "name": "Kenya Cane 750ml",
+                "ageRestricted": true,
                 "price": 950,
                 "cost": 760,
                 "barcode": "6161101000003",
@@ -2137,6 +2148,7 @@
             "items": [
               {
                 "name": "Tusker 500ml",
+                "ageRestricted": true,
                 "price": 220,
                 "cost": 180,
                 "barcode": "6161101000004",
@@ -2145,6 +2157,7 @@
               },
               {
                 "name": "Balozi 500ml",
+                "ageRestricted": true,
                 "price": 200,
                 "cost": 165,
                 "barcode": "6161101000005",
@@ -2153,6 +2166,7 @@
               },
               {
                 "name": "Savanna cider 330ml",
+                "ageRestricted": true,
                 "price": 280,
                 "cost": 220,
                 "barcode": "6001108000006",
@@ -2167,6 +2181,7 @@
             "items": [
               {
                 "name": "4th Street red 750ml",
+                "ageRestricted": true,
                 "price": 1100,
                 "cost": 850,
                 "barcode": "6001495000007",

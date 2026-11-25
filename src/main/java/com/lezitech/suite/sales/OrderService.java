@@ -521,6 +521,10 @@ public class OrderService {
                 throw ApiException.bad("Use the customer's points with \"Use points\", so they come off their balance");
             }
         }
+        // A till that asked "is the customer 18 or older?" before taking payment sends the answer with the payment.
+        if (b.has("ageConfirm")) {
+            confirmAge(orderId, new Body(b.map("ageConfirm")).bool("idChecked", false));
+        }
         return payInternal(orderId, b, false);
     }
 
@@ -557,6 +561,11 @@ public class OrderService {
         Map<String, Object> o = requireOpen(orderId);
         if ("QUOTE".equals(o.get("kind"))) {
             throw ApiException.bad("Convert the quotation to a sale before taking payment");
+        }
+        // 18+ items need the customer's age confirmed first, on every way of paying. The two business-side
+        // closings (a deposit put on a bill, a bill cleared as owed by a waiter) are not a customer buying.
+        if (!(allowDeposit && (b.bool("deposit", false) || "WAITER".equals(firstMethod(b))))) {
+            requireAgeConfirmed(orderId);
         }
         if (b.has("discount")) {
             setDiscount(orderId, b.num("discount"), b);
@@ -638,6 +647,82 @@ public class OrderService {
         Map<String, Object> result = new LinkedHashMap<>(detail(orderId));
         result.put("change", changeDue);
         return result;
+    }
+
+    private static String firstMethod(Body b) {
+        List<Map<String, Object>> ps = b.list("payments");
+        return ps.isEmpty() ? "" : String.valueOf(ps.get(0).get("method")).toUpperCase();
+    }
+
+    // ---------------- Age check (18+ items) ----------------
+
+    /** The age check is on for this business (liquor stores and bars have it on; retail and restaurants can switch it on). */
+    public boolean ageCheckOn() {
+        return Boolean.TRUE.equals(db.value("SELECT coalesce(settings->'features'->>'ageCheck', 'false') = 'true' FROM tenants WHERE id = :t", Boolean.class));
+    }
+
+    /** True when the feature is on and the bill has an 18+ item that nobody has confirmed the customer's age for yet. */
+    public boolean needsAgeCheck(UUID orderId) {
+        if (!ageCheckOn()) {
+            return false;
+        }
+        // An item added after the confirmation (from the till or a customer's phone) needs a fresh answer.
+        return Boolean.TRUE.equals(db.value("""
+                SELECT EXISTS (SELECT 1 FROM order_lines l JOIN items i ON i.id = l.item_id JOIN orders o ON o.id = l.order_id
+                                WHERE o.id = :o AND i.age_restricted
+                                  AND (o.age_confirmed_at IS NULL OR l.created_at > o.age_confirmed_at))""", Boolean.class, "o", orderId));
+    }
+
+    /** Refuses (409, in plain words) while a bill has 18+ items and no staff member has confirmed the customer is 18 or older. */
+    public void requireAgeConfirmed(UUID orderId) {
+        if (needsAgeCheck(orderId)) {
+            throw ApiException.conflict("This sale has 18+ items. Check the customer is 18 or older and confirm it before taking payment. "
+                    + "If it was ordered from the customer's phone, a staff member confirms it at the till.");
+        }
+    }
+
+    /** A staff member confirms the customer is 18 or older (who and when are kept on the bill). */
+    public void confirmAge(UUID orderId, boolean idChecked) {
+        Map<String, Object> o = requireOpen(orderId);
+        if (!needsAgeCheck(orderId)) {
+            return;
+        }
+        db.exec("""
+                UPDATE orders SET age_confirmed_at = clock_timestamp(), age_confirmed_by = :u, age_id_checked = :id WHERE id = :o""",
+                "o", orderId, "id", idChecked);
+        activity.record("AGE_CHECK", com.lezitech.suite.activity.ActivityLog.INFO,
+                "Confirmed the customer is 18 or older on #" + o.get("number") + (idChecked ? " (ID checked)" : ""),
+                orderId, null, null, null, Map.of("idChecked", idChecked));
+    }
+
+    /**
+     * "No, remove 18+ items": takes every 18+ line off the bill by the usual rules (a manager's OK once the kitchen has it or
+     * the bill was printed) and writes it in the activity log.
+     */
+    public void declineAge(UUID orderId, Body approval) {
+        Map<String, Object> o = requireOpen(orderId);
+        List<Map<String, Object>> lines = db.list("""
+                SELECT l.id, l.name, l.qty, l.kitchen_status, l.parent_line_id FROM order_lines l JOIN items i ON i.id = l.item_id
+                 WHERE l.order_id = :o AND i.age_restricted ORDER BY l.created_at""", "o", orderId);
+        if (lines.isEmpty()) {
+            return;
+        }
+        boolean cooking = lines.stream().anyMatch(l -> !"PENDING".equals(l.get("kitchenStatus")));
+        approvals.requireManagerForValueOff(orderId, cooking, approval, "taking 18+ items off this bill");
+        List<String> names = new ArrayList<>();
+        java.util.Set<UUID> done = new java.util.HashSet<>();
+        for (Map<String, Object> l : lines) {
+            // A restricted part of a combo goes with the whole combo.
+            UUID id = UUID.fromString(String.valueOf(l.get("parentLineId") != null ? l.get("parentLineId") : l.get("id")));
+            if (done.add(id)) {
+                removeLine(id, orderId, " because the customer is under 18");
+            }
+            names.add(((BigDecimal) l.get("qty")).stripTrailingZeros().toPlainString() + " × " + l.get("name"));
+        }
+        recalc(orderId);
+        db.exec("UPDATE orders SET age_confirmed_at = NULL, age_confirmed_by = NULL, age_id_checked = NULL WHERE id = :o", "o", orderId);
+        activity.record("AGE_CHECK_NO", com.lezitech.suite.activity.ActivityLog.NOTICE,
+                "Customer is under 18 on #" + o.get("number") + ": took off " + String.join(", ", names), orderId, null, null, null, Map.of());
     }
 
     private void close(UUID orderId, String status) {
@@ -809,13 +894,17 @@ public class OrderService {
     public Map<String, Object> detail(UUID orderId) {
         Map<String, Object> o = new LinkedHashMap<>(db.one("Order", """
                 SELECT o.*, t.label AS table_label, c.name AS customer_name, c.phone AS customer_phone, u.name AS user_name,
-                       (SELECT sp.name FROM stays st JOIN spaces sp ON sp.id = st.space_id WHERE st.id = o.stay_id) AS room_name
+                       (SELECT sp.name FROM stays st JOIN spaces sp ON sp.id = st.space_id WHERE st.id = o.stay_id) AS room_name,
+                       (SELECT a.name FROM users a WHERE a.id = o.age_confirmed_by AND a.tenant_id = :t) AS age_confirmed_by_name
                 FROM orders o LEFT JOIN dining_tables t ON t.id = o.table_id LEFT JOIN customers c ON c.id = o.customer_id
                 LEFT JOIN users u ON u.id = o.user_id WHERE o.id = :id""", "id", orderId));
         o.put("lines", db.list("""
-                SELECT l.*, s.name AS staff_name FROM order_lines l LEFT JOIN users s ON s.id = l.staff_id AND s.tenant_id = :t
+                SELECT l.*, s.name AS staff_name,
+                       coalesce((SELECT i.age_restricted FROM items i WHERE i.id = l.item_id), false) AS age_restricted
+                FROM order_lines l LEFT JOIN users s ON s.id = l.staff_id AND s.tenant_id = :t
                 WHERE l.order_id = :id ORDER BY l.course, l.created_at""", "id", orderId));
         o.put("payments", db.list("SELECT * FROM payments WHERE order_id = :id ORDER BY created_at", "id", orderId));
+        o.put("needsAgeCheck", "OPEN".equals(o.get("status")) && needsAgeCheck(orderId));
         return o;
     }
 }
