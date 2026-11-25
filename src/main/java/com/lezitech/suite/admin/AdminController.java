@@ -80,8 +80,11 @@ public class AdminController {
     public Map<String, Object> makeOffer(@RequestBody Map<String, Object> raw) {
         AdminContext.require("billing");
         Map<String, Object> o = offers.create(raw, AdminContext.admin().name());
-        admin.audit("offer.create", null, Map.of("title", o.get("title"), "kind", o.get("kind"), "reached", o.get("reached")));
-        return o;
+        int told = actions.offerMade(o, AdminContext.admin().name());
+        admin.audit("offer.create", null, Map.of("title", o.get("title"), "kind", o.get("kind"), "reached", o.get("reached"), "told", told, "reason", String.valueOf(raw.getOrDefault("reason", ""))));
+        Map<String, Object> out = new java.util.LinkedHashMap<>(o);
+        out.put("told", told);
+        return out;
     }
 
     @PostMapping("/offers/{id}/stop")
@@ -96,6 +99,7 @@ public class AdminController {
     public Map<String, Object> savePlatformSettings(@RequestBody Map<String, Object> raw) {
         AdminContext.require("system");
         String by = AdminContext.admin().name();
+        Map<String, Long> priceBefore = actions.effectivePrices();
         if (raw.containsKey("trialDays")) {
             int before = platform.trialDays();
             int days;
@@ -128,8 +132,21 @@ public class AdminController {
             platform.setPlanFeatures(t, by);
             admin.audit("platform.plan_tools", null, Map.of("tools", t.toString()));
         }
-        return platformSettings();
+        int told = 0;
+        if (raw.get("plans") instanceof List<?> || raw.get("planOffers") instanceof Map<?, ?>) {
+            told = actions.priceChanged(priceBefore, by);
+            if (told > 0) {
+                admin.audit("platform.price_notices", null, Map.of("told", told, "reason", String.valueOf(raw.getOrDefault("reason", ""))));
+            }
+        }
+        Map<String, Object> out = new java.util.LinkedHashMap<>(platformSettings());
+        out.put("told", told);
+        return out;
     }
+    @org.springframework.beans.factory.annotation.Autowired
+    private OversightActions actions;
+    @org.springframework.beans.factory.annotation.Autowired
+    private Oversight oversight;
     @org.springframework.beans.factory.annotation.Autowired
     private AdminCodes codes;
     @org.springframework.beans.factory.annotation.Autowired
@@ -506,56 +523,29 @@ public class AdminController {
         return t;
     }
 
-    @PostMapping("/tenants/{id}/activate")
-    public Map<String, Object> activate(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        AdminContext.require("billing");
-        Body b = new Body(raw);
-        String plan = b.str("plan").toUpperCase();
-        int months = b.integer("months", 1);
-        jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?, next_plan = NULL, plan_switch_at = NULL,
-                       period_start = greatest(coalesce(paid_until, now()), now()),
-                       paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?) WHERE id = ?""", plan, months, id);
-        jdbc.update("UPDATE subscription_requests SET status = 'PAID' WHERE tenant_id = ? AND status = 'PENDING'", id);
-        billing.markPaid(id, null, null); // the operator confirmed the payment: extra lines on the bill are paid too
-        admin.audit("plan.activate", id, Map.of("plan", plan, "months", months, "reference", b.str("reference", "")));
-        return Map.of("ok", true);
-    }
-
     @PostMapping("/tenants/{id}/extend-trial")
     public Map<String, Object> extendTrial(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        AdminContext.require("trials");
-        int days = new Body(raw).integer("days", 7);
-        jdbc.update("""
-                UPDATE tenants SET status = 'TRIAL', trial_ends_at = greatest(trial_ends_at, now()) + make_interval(days => ?) WHERE id = ?""", days, id);
-        admin.audit("trial.extend", id, Map.of("days", days));
-        return Map.of("ok", true);
+        AdminContext.require("billing");
+        return actions.freeDays(id, raw, AdminContext.admin().name());
     }
 
     @PostMapping("/tenants/{id}/suspend")
     public Map<String, Object> suspend(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("suspend");
-        jdbc.update("UPDATE tenants SET status = 'SUSPENDED' WHERE id = ?", id);
-        admin.audit("workspace.suspend", id, Map.of("reason", new Body(raw).str("reason", "")));
-        return Map.of("ok", true);
+        return actions.suspend(id, raw, AdminContext.admin().name());
     }
 
     @PostMapping("/tenants/{id}/reactivate")
-    public Map<String, Object> reactivate(@PathVariable UUID id) {
+    public Map<String, Object> reactivate(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("suspend");
-        jdbc.update("""
-                UPDATE tenants SET status = CASE WHEN paid_until IS NOT NULL AND paid_until > now() THEN 'ACTIVE' ELSE 'TRIAL' END,
-                       trial_ends_at = CASE WHEN paid_until IS NULL OR paid_until <= now() THEN greatest(trial_ends_at, now() + interval '3 days') ELSE trial_ends_at END
-                WHERE id = ?""", id);
-        admin.audit("workspace.reactivate", id, Map.of());
-        return Map.of("ok", true);
+        return actions.unsuspend(id, raw, AdminContext.admin().name());
     }
 
     @PostMapping("/tenants/{id}/note")
     public Map<String, Object> note(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         AdminContext.require("notes");
         String note = new Body(raw).str("note", "");
-        jdbc.update("UPDATE tenants SET admin_note = ? WHERE id = ?", note, id);
+        oversight.addNote(id, AdminContext.admin().id(), AdminContext.admin().name(), note);
         admin.audit("workspace.note", id, Map.of("note", note.length() > 200 ? note.substring(0, 200) : note));
         return Map.of("ok", true);
     }
@@ -700,19 +690,13 @@ public class AdminController {
     @PostMapping("/requests/{id}/approve")
     public Map<String, Object> approve(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("billing");
-        Map<String, Object> r = activation.activate(id, "MANUAL", null);
-        admin.audit("billing.approve", (UUID) r.get("tenant_id"), Map.of("plan", r.get("plan"), "amount", r.get("amount"),
-                "reference", new Body(raw).str("reference", "")));
-        return Map.of("ok", true);
+        return actions.approveRequest(id, raw, AdminContext.admin().name());
     }
 
     @PostMapping("/requests/{id}/reject")
     public Map<String, Object> reject(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> raw) {
         AdminContext.require("billing");
-        UUID tenant = jdbc.queryForObject("SELECT tenant_id FROM subscription_requests WHERE id = ?", UUID.class, id);
-        jdbc.update("UPDATE subscription_requests SET status = 'REJECTED' WHERE id = ?", id);
-        admin.audit("billing.reject", tenant, Map.of("reason", new Body(raw).str("reason", "")));
-        return Map.of("ok", true);
+        return actions.rejectRequest(id, raw, AdminContext.admin().name());
     }
 
     // ---------- sectors ----------
