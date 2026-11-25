@@ -37,6 +37,7 @@ public final class JobTitles {
                     new Job("Sales person", "SALES", "Follows up buyers, sends quotes and takes orders."),
                     new Job("Cashier", "CASHIER", "Takes payments and prints invoices and receipts."),
                     new Job("Store keeper", "STOREKEEPER", "Receives deliveries, counts stock, prepares orders for collection."),
+                    new Job("Driver", "RIDER", "Accepts the load, delivers each stop and gets the client to confirm what arrived."),
                     new Job("Accountant", "ACCOUNTANT", "Checks sales, payments, money owed and reports; doesn't sell.")),
             "pharmacy", List.of(
                     new Job("Pharmacist", "MANAGER", "Dispenses, checks prescriptions and expiry dates, manages stock."),
