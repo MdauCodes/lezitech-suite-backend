@@ -959,8 +959,9 @@ public class RoundsService {
                         VALUES (:t, :o, 'CREDIT', :a, 'ADJUST', :why, cast(:u as uuid))""",
                         "o", orderId, "a", drop.negate(), "why", "Delivery " + dn + " short");
                 db.exec("UPDATE orders SET paid = greatest(paid - :d, 0) WHERE id = :o", "d", drop, "o", orderId);
-                // eTIMS signs one credit note for the whole bill as it stands, so a drop after the sale was sent needs one by hand.
-                if (db.value("SELECT etims_status FROM orders WHERE id = :o", String.class, "o", orderId) != null) {
+                // eTIMS signs one credit note for the whole bill as it stands, so a drop after KRA signed the sale needs one by hand.
+                // A sale still waiting in the queue is sent from the lowered lines, so it needs nothing.
+                if ("SIGNED".equals(db.value("SELECT etims_status FROM orders WHERE id = :o", String.class, "o", orderId))) {
                     activity.record("DELIVERY_ETIMS_CREDIT", ActivityLog.CONCERN,
                             "Order " + order.get("number") + " went down by KES " + drop.setScale(0, RoundingMode.HALF_UP) + " after delivery " + dn
                                     + " was confirmed short. Make a credit note in eTIMS for KES " + drop.setScale(0, RoundingMode.HALF_UP) + ".",
