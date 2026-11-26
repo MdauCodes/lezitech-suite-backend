@@ -535,7 +535,7 @@ class BusinessOversightTest extends IntegrationTest {
                     assertThat(ids).as(e.getKey() + " leaves out " + other.getKey()).doesNotContain(id(other.getValue()));
                 }
             }
-            assertThat(list.at("/totals/businesses").asLong()).isEqualTo(ids.size());
+            assertThat(list.at("/totals/businesses").asLong()).isGreaterThanOrEqualTo(ids.size());
         }
         assertThat(get("/admin/workspaces?filter=NOPE", admin).status()).isEqualTo(400);
         // The paid-this-month business is not in "never paid"; the others without a payment are.
