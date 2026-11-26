@@ -51,9 +51,9 @@ public class OversightController {
     @GetMapping("/workspaces")
     public Map<String, Object> workspaces(@RequestParam(required = false) String q, @RequestParam(required = false) String sector,
                                           @RequestParam(defaultValue = "false") boolean demo, @RequestParam(required = false) String filter,
-                                          @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+                                          @RequestParam(required = false) Integer limit, @RequestParam(required = false) String before) {
         AdminContext.require("read");
-        return ov.workspaces(q, sector, demo, filter, page, size);
+        return ov.workspaces(q, sector, demo, filter, limit, before);
     }
 
     @GetMapping("/workspaces.csv")

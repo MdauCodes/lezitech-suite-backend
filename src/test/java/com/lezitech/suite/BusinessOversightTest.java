@@ -526,27 +526,27 @@ class BusinessOversightTest extends IntegrationTest {
 
         Map<String, JsonNode> by = Map.of("GRACE", grace, "LOCKED", locked, "TRIAL3", ending, "PAID_MONTH", paidMonth, "NEVER_PAID", never, "SUSPENDED", paused);
         for (Map.Entry<String, JsonNode> e : by.entrySet()) {
-            JsonNode list = get("/admin/workspaces?filter=" + e.getKey() + "&size=200", admin).body();
+            JsonNode list = get("/admin/workspaces?filter=" + e.getKey() + "&limit=100", admin).body();
             List<String> ids = new ArrayList<>();
-            list.at("/rows").forEach(r -> ids.add(r.get("id").asText()));
+            list.at("/items").forEach(r -> ids.add(r.get("id").asText()));
             assertThat(ids).as(e.getKey()).contains(id(e.getValue()));
             for (Map.Entry<String, JsonNode> other : by.entrySet()) {
                 if (!other.getKey().equals(e.getKey()) && !(e.getKey().equals("NEVER_PAID") || e.getKey().equals("LOCKED"))) {
                     assertThat(ids).as(e.getKey() + " leaves out " + other.getKey()).doesNotContain(id(other.getValue()));
                 }
             }
-            assertThat(list.at("/totals/businesses").asLong()).isEqualTo(list.at("/total").asLong());
+            assertThat(list.at("/totals/businesses").asLong()).isEqualTo(ids.size());
         }
         assertThat(get("/admin/workspaces?filter=NOPE", admin).status()).isEqualTo(400);
         // The paid-this-month business is not in "never paid"; the others without a payment are.
         List<String> never2 = new ArrayList<>();
-        get("/admin/workspaces?filter=NEVER_PAID&size=200", admin).at("/rows").forEach(r -> never2.add(r.get("id").asText()));
+        get("/admin/workspaces?filter=NEVER_PAID&limit=100", admin).at("/items").forEach(r -> never2.add(r.get("id").asText()));
         assertThat(never2).contains(id(never), id(grace)).doesNotContain(id(paidMonth));
 
         // One business found by its owner's email: its columns equal what its own pages say, and the totals are its own.
         JsonNode one = get("/admin/workspaces?q=" + paidMonth.get("email").asText(), admin).body();
-        assertThat(one.at("/rows")).hasSize(1);
-        JsonNode row = one.at("/rows/0");
+        assertThat(one.at("/items")).hasSize(1);
+        JsonNode row = one.at("/items/0");
         assertThat(row.at("/planName").asText()).isEqualTo("Busy Shop");
         assertThat(row.at("/pricePerMonth").asLong()).isEqualTo(4500);
         assertThat(row.at("/status/text").asText()).startsWith("Paid until ");
@@ -558,9 +558,14 @@ class BusinessOversightTest extends IntegrationTest {
         assertThat(one.at("/totals/moneyInThisMonth").asLong()).isEqualTo(4500);
 
         // Paged.
-        JsonNode page = get("/admin/workspaces?size=2&page=1", admin).body();
-        assertThat(page.at("/rows")).hasSize(2);
-        assertThat(page.at("/total").asLong()).isGreaterThanOrEqualTo(6);
+        JsonNode page = get("/admin/workspaces?limit=2", admin).body();
+        assertThat(page.at("/items")).hasSize(2);
+        assertThat(page.at("/next").asText()).isNotBlank();
+        JsonNode second = get("/admin/workspaces?limit=2&before=" + page.at("/next").asText(), admin).body();
+        assertThat(second.at("/items")).hasSize(2);
+        assertThat(second.at("/items/0/id").asText()).isNotEqualTo(page.at("/items/0/id").asText()).isNotEqualTo(page.at("/items/1/id").asText());
+        assertThat(get("/admin/workspaces?q=%25%25", admin).at("/items")).as("a search is not a wildcard").isEmpty();
+        assertThat(get("/admin/workspaces?before=nope", admin).status()).isEqualTo(400);
         // CSV of the same filtered list.
         Raw csv = raw("/admin/workspaces.csv?q=" + paidMonth.get("email").asText(), admin);
         String text = new String(csv.bytes(), StandardCharsets.UTF_8);

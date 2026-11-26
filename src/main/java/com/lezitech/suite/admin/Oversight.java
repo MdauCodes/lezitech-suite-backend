@@ -512,8 +512,8 @@ public class Oversight {
                          coalesce(bool_or(coalesce(r.paid_at, r.created_at) >= ? AND r.paid_via IS DISTINCT FROM 'CREDIT'), false) AS paid_this_month
                   FROM subscription_requests r WHERE r.tenant_id = t.id AND r.status = 'PAID') pay ON true
               WHERE t.is_demo = ?
-                AND (cast(? as text) IS NULL OR t.name ILIKE '%' || cast(? as text) || '%' OR t.slug ILIKE '%' || cast(? as text) || '%'
-                     OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE '%' || cast(? as text) || '%'))
+                AND (cast(? as text) IS NULL OR t.name ILIKE cast(? as text) ESCAPE '\\' OR t.slug ILIKE cast(? as text) ESCAPE '\\'
+                     OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE cast(? as text) ESCAPE '\\'))
                 AND (cast(? as text) IS NULL OR t.sector = cast(? as text))
             ), f AS (
               SELECT * FROM base WHERE
@@ -528,6 +528,12 @@ public class Oversight {
             )
             """;
 
+    /** A search term as a LIKE pattern with its wildcards escaped (the same rule as the plain Workspaces list); under 2 letters means no search. */
+    private static String like(String q) {
+        String term = q == null ? null : q.trim();
+        return term == null || term.length() < 2 ? null : "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+    }
+
     private List<Object> baseArgs(String q, String sector, boolean demo, String filter) {
         String f = filter == null || filter.isBlank() ? null : filter.toUpperCase();
         if (f != null && !FILTERS.contains(f)) {
@@ -536,10 +542,11 @@ public class Oversight {
         List<Object> a = new ArrayList<>();
         a.add(Timestamp.from(monthStart()));
         a.add(demo);
-        a.add(blank(q));
-        a.add(blank(q));
-        a.add(blank(q));
-        a.add(blank(q));
+        String pattern = like(q);
+        a.add(pattern);
+        a.add(pattern);
+        a.add(pattern);
+        a.add(pattern);
         a.add(blank(sector));
         a.add(blank(sector));
         a.add(f);
@@ -594,21 +601,42 @@ public class Oversight {
      * The list: one page of businesses with plan, price a month, status, next bill date and last payment, and totals for the whole
      * filtered list (businesses, money a month, money in this month).
      */
-    public Map<String, Object> workspaces(String q, String sector, boolean demo, String filter, int page, int size) {
-        int sz = Math.max(1, Math.min(200, size)), pg = Math.max(0, page);
+    public Map<String, Object> workspaces(String q, String sector, boolean demo, String filter, Integer limit, String before) {
+        int sz = limit == null ? 50 : Math.max(1, Math.min(100, limit));
         List<Object> args = baseArgs(q, sector, demo, filter);
         List<Object> pageArgs = new ArrayList<>(args);
-        pageArgs.add(sz);
-        pageArgs.add(pg * sz);
-        List<Map<String, Object>> rows = jdbc.queryForList(BASE + "SELECT f.*, count(*) OVER () AS total_rows FROM f ORDER BY f.created_at DESC LIMIT ? OFFSET ?", pageArgs.toArray());
+        String cursorSql = "";
+        if (before != null && !before.isBlank()) {
+            int tilde = before.indexOf('~');
+            try {
+                if (tilde < 0) {
+                    throw new IllegalArgumentException("no separator");
+                }
+                pageArgs.add(Timestamp.from(Instant.parse(before.substring(0, tilde))));
+                pageArgs.add(UUID.fromString(before.substring(tilde + 1)));
+            } catch (RuntimeException e) {
+                throw ApiException.bad("Invalid cursor");
+            }
+            cursorSql = " WHERE (f.created_at, f.id) < (cast(? as timestamptz), cast(? as uuid))";
+        }
+        pageArgs.add(sz + 1);
+        List<Map<String, Object>> rows = jdbc.queryForList(BASE + "SELECT f.* FROM f" + cursorSql + " ORDER BY f.created_at DESC, f.id DESC LIMIT ?", pageArgs.toArray());
+        boolean more = rows.size() > sz;
+        List<Map<String, Object>> page = more ? rows.subList(0, sz) : rows;
+        String next = null;
+        if (more) {
+            Map<String, Object> last = page.get(page.size() - 1);
+            next = MICROS.format(at(last.get("created_at"))) + "~" + last.get("id");
+        }
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("rows", rowsFor(rows));
-        out.put("page", pg);
-        out.put("size", sz);
-        out.put("total", rows.isEmpty() ? count(args) : num(rows.get(0).get("total_rows")));
+        out.put("items", rowsFor(page));
+        out.put("next", next);
         out.put("totals", totals(args));
         return out;
     }
+
+    private static final java.time.format.DateTimeFormatter MICROS =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'").withZone(java.time.ZoneOffset.UTC);
 
     private long count(List<Object> args) {
         return jdbc.queryForObject(BASE + "SELECT count(*) FROM f", Long.class, args.toArray());
