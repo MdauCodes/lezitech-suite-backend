@@ -193,7 +193,7 @@ public class OversightController {
 
     @PostMapping("/tenants/{id}/owner-email")
     public Map<String, Object> ownerEmail(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
-        AdminContext.require("signin");
+        AdminContext.require("ownerEmail");
         return actions.changeOwnerEmail(id, raw, AdminContext.admin().name());
     }
 

@@ -17,7 +17,7 @@ public final class AdminContext {
      * the others get the slices their job needs.
      */
     private static final Map<String, Set<String>> PERMISSIONS = Map.of(
-            "ADMIN", Set.of("read", "billing", "trials", "suspend", "impersonate", "notes", "modules", "sectors", "demos", "system", "payments", "setup", "traffic", "signin"),
+            "ADMIN", Set.of("read", "billing", "trials", "suspend", "impersonate", "notes", "modules", "sectors", "demos", "system", "payments", "setup", "traffic", "signin", "ownerEmail"),
             "SUPPORT", Set.of("read", "trials", "impersonate", "notes", "modules", "payments", "setup", "signin"),
             "SALES", Set.of("read", "billing", "trials", "notes", "demos", "setup", "traffic"),
             "DEVELOPER", Set.of("read", "impersonate", "modules", "sectors", "demos", "system"));
@@ -56,7 +56,7 @@ public final class AdminContext {
 
     public static Set<String> permissions(String role) {
         if ("SUPERADMIN".equals(role)) {
-            return Set.of("read", "billing", "trials", "suspend", "impersonate", "notes", "modules", "sectors", "demos", "system", "team", "payments", "setup", "traffic", "signin");
+            return Set.of("read", "billing", "trials", "suspend", "impersonate", "notes", "modules", "sectors", "demos", "system", "team", "payments", "setup", "traffic", "signin", "ownerEmail");
         }
         return PERMISSIONS.getOrDefault(role, Set.of());
     }

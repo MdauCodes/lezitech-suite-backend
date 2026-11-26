@@ -69,3 +69,37 @@ CREATE TABLE tenant_price_holds (
     PRIMARY KEY (tenant_id, plan)
 );
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_price_holds TO suite_app;
+
+-- One payment code can be recorded for one paid plan payment only. If old data already has the same code twice, the migration does not
+-- fail: it lists them in the log and leaves the index out, so the team can look at them first (the app also checks before it saves).
+DO $$
+DECLARE dupes text;
+BEGIN
+    SELECT string_agg(code || ' (' || n || ' times)', ', ') INTO dupes FROM (
+        SELECT upper(mpesa_receipt) AS code, count(*) AS n FROM subscription_requests
+        WHERE status = 'PAID' AND mpesa_receipt IS NOT NULL GROUP BY 1 HAVING count(*) > 1) d;
+    IF dupes IS NULL THEN
+        CREATE UNIQUE INDEX ux_subscription_requests_paid_code ON subscription_requests (upper(mpesa_receipt)) WHERE status = 'PAID' AND mpesa_receipt IS NOT NULL;
+    ELSE
+        RAISE WARNING 'Payment codes recorded more than once, so the unique index was NOT created: %', dupes;
+    END IF;
+END $$;
+
+-- Notices to send in the background (a price change or an offer ending reaches many businesses; the request that caused it does not wait).
+CREATE TABLE notice_jobs (
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    kind        varchar(20) NOT NULL,
+    plan        varchar(20) NOT NULL,
+    was         bigint NOT NULL,
+    now_price   bigint NOT NULL,
+    ends_on     date,
+    by_name     varchar(160),
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    started_at  timestamptz,
+    done_at     timestamptz,
+    told        integer NOT NULL DEFAULT 0
+);
+CREATE INDEX ix_notice_jobs_open ON notice_jobs (created_at) WHERE done_at IS NULL;
+-- A plan offer that ends on its own date is announced once, 7 days before.
+CREATE UNIQUE INDEX ux_notice_jobs_ending ON notice_jobs (plan, ends_on) WHERE kind = 'OFFER_ENDING';
+GRANT SELECT, INSERT, UPDATE, DELETE ON notice_jobs TO suite_app;

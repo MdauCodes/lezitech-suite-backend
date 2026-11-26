@@ -42,9 +42,10 @@ public class BusinessesController {
     private List<Map<String, Object>> mine(UUID person) {
         return jdbc.queryForList("""
                 SELECT t.id AS "tenantId", t.name, t.sector, t.sub_sector AS "subSector", t.slug, t.brand_color AS "brandColor",
-                       t.logo_url AS "logoUrl", u.role, u.id AS "userId"
+                       t.logo_url AS "logoUrl", u.role, u.id AS "userId",
+                       (t.status = 'SUSPENDED') AS paused, CASE WHEN t.status = 'SUSPENDED' THEN t.suspended_reason END AS "pausedReason"
                 FROM users u JOIN tenants t ON t.id = u.tenant_id
-                WHERE u.person_id = ? AND u.active AND t.status <> 'SUSPENDED'
+                WHERE u.person_id = ? AND u.active
                 ORDER BY t.created_at""", person);
     }
 
@@ -101,7 +102,7 @@ public class BusinessesController {
         UUID person = person();
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT u.id, u.role, u.name FROM users u JOIN tenants t ON t.id = u.tenant_id
-                WHERE u.person_id = ? AND u.tenant_id = ? AND u.active AND t.status <> 'SUSPENDED'""", person, tenantId);
+                WHERE u.person_id = ? AND u.tenant_id = ? AND u.active""", person, tenantId);
         if (rows.isEmpty()) {
             throw ApiException.forbidden("That isn't one of your businesses");
         }

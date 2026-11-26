@@ -282,12 +282,12 @@ public class Offers {
         return jdbc.update("""
                 INSERT INTO tenant_price_holds (tenant_id, plan, monthly, until_bill)
                 SELECT t.id, ?, ?, t.paid_until FROM tenants t
-                WHERE t.status = 'ACTIVE' AND NOT t.is_demo AND t.paid_until IS NOT NULL
+                WHERE t.status = 'ACTIVE' AND NOT t.is_demo AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)
                 ON CONFLICT (tenant_id, plan) DO UPDATE SET
                     monthly = CASE WHEN tenant_price_holds.until_bill >= (SELECT paid_until FROM tenants WHERE id = tenant_price_holds.tenant_id)
                                    THEN tenant_price_holds.monthly ELSE excluded.monthly END,
                     until_bill = CASE WHEN tenant_price_holds.until_bill >= (SELECT paid_until FROM tenants WHERE id = tenant_price_holds.tenant_id)
-                                      THEN tenant_price_holds.until_bill ELSE excluded.until_bill END""", plan, oldMonthly);
+                                      THEN tenant_price_holds.until_bill ELSE excluded.until_bill END""", plan, oldMonthly, plan, plan);
     }
 
     /**

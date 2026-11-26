@@ -1,6 +1,7 @@
 package com.lezitech.suite.admin;
 
 import com.lezitech.suite.auth.LoginCodes;
+import com.lezitech.suite.auth.TokenVersions;
 import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.notify.Mailer;
@@ -11,7 +12,9 @@ import com.lezitech.suite.settings.PlanActivation;
 import com.lezitech.suite.settings.PlanBilling;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -44,9 +47,10 @@ public class OversightActions {
     private final AdminService admin;
     private final LoginCodes loginCodes;
     private final Mailer mailer;
+    private final TokenVersions tokens;
 
     public OversightActions(JdbcTemplate jdbc, Oversight ov, TenantNotices notices, PlanBilling billing, PlanActivation activation, Offers offers,
-                            PlatformSettings platform, AdminService admin, LoginCodes loginCodes, Mailer mailer) {
+                            PlatformSettings platform, AdminService admin, LoginCodes loginCodes, Mailer mailer, TokenVersions tokens) {
         this.jdbc = jdbc;
         this.ov = ov;
         this.notices = notices;
@@ -57,6 +61,7 @@ public class OversightActions {
         this.admin = admin;
         this.loginCodes = loginCodes;
         this.mailer = mailer;
+        this.tokens = tokens;
     }
 
     // ---------- shared ----------
@@ -68,6 +73,22 @@ public class OversightActions {
             throw ApiException.bad("Say why, in a few words");
         }
         return Oversight.clip(r, 300);
+    }
+
+    /** The code or reference of a payment: 3 to 30 characters (the most the payment record holds). */
+    static String code(String reference) {
+        String r = reference == null ? "" : reference.trim().toUpperCase();
+        if (r.length() < 3) {
+            throw ApiException.bad("Type the M-Pesa code or reference of the payment");
+        }
+        if (r.length() > 30) {
+            throw ApiException.bad("The code or reference can be at most 30 characters");
+        }
+        return r;
+    }
+
+    private static ApiException sameCode() {
+        return ApiException.conflict("That code or reference was already recorded for a payment");
     }
 
     private Map<String, Object> tenant(UUID id) {
@@ -123,10 +144,7 @@ public class OversightActions {
     public Map<String, Object> recordPayment(UUID id, Map<String, Object> raw, UUID adminId, String adminName) {
         Body b = new Body(raw);
         String reason = reason(raw);
-        String reference = b.str("reference", "").trim().toUpperCase();
-        if (reference.length() < 3 || reference.length() > 40) {
-            throw ApiException.bad("Type the M-Pesa code or reference of the payment");
-        }
+        String reference = code(b.str("reference", ""));
         BigDecimal amount = b.num("amount", BigDecimal.ZERO);
         if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0) {
             throw ApiException.bad("Type the amount received in whole shillings");
@@ -134,17 +152,29 @@ public class OversightActions {
         String cycle = "ANNUAL".equalsIgnoreCase(b.str("cycle", "MONTHLY")) ? "ANNUAL" : "MONTHLY";
         String difference = b.str("differenceReason", "").trim();
         Map<String, Object> t = tenant(id);
-        if ("SUSPENDED".equals(t.get("status"))) {
-            throw ApiException.bad("This business is paused. Unpause it first, then record the payment");
-        }
+        // A paused business may still pay: the money is kept and the period extended, but it stays paused until it is opened again.
         if (Boolean.TRUE.equals(t.get("in_setup"))) {
             throw ApiException.bad("This business is still being set up by LeziTech");
         }
         if (jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE status = 'PAID' AND upper(mpesa_receipt) = ?", Long.class, reference) > 0) {
             throw ApiException.conflict("That code or reference was already recorded for a payment");
         }
-        Map<String, Object> done = ov.asTenant(id, () -> {
-            String plan = billing.billPlan(id);
+        String asked = b.str("plan", "").toUpperCase();
+        if (!asked.isEmpty() && platform.plan(asked) == null) {
+            throw ApiException.bad("Choose the plan");
+        }
+        Map<String, Object> done;
+        try {
+            done = recordInside(id, b, asked, cycle, amount, reference, reason, difference, adminName);
+        } catch (DataIntegrityViolationException e) {
+            throw sameCode();
+        }
+        return afterPayment(id, amount, reference, reason, difference, cycle, done, adminName);
+    }
+
+    private Map<String, Object> recordInside(UUID id, Body b, String asked, String cycle, BigDecimal amount, String reference, String reason, String difference, String adminName) {
+        return ov.asTenant(id, () -> {
+            String plan = asked.isEmpty() ? billing.billPlan(id) : asked;
             PlanBilling.Quote q = billing.quote(id, plan, cycle);
             boolean same = amount.compareTo(BigDecimal.valueOf(q.total())) == 0;
             if (!same && difference.length() < 3) {
@@ -166,6 +196,9 @@ public class OversightActions {
             out.put("matched", same);
             return out;
         });
+    }
+
+    private Map<String, Object> afterPayment(UUID id, BigDecimal amount, String reference, String reason, String difference, String cycle, Map<String, Object> done, String adminName) {
         Timestamp until = jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?", Timestamp.class, id);
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("amount", amount.longValue());
@@ -180,16 +213,21 @@ public class OversightActions {
         String planName = billing.nameOf(id, (String) done.get("plan"));
         UUID notice = tell(id, "PAYMENT", "We recorded your payment",
                 "LeziTech recorded your payment of " + PlanBilling.kes(amount.longValue()) + " (reference " + reference + ") for " + planName + ". Your plan is paid until "
-                        + PlanBilling.day(until.toInstant()) + ". " + billSentence(id, false), by(adminName));
+                        + PlanBilling.day(until.toInstant()) + ". " + (isPaused(id) ? "Your workspace is still paused. Talk to us" + support() + " to open it again." : billSentence(id, false)), by(adminName));
         done.put("noticeId", notice == null ? null : notice.toString());
         done.put("paidUntil", until.toInstant().toString());
         return done;
     }
 
+    private boolean isPaused(UUID id) {
+        return "SUSPENDED".equals(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?", String.class, id));
+    }
+
     /** The billing queue: the operator saw the money for a waiting request. Same activation as an M-Pesa payment, with who and why kept. */
     public Map<String, Object> approveRequest(UUID requestId, Map<String, Object> raw, String adminName) {
         String reason = reason(raw);
-        String reference = new Body(raw).str("reference", "").trim().toUpperCase();
+        String ref0 = new Body(raw).str("reference", "").trim();
+        String reference = ref0.isEmpty() ? "" : code(ref0);
         List<Map<String, Object>> rows = jdbc.queryForList("SELECT tenant_id, status, plan, amount FROM subscription_requests WHERE id = ?", requestId);
         if (rows.isEmpty()) {
             throw ApiException.notFound("Request");
@@ -199,18 +237,20 @@ public class OversightActions {
         if (!"PENDING".equals(r.get("status")) && !"EXPIRED".equals(r.get("status"))) {
             throw ApiException.conflict("This request was already settled");
         }
-        if ("SUSPENDED".equals(tenant(id).get("status"))) {
-            throw ApiException.bad("This business is paused. Unpause it first");
-        }
         if (!reference.isEmpty() && jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE status = 'PAID' AND upper(mpesa_receipt) = ?", Long.class, reference) > 0) {
             throw ApiException.conflict("That code or reference was already recorded for a payment");
         }
-        ov.asTenant(id, () -> activation.activate(requestId, "MANUAL", reference.isEmpty() ? null : reference, adminName, reason));
+        try {
+            ov.asTenant(id, () -> activation.activate(requestId, "MANUAL", reference.isEmpty() ? null : reference, adminName, reason));
+        } catch (DataIntegrityViolationException e) {
+            throw sameCode();
+        }
         admin.audit("billing.approve", id, Map.of("plan", String.valueOf(r.get("plan")), "amount", r.get("amount"), "reference", reference, "reason", reason, "request", requestId.toString()));
         Timestamp until = jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?", Timestamp.class, id);
         UUID notice = tell(id, "PAYMENT", "We recorded your payment",
                 "LeziTech recorded your payment of " + PlanBilling.kes(((BigDecimal) r.get("amount")).longValue()) + (reference.isEmpty() ? "" : " (reference " + reference + ")")
-                        + " for " + billing.nameOf(id, (String) r.get("plan")) + ". Your plan is paid until " + PlanBilling.day(until.toInstant()) + ". " + billSentence(id, false), by(adminName));
+                        + " for " + billing.nameOf(id, (String) r.get("plan")) + ". Your plan is paid until " + PlanBilling.day(until.toInstant()) + ". "
+                        + (isPaused(id) ? "Your workspace is still paused. Talk to us" + support() + " to open it again." : billSentence(id, false)), by(adminName));
         return Map.of("ok", true, "tenantId", id.toString(), "noticeId", String.valueOf(notice));
     }
 
@@ -316,6 +356,33 @@ public class OversightActions {
         return out;
     }
 
+    // ---------- the operator console (X-Operator-Key): the same rules as the control panel ----------
+
+    /** Activate a plan for 1 or 12 months for the operator console: a payment at the next bill's amount, with a reason, audit and notice. */
+    public Map<String, Object> operatorActivate(UUID id, Map<String, Object> raw, String name) {
+        reason(raw);
+        Body b = new Body(raw);
+        String plan = b.str("plan", "").toUpperCase();
+        if (platform.plan(plan) == null) {
+            throw ApiException.bad("Choose the plan");
+        }
+        int months = b.integer("months", 1);
+        if (months != 1 && months != 12) {
+            throw ApiException.bad("Months must be 1 or 12");
+        }
+        String cycle = months == 12 ? "ANNUAL" : "MONTHLY";
+        tenant(id);
+        long total = ov.asTenant(id, () -> billing.quote(id, plan, cycle).total());
+        Map<String, Object> m = new LinkedHashMap<>(raw);
+        m.put("plan", plan);
+        m.put("cycle", cycle);
+        m.put("amount", total);
+        if (b.str("reference", "").isBlank()) {
+            m.put("reference", "OP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        }
+        return recordPayment(id, m, null, name);
+    }
+
     // ---------- pause ----------
 
     public Map<String, Object> suspend(UUID id, Map<String, Object> raw, String adminName) {
@@ -407,6 +474,7 @@ public class OversightActions {
             throw ApiException.conflict("That email is already in use");
         }
         jdbc.update("UPDATE users SET email = ?, email_confirmed_at = NULL WHERE id = ?", email, o.get("id"));
+        tokens.bump((UUID) o.get("id"), false); // whoever is signed in as the owner is signed out
         jdbc.update("UPDATE login_codes SET used_at = now() WHERE user_id = ? AND used_at IS NULL", o.get("id"));
         admin.audit("workspace.owner_email", id, Map.of("from", old, "to", email, "reason", reason));
         String business = (String) o.get("business");
@@ -419,6 +487,16 @@ public class OversightActions {
                 + "</b> to <b>" + Mailer.esc(email) + "</b>.")
                 + com.lezitech.suite.notify.EmailLayout.p("If you did not ask for this, talk to us right away" + Mailer.esc(support()) + ".");
         String oldStatus = mailer.send(old, (String) o.get("name"), "Busynez: your sign-in email was changed", text, html);
+        if ("FAILED".equals(oldStatus)) {
+            oldStatus = mailer.send(old, (String) o.get("name"), "Busynez: your sign-in email was changed", text, html); // one more try
+        }
+        if (!"SENT".equals(oldStatus)) {
+            // The old address was not told: flag it for the team, who tell the owner another way.
+            jdbc.update("INSERT INTO tenant_notes (tenant_id, admin_name, note) VALUES (?, 'System', ?)", id,
+                    "The owner email was changed from " + old + " to " + email + ", but the email to the old address did not go (" + oldStatus.toLowerCase().replace('_', ' ')
+                            + "). Tell the owner another way, for example on the phone.");
+            admin.audit("workspace.owner_email_old_not_told", id, Map.of("old", old, "status", oldStatus));
+        }
         UUID notice = tell(id, "OWNER_EMAIL", "Your sign-in email was changed",
                 "LeziTech changed the email you sign in with, from " + old + " to " + email + ". If you did not ask for this, talk to us right away" + support() + ".", by(adminName));
         return Map.of("ok", true, "oldAddressEmail", oldStatus, "noticeId", String.valueOf(notice));
@@ -473,45 +551,141 @@ public class OversightActions {
      */
     public int priceChanged(Map<String, Long> before, String by) {
         Map<String, Long> after = effectivePrices();
-        int told = 0;
+        int queued = 0;
+        boolean any = false;
         for (String code : after.keySet()) {
             long was = before.getOrDefault(code, after.get(code)), now = after.get(code);
             if (was == now) {
                 continue;
             }
             if (now > was) {
-                offers.holdOldPrice(code, was);
+                offers.holdOldPrice(code, was); // the hold is part of the change itself: it is never left to the background
             }
-            for (UUID id : onPlan(code)) {
-                try {
-                    Map<String, Object> t = tenant(id);
-                    String planName = billing.nameOf(id, code);
-                    boolean paying = "ACTIVE".equals(t.get("status")) && t.get("paid_until") != null;
-                    if (now > was) {
-                        if (!paying) {
-                            continue; // free days: the first bill is at the price then
+            jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, by_name) VALUES ('PRICE', ?, ?, ?, ?)", code, was, now, by);
+            queued += jdbc.queryForObject("SELECT count(*) FROM tenants WHERE NOT is_demo AND status = 'ACTIVE' AND paid_until IS NOT NULL AND (plan = ? OR next_plan = ?)", Integer.class, code, code);
+            any = true;
+        }
+        if (any) {
+            startNoticeJobs();
+        }
+        return queued;
+    }
+
+    private static final java.util.concurrent.Executor NOTICE_THREAD = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "notice-jobs");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** Start sending now, in the background; the timer below picks up anything left over. */
+    private void startNoticeJobs() {
+        NOTICE_THREAD.execute(this::runNoticeJobs);
+    }
+
+    @Scheduled(fixedDelayString = "${suite.notices.jobs-every-ms:60000}", initialDelay = 90_000)
+    public void noticeJobsTimer() {
+        try {
+            warnAboutOffersEnding();
+            runNoticeJobs();
+        } catch (RuntimeException e) {
+            log.warn("Notice jobs failed: {}", e.toString());
+        }
+    }
+
+    /** A plan offer that ends on its own date: affected businesses are told 7 days before, once. */
+    public void warnAboutOffersEnding() {
+        java.time.LocalDate today = java.time.LocalDate.now(Oversight.NAIROBI);
+        boolean any = false;
+        for (Map.Entry<String, Map<String, Object>> e : platform.planOffers().entrySet()) {
+            Map<String, Object> o = e.getValue();
+            Map<String, Object> live = platform.liveOffer(e.getKey(), today);
+            Map<String, Object> plan = platform.plan(e.getKey());
+            if (live == null || plan == null || o.get("endsOn") == null || String.valueOf(o.get("endsOn")).isBlank()) {
+                continue;
+            }
+            java.time.LocalDate end = java.time.LocalDate.parse(String.valueOf(o.get("endsOn")));
+            long days = java.time.temporal.ChronoUnit.DAYS.between(today, end);
+            if (days < 0 || days > 7) {
+                continue;
+            }
+            any |= jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, ends_on, by_name) VALUES ('OFFER_ENDING', ?, ?, ?, ?, 'LeziTech') ON CONFLICT DO NOTHING",
+                    e.getKey(), ((Number) live.get("price")).longValue(), ((Number) plan.get("monthly")).longValue(), java.sql.Date.valueOf(end)) > 0;
+        }
+        if (any) {
+            startNoticeJobs();
+        }
+    }
+
+    /** Works through the waiting notice jobs, one at a time (two runs never take the same job). */
+    public void runNoticeJobs() {
+        while (true) {
+            List<Map<String, Object>> job = jdbc.queryForList("""
+                    UPDATE notice_jobs SET started_at = now()
+                    WHERE id = (SELECT id FROM notice_jobs WHERE done_at IS NULL AND (started_at IS NULL OR started_at < now() - interval '10 minutes')
+                                ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
+                    RETURNING id, kind, plan, was, now_price, ends_on, by_name""");
+            if (job.isEmpty()) {
+                return;
+            }
+            Map<String, Object> j = job.get(0);
+            int told = 0;
+            try {
+                String code = (String) j.get("plan");
+                long was = ((Number) j.get("was")).longValue(), now = ((Number) j.get("now_price")).longValue();
+                String by = (String) j.get("by_name");
+                for (UUID id : onPlan(code)) {
+                    try {
+                        if ("OFFER_ENDING".equals(j.get("kind"))) {
+                            told += offerEndingNotice(id, code, was, now, ((java.sql.Date) j.get("ends_on")).toLocalDate(), by) ? 1 : 0;
+                        } else {
+                            told += priceNotice(id, code, was, now, by) ? 1 : 0;
                         }
-                        Instant next = ((Timestamp) t.get("paid_until")).toInstant();
-                        int months = "ANNUAL".equals(cycleFor(id)) ? 12 : 1;
-                        Instant after2 = ZonedDateTime.ofInstant(next, Oversight.NAIROBI).plusMonths(months).toInstant();
-                        tell(id, "PRICE_UP", planName + " will cost more from " + PlanBilling.day(after2),
-                                "From your bill on " + PlanBilling.day(after2) + ", " + planName + " moves from " + PlanBilling.kes(was) + " to " + PlanBilling.kes(now)
-                                        + " a month. Your next bill on " + PlanBilling.day(next) + " stays at the old price. " + billSentence(id, false)
-                                        + " We are telling you well ahead so you can plan.", by);
-                    } else {
-                        Map<String, Object> live = platform.liveOffer(code);
-                        String until = live != null && live.get("endsOn") != null && !String.valueOf(live.get("endsOn")).isBlank()
-                                ? ", until " + PlanBilling.day(java.time.LocalDate.parse(String.valueOf(live.get("endsOn"))).plusDays(1).atStartOfDay(Oversight.NAIROBI).toInstant().minusSeconds(60)) : "";
-                        tell(id, "PRICE_DOWN", "Good news: " + planName + " costs less",
-                                "Good news: " + planName + " is now " + PlanBilling.kes(now) + " a month (it was " + PlanBilling.kes(was) + ")" + until + ". " + billSentence(id, true), by);
+                    } catch (RuntimeException e) {
+                        log.warn("Notice for {} failed: {}", id, e.toString());
                     }
-                    told++;
-                } catch (RuntimeException e) {
-                    log.warn("Price change notice for {} failed: {}", id, e.toString());
                 }
+            } finally {
+                jdbc.update("UPDATE notice_jobs SET done_at = now(), told = ? WHERE id = ?", told, j.get("id"));
             }
         }
-        return told;
+    }
+
+    private boolean offerEndingNotice(UUID id, String code, long special, long normal, java.time.LocalDate end, String by) {
+        Map<String, Object> t = tenant(id);
+        if (!"ACTIVE".equals(t.get("status")) || t.get("paid_until") == null) {
+            return false; // free days: the first bill is at the price then
+        }
+        String planName = billing.nameOf(id, code);
+        String last = PlanBilling.day(end.atStartOfDay(Oversight.NAIROBI).toInstant());
+        tell(id, "OFFER_ENDING", "The special price for " + planName + " ends on " + last,
+                "The special price for " + planName + " (" + PlanBilling.kes(special) + " a month) ends on " + last + ". After that " + planName + " is " + PlanBilling.kes(normal)
+                        + " a month. " + billSentence(id, false), by);
+        return true;
+    }
+
+    private boolean priceNotice(UUID id, String code, long was, long now, String by) {
+        Map<String, Object> t = tenant(id);
+        String planName = billing.nameOf(id, code);
+        boolean paying = "ACTIVE".equals(t.get("status")) && t.get("paid_until") != null;
+        if (now > was) {
+            if (!paying) {
+                return false; // free days: the first bill is at the price then
+            }
+            Instant next = ((Timestamp) t.get("paid_until")).toInstant();
+            int months = "ANNUAL".equals(cycleFor(id)) ? 12 : 1;
+            Instant after2 = ZonedDateTime.ofInstant(next, Oversight.NAIROBI).plusMonths(months).toInstant();
+            tell(id, "PRICE_UP", planName + " will cost more from " + PlanBilling.day(after2),
+                    "From your bill on " + PlanBilling.day(after2) + ", " + planName + " moves from " + PlanBilling.kes(was) + " to " + PlanBilling.kes(now)
+                            + " a month. Your next bill on " + PlanBilling.day(next) + " stays at the old price. " + billSentence(id, false)
+                            + " We are telling you well ahead so you can plan.", by);
+        } else {
+            Map<String, Object> live = platform.liveOffer(code);
+            String until = live != null && live.get("endsOn") != null && !String.valueOf(live.get("endsOn")).isBlank()
+                    ? ", until " + PlanBilling.day(java.time.LocalDate.parse(String.valueOf(live.get("endsOn"))).plusDays(1).atStartOfDay(Oversight.NAIROBI).toInstant().minusSeconds(60)) : "";
+            tell(id, "PRICE_DOWN", "Good news: " + planName + " costs less",
+                    "Good news: " + planName + " is now " + PlanBilling.kes(now) + " a month (it was " + PlanBilling.kes(was) + ")" + until + ". " + billSentence(id, true), by);
+        }
+        return true;
     }
 
     /** A new offer for everyone (or a kind of business): every business it reaches is told. Many businesses are told in the background. */

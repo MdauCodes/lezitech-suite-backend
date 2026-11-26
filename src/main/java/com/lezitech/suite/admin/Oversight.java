@@ -294,7 +294,7 @@ public class Oversight {
             }
             String v = cells[i] == null ? "" : String.valueOf(cells[i]);
             // A cell that starts like a formula is made harmless in a spreadsheet.
-            if (!v.isEmpty() && "=+-@".indexOf(v.charAt(0)) >= 0 && !v.matches("-?[0-9.,]+")) {
+            if (!v.isEmpty() && "=+-@\t\r".indexOf(v.charAt(0)) >= 0 && !v.matches("-?[0-9.,]+")) {
                 v = "'" + v;
             }
             sb.append('"').append(v.replace("\"", "\"\"")).append('"');
@@ -546,6 +546,40 @@ public class Oversight {
         return a;
     }
 
+    /**
+     * The plan each business pays for now. Paying ones are read from their own row; businesses on free days get the plan that fits their
+     * setup, counted for all of them inside ONE transaction (the tenant setting is switched per business) instead of one transaction each.
+     */
+    private Map<UUID, String> billPlansOf(List<Map<String, Object>> rows) {
+        Map<UUID, String> out = new LinkedHashMap<>();
+        List<UUID> trials = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            UUID id = (UUID) r.get("id");
+            if ("ACTIVE".equals(r.get("status")) && r.get("plan") != null && platform.plan((String) r.get("plan")) != null) {
+                String next = (String) r.get("next_plan");
+                out.put(id, next != null && platform.plan(next) != null ? next : (String) r.get("plan"));
+            } else {
+                trials.add(id);
+            }
+        }
+        if (!trials.isEmpty()) {
+            Map<UUID, String> fit = tx.execute(s -> {
+                Map<UUID, String> m = new LinkedHashMap<>();
+                for (UUID id : trials) {
+                    jdbc.queryForList("SELECT set_config('app.tenant', ?, true)", id.toString());
+                    m.put(id, billing.billPlan(id));
+                }
+                return m;
+            });
+            out.putAll(fit);
+        }
+        Map<UUID, String> ordered = new LinkedHashMap<>();
+        for (Map<String, Object> r : rows) {
+            ordered.put((UUID) r.get("id"), out.get((UUID) r.get("id")));
+        }
+        return ordered;
+    }
+
     /** The plan a business pays for now: the one its next bill is for. */
     private String billPlanOf(Map<String, Object> r) {
         UUID id = (UUID) r.get("id");
@@ -581,10 +615,7 @@ public class Oversight {
     }
 
     private List<Map<String, Object>> rowsFor(List<Map<String, Object>> rows) {
-        Map<UUID, String> planOf = new LinkedHashMap<>();
-        for (Map<String, Object> r : rows) {
-            planOf.put((UUID) r.get("id"), billPlanOf(r));
-        }
+        Map<UUID, String> planOf = billPlansOf(rows);
         Map<UUID, Offers.Price> prices = offers.prices(planOf, "MONTHLY");
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> r : rows) {

@@ -30,6 +30,8 @@ public class PlatformController {
     private final SectorCatalog sectors;
     @org.springframework.beans.factory.annotation.Autowired
     private com.lezitech.suite.settings.PlanBilling billing;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.lezitech.suite.admin.OversightActions actions;
     private final byte[] operatorKey;
 
     public PlatformController(JdbcTemplate jdbc, SectorCatalog sectors, @Value("${suite.operator-key}") String operatorKey) {
@@ -57,38 +59,43 @@ public class PlatformController {
                 FROM tenants t ORDER BY t.created_at DESC""");
     }
 
-    /** Activate a paid plan for N months, or extend a trial by N days. */
+    /**
+     * Activate a plan for 1 or 12 months. Same rules as the control panel: a reason is required, it is recorded as a payment at the next
+     * bill's amount (so the period, proration lines and the unique payment code all apply), audited, and the business is told.
+     */
     @PostMapping("/api/platform/tenants/{id}/activate")
     public Map<String, Object> activate(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id,
                                         @RequestBody Map<String, Object> raw) {
         guard(key);
-        Body b = new Body(raw);
-        int months = b.integer("months", 1);
-        jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?, next_plan = NULL, plan_switch_at = NULL,
-                       period_start = greatest(coalesce(paid_until, now()), now()),
-                       paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?) WHERE id = ?""",
-                b.str("plan").toUpperCase(), months, id);
-        jdbc.update("UPDATE subscription_requests SET status = 'PAID' WHERE tenant_id = ? AND status = 'PENDING'", id);
-        billing.markPaid(id, null, null); // the operator confirmed the payment: extra lines on the bill are paid too
-        return Map.of("ok", true);
+        return asOperator(() -> actions.operatorActivate(id, raw, OPERATOR));
     }
 
+    /** Give 1 to 90 free days (a trial is extended, a paying business's next bill moves). A reason is required. */
     @PostMapping("/api/platform/tenants/{id}/extend-trial")
     public Map<String, Object> extend(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id,
                                       @RequestBody Map<String, Object> raw) {
         guard(key);
-        int days = new Body(raw).integer("days", 7);
-        jdbc.update("UPDATE tenants SET status = 'TRIAL', trial_ends_at = ? WHERE id = ?",
-                Timestamp.from(Instant.now().plus(days, ChronoUnit.DAYS)), id);
-        return Map.of("ok", true);
+        return asOperator(() -> actions.freeDays(id, raw, OPERATOR));
     }
 
+    /** Pause a business. A reason is required; the owner is told. */
     @PostMapping("/api/platform/tenants/{id}/suspend")
-    public Map<String, Object> suspend(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id) {
+    public Map<String, Object> suspend(@RequestHeader(value = "X-Operator-Key", required = false) String key, @PathVariable UUID id,
+                                       @RequestBody(required = false) Map<String, Object> raw) {
         guard(key);
-        jdbc.update("UPDATE tenants SET status = 'SUSPENDED' WHERE id = ?", id);
-        return Map.of("ok", true);
+        return asOperator(() -> actions.suspend(id, raw, OPERATOR));
+    }
+
+    private static final String OPERATOR = "Operator console";
+
+    /** The operator key stands in for a superadmin for one call, so the audit and notices name "Operator console". */
+    private <T> T asOperator(java.util.function.Supplier<T> work) {
+        com.lezitech.suite.admin.AdminContext.set(new com.lezitech.suite.admin.AdminContext.Admin(null, "SUPERADMIN", OPERATOR));
+        try {
+            return work.get();
+        } finally {
+            com.lezitech.suite.admin.AdminContext.clear();
+        }
     }
 
     private void guard(String key) {

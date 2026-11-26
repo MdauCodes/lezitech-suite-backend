@@ -74,11 +74,19 @@ public class PlanActivation {
         Object cur = own.get("plan"), nxt = own.get("next_plan");
         boolean stale = "ACTIVE".equals(own.get("status")) && cur != null && !cur.equals(r.get("plan")) && !r.get("plan").equals(nxt);
         jdbc.update("""
-                UPDATE tenants SET status = 'ACTIVE', plan = ?, next_plan = ?, plan_switch_at = ?,
+                UPDATE tenants SET status = CASE WHEN status = 'SUSPENDED' THEN 'SUSPENDED' ELSE 'ACTIVE' END,
+                       suspended_from = CASE WHEN status = 'SUSPENDED' THEN 'ACTIVE' ELSE suspended_from END,
+                       plan = ?, next_plan = ?, plan_switch_at = ?,
                        period_start = greatest(coalesce(paid_until, now()), now()),
                        paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(months => ?)
                 WHERE id = ?""", stale ? cur : waits ? cur : r.get("plan"), stale ? nxt : waits ? nxt : null,
                 stale ? own.get("plan_switch_at") : waits ? oldEnd : null, months, tenant);
+        if ("SUSPENDED".equals(own.get("status"))) {
+            // A paused business may still pay and we keep the money: the period is extended but it stays paused. Only "Open again" switches it on.
+            jdbc.update("INSERT INTO platform_audit (admin_name, action, tenant_id, detail) VALUES ('System', 'workspace.paid_while_paused', ?, jsonb_build_object('request', ?::text, 'by', ?::text))", tenant, requestId.toString(), by);
+            jdbc.update("INSERT INTO tenant_notes (tenant_id, admin_name, note) VALUES (?, 'System', ?)", tenant,
+                    "Paid while paused: a payment of KES " + ((BigDecimal) r.get("amount")).toPlainString() + " was recorded and the paid period extended. The business is still paused until someone opens it again.");
+        }
         // The extra lines this payment covered (days of a higher plan) are paid.
         billing.markPaid(tenant, requestId, (java.sql.Timestamp) r.get("created_at"));
         jdbc.update("UPDATE subscription_requests SET status = 'PAID', paid_via = ?, mpesa_receipt = ?, paid_at = now(), activated_by = ?, activated_reason = ?, period_from = ?, period_to = (SELECT paid_until FROM tenants WHERE id = ?) WHERE id = ?",

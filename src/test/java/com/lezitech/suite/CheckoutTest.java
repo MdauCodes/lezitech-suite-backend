@@ -12,6 +12,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Totals, VAT, split payments, change, the credit limit and the trial lock. */
 class CheckoutTest extends IntegrationTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @Test
     void totalsAndVatAreRight() {
         String owner = token(signup("retail"));
@@ -86,15 +89,7 @@ class CheckoutTest extends IntegrationTest {
     }
 
     private void expireTrial(String tenantId) {
-        try {
-            var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + "/api/platform/tenants/" + tenantId + "/extend-trial"))
-                    .header("Content-Type", "application/json").header("X-Operator-Key", "local-operator-key")
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"days\":-1}")).build();
-            int status = java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString()).statusCode();
-            assertThat(status).isEqualTo(200);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+        jdbc.update("UPDATE tenants SET status = 'TRIAL', trial_ends_at = now() - interval '1 day' WHERE id = ?::uuid", tenantId);
     }
 
     /** Sums payment amounts per method. */

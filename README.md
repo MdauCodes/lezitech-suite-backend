@@ -37,8 +37,8 @@ The owner can switch any screen or feature on/off in Settings and reset to the p
 - When the trial (or a paid period) ends, `TrialGuard` answers every write with **402 TRIAL_EXPIRED**; reads keep working so nobody loses data. The app shows a banner and the plans page.
 - Plans (KES/month): Lite 2,000 · Growth 4,500 · Pro 9,000; yearly = 10 × monthly. "Choose plan" records a `subscription_requests` row; **no money moves through the app yet**.
 - Operator console API (header `X-Operator-Key: $OPERATOR_KEY`):
-  `GET /api/platform/tenants`, `POST /api/platform/tenants/{id}/activate {plan, months}`,
-  `POST .../extend-trial {days}`, `POST .../suspend`.
+  `GET /api/platform/tenants`, `POST /api/platform/tenants/{id}/activate {plan, months, reason}`,
+  `POST .../extend-trial {days, reason}` (1 to 90), `POST .../suspend {reason}`. Every one needs a short `reason`, is audited as "Operator console" and tells the business. `activate` takes `plan`, `months` (1 or 12), `reason` and an optional `reference`, and records a payment at the next bill's amount.
 
 ## Tenancy and security
 

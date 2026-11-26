@@ -28,6 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BusinessOversightTest extends IntegrationTest {
 
     @Autowired
+    com.lezitech.suite.admin.OversightActions actions;
+    @Autowired
     JdbcTemplate jdbc;
     @Autowired
     PlanActivation activation;
@@ -47,7 +49,40 @@ class BusinessOversightTest extends IntegrationTest {
         jdbc.update("DELETE FROM platform_settings WHERE key IN ('plans', 'planOffers')");
         jdbc.update("UPDATE platform_offers SET active = false WHERE tenant_id IS NULL AND sector = 'retail'");
         jdbc.update("DELETE FROM tenant_price_holds");
+        jdbc.update("DELETE FROM notice_jobs");
         platform.forget();
+    }
+
+    /** Notices for a price change or an ending offer are sent by a background job: wait until it has finished. */
+    private void awaitJobs() {
+        long until = System.currentTimeMillis() + 30_000;
+        while (System.currentTimeMillis() < until
+                && jdbc.queryForObject("SELECT count(*) FROM notice_jobs WHERE done_at IS NULL", Long.class) > 0) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notice_jobs WHERE done_at IS NULL", Long.class)).as("notice jobs finished").isZero();
+    }
+
+    private Res put(String path, String admin, Object body) {
+        Res r = call("PUT", path, admin, body);
+        awaitJobs();
+        return r;
+    }
+
+    private int operator(String path, String json) {
+        try {
+            var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + "/api/platform/tenants/" + path))
+                    .header("Content-Type", "application/json").header("X-Operator-Key", "local-operator-key")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json)).build();
+            return java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString()).statusCode();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private String admin(String role) {
@@ -248,7 +283,9 @@ class BusinessOversightTest extends IntegrationTest {
         // Support can add notes and fix sign-in.
         assertThat(post("/admin/tenants/" + t + "/notes", support, with("note", "Called the owner")).status()).isEqualTo(200);
         assertThat(post("/admin/tenants/" + t + "/signin-code", support, with("reason", "Owner lost the email")).status()).isEqualTo(200);
-        assertThat(post("/admin/tenants/" + t + "/owner-email", support, with("email", "new-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local", "reason", "Typo at sign-up")).status()).isEqualTo(200);
+        assertThat(post("/admin/tenants/" + t + "/owner-email", support, with("email", "new-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local", "reason", "Typo at sign-up")).status())
+                .as("support may only send a code to the existing email").isEqualTo(403);
+        assertThat(post("/admin/tenants/" + t + "/owner-email", adm, with("email", "new-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local", "reason", "Typo at sign-up")).status()).isEqualTo(200);
         // Sales do money and reminders, not sign-in or pausing.
         assertThat(post("/admin/tenants/" + t + "/owner-email", sales, with("email", "x@test.local", "reason", "x y z")).status()).isEqualTo(403);
         assertThat(post("/admin/tenants/" + t + "/suspend", sales, with("reason", "x y z")).status()).isEqualTo(403);
@@ -333,7 +370,7 @@ class BusinessOversightTest extends IntegrationTest {
     void ownerEmailChangeTellsBothAddresses() {
         JsonNode s = signup("retail");
         String owner = token(s);
-        String t = id(s), oldEmail = s.get("email").asText(), admin = admin("SUPPORT");
+        String t = id(s), oldEmail = s.get("email").asText(), admin = admin("ADMIN");
         String fresh = "fixed-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local";
         assertThat(post("/admin/tenants/" + t + "/owner-email", admin, with("email", fresh, "reason", "Typo in the old one")).status()).isEqualTo(200);
         assertThat(box.sent.stream().filter(e -> e.to().equals(oldEmail)).toList()).hasSize(1);
@@ -343,7 +380,7 @@ class BusinessOversightTest extends IntegrationTest {
         // They can sign in with the new address and not the old one.
         assertThat(post("/auth/login", null, Map.of("email", fresh, "password", "password123")).status()).isEqualTo(200);
         assertThat(post("/auth/login", null, Map.of("email", oldEmail, "password", "password123")).status()).isEqualTo(401);
-        assertThat(owner).isNotBlank();
+        assertThat(get("/billing/notices", owner).status()).as("the owner's old sessions are signed out").isEqualTo(401);
         // An address already in use is refused.
         JsonNode other = signup("retail");
         assertThat(post("/admin/tenants/" + t + "/owner-email", admin, with("email", other.get("email").asText(), "reason", "Swap")).status()).isEqualTo(409);
@@ -408,7 +445,7 @@ class BusinessOversightTest extends IntegrationTest {
             plans.add(with("code", p.get("code").asText(), "name", p.get("name").asText(), "monthly", price, "users", p.get("users").asInt(),
                     "locations", p.get("locations").asInt(), "blurb", p.get("blurb").asText()));
         }
-        return call("PUT", "/admin/platform-settings", admin, Map.of("plans", plans, "reason", "Costs went up"));
+        return put("/admin/platform-settings", admin, Map.of("plans", plans, "reason", "Costs went up"));
     }
 
     @Test
@@ -455,14 +492,14 @@ class BusinessOversightTest extends IntegrationTest {
         String trialOwner = token(trial);
         String admin = admin("ADMIN");
         Map<String, Object> lite = with("price", 2000, "label", "Launch offer", "startsOn", null, "endsOn", LocalDate.now().plusDays(30).toString(), "on", true);
-        assertThat(call("PUT", "/admin/platform-settings", admin, Map.of("planOffers", Map.of("LITE", lite))).status()).isEqualTo(200);
+        assertThat(put("/admin/platform-settings", admin, Map.of("planOffers", Map.of("LITE", lite))).status()).isEqualTo(200);
         assertThat(get("/billing/next-bill", owner).at("/total").asLong()).isEqualTo(2000);
         assertThat(myNotices(owner, true).at("/0/body").asText()).contains("is now KES 2,000 a month").contains("it was KES 2,650").contains("Your next bill on");
         assertThat(myNotices(trialOwner, true)).as("a trial on another plan is not told about the Lite offer").isEmpty();
 
         // Switching the offer off early is a rise for a paying business: it keeps the offer price for its next bill.
         lite.put("on", false);
-        assertThat(call("PUT", "/admin/platform-settings", admin, Map.of("planOffers", Map.of("LITE", lite))).status()).isEqualTo(200);
+        assertThat(put("/admin/platform-settings", admin, Map.of("planOffers", Map.of("LITE", lite))).status()).isEqualTo(200);
         assertThat(get("/billing/next-bill", owner).at("/total").asLong()).isEqualTo(2000);
         assertThat(myNotices(owner, true).at("/0/title").asText()).contains("will cost more from");
 
@@ -572,5 +609,123 @@ class BusinessOversightTest extends IntegrationTest {
         assertThat(sent.at("/0/sentWhatsappAt").isNull()).isTrue();
         assertThat(post("/admin/tenants/" + t + "/notices/" + sent.at("/0/id").asText() + "/whatsapp-sent", admin, Map.of()).status()).isEqualTo(200);
         assertThat(get("/admin/tenants/" + t + "/notices", admin).at("/0/sentWhatsappAt").asText()).isNotBlank();
+    }
+
+    // ---------- review fixes ----------
+
+    @Test
+    void aPausedBusinessThatPaysKeepsThePaymentExtendsTheDateAndStaysPaused() {
+        JsonNode s = signup("retail");
+        String owner = paid(s, "LITE", 5, 30);
+        String t = id(s), admin = admin("ADMIN");
+        assertThat(post("/admin/tenants/" + t + "/suspend", admin, with("reason", "Chargeback")).status()).isEqualTo(200);
+        java.sql.Timestamp before = jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?::uuid", java.sql.Timestamp.class, t);
+        long bill = get("/admin/tenants/" + t + "/money", admin).at("/nextBill/total").asLong();
+        assertThat(post("/admin/tenants/" + t + "/record-payment", admin, with("amount", bill, "reference", "PAU111AAA1", "reason", "Paid in cash while paused")).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("SUSPENDED");
+        assertThat(jdbc.queryForObject("SELECT suspended_from FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?::uuid", java.sql.Timestamp.class, t)).isAfter(before);
+        assertThat(audited(t, "workspace.paid_while_paused")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tenant_notes WHERE tenant_id = ?::uuid AND note LIKE 'Paid while paused%'", Long.class, t)).isEqualTo(1);
+        assertThat(post("/items", owner, Map.of("name", "Soda", "price", 50)).status()).as("still locked").isEqualTo(402);
+        // Only "Open again" switches it on.
+        assertThat(post("/admin/tenants/" + t + "/reactivate", admin, with("reason", "Sorted")).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void aPaymentCodeCanBeRecordedOnlyOnceAndIsAtMostThirtyCharacters() {
+        JsonNode a = signup("retail"), b = signup("retail");
+        String admin = admin("ADMIN");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_indexes WHERE indexname = 'ux_subscription_requests_paid_code'", Long.class)).isEqualTo(1);
+        long billA = get("/admin/tenants/" + id(a) + "/money", admin).at("/nextBill/total").asLong();
+        long billB = get("/admin/tenants/" + id(b) + "/money", admin).at("/nextBill/total").asLong();
+        assertThat(post("/admin/tenants/" + id(a) + "/record-payment", admin, with("amount", billA, "reference", "ONCE00AAA1", "reason", "Cash")).status()).isEqualTo(200);
+        Res again = post("/admin/tenants/" + id(b) + "/record-payment", admin, with("amount", billB, "reference", "once00aaa1", "reason", "Cash"));
+        assertThat(again.status()).isEqualTo(409);
+        assertThat(again.at("/message").asText()).contains("already recorded");
+        Res tooLong = post("/admin/tenants/" + id(b) + "/record-payment", admin, with("amount", billB, "reference", "X".repeat(31), "reason", "Cash"));
+        assertThat(tooLong.status()).isEqualTo(400);
+        assertThat(tooLong.at("/message").asText()).contains("30");
+    }
+
+    @Test
+    void theOperatorConsoleFollowsTheSameRules() {
+        JsonNode s = signup("retail");
+        String owner = token(s), t = id(s);
+        assertThat(operator(t + "/activate", "{\"plan\":\"GROWTH\",\"months\":1}")).as("a reason is needed").isEqualTo(400);
+        assertThat(operator(t + "/extend-trial", "{\"days\":5}")).isEqualTo(400);
+        assertThat(operator(t + "/suspend", "{}")).isEqualTo(400);
+        assertThat(operator(t + "/extend-trial", "{\"days\":5,\"reason\":\"They asked\"}")).isEqualTo(200);
+        assertThat(audited(t, "workspace.free_days")).isEqualTo(1);
+        assertThat(operator(t + "/activate", "{\"plan\":\"GROWTH\",\"months\":1,\"reason\":\"Paid at the office\"}")).isEqualTo(200);
+        assertThat(audited(t, "workspace.record_payment")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT activated_by FROM subscription_requests WHERE tenant_id = ?::uuid AND status = 'PAID'", String.class, t)).isEqualTo("Operator console");
+        assertThat(operator(t + "/suspend", "{\"reason\":\"Chargeback\"}")).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("SUSPENDED");
+        assertThat(audited(t, "workspace.suspend")).isEqualTo(1);
+        JsonNode mine = myNotices(owner, false);
+        assertThat(mine.size()).as("told about the free days, the payment and the pause").isEqualTo(3);
+    }
+
+    @Test
+    void ownerEmailOnlyForAdminsAndAFailedEmailToTheOldAddressIsFlagged() {
+        JsonNode s = signup("retail");
+        String t = id(s), admin = admin("ADMIN");
+        itMailer.useSender(new EmailSender() {
+            @Override
+            public void send(Email email) {
+                throw new IllegalStateException("mail is down");
+            }
+
+            @Override
+            public String name() {
+                return "down";
+            }
+        });
+        String fresh = "flag-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local";
+        assertThat(post("/admin/tenants/" + t + "/owner-email", admin, with("email", fresh, "reason", "Typo in the old one")).status()).isEqualTo(200);
+        assertThat(audited(t, "workspace.owner_email_old_not_told")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tenant_notes WHERE tenant_id = ?::uuid AND note LIKE '%did not go%'", Long.class, t)).isEqualTo(1);
+    }
+
+    @Test
+    void aPriceRiseHoldsOnlyBusinessesOnThatPlan() {
+        JsonNode lite = signup("retail"), pro = signup("retail");
+        paid(lite, "LITE", 20, 30);
+        paid(pro, "PRO", 20, 30);
+        assertThat(setPlans(admin("ADMIN"), 3000, 4500, 9000).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tenant_price_holds WHERE tenant_id = ?::uuid", Long.class, id(lite))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tenant_price_holds WHERE tenant_id = ?::uuid", Long.class, id(pro))).isZero();
+    }
+
+    @Test
+    void aPlanOfferEndingOnItsOwnDateTellsPayingBusinessesSevenDaysBeforeOnlyOnce() {
+        JsonNode s = signup("retail");
+        String owner = paid(s, "LITE", 20, 30);
+        String admin = admin("ADMIN");
+        Map<String, Object> lite = with("price", 2000, "label", "Launch offer", "startsOn", null, "endsOn", LocalDate.now().plusDays(5).toString(), "on", true);
+        assertThat(put("/admin/platform-settings", admin, Map.of("planOffers", Map.of("LITE", lite))).status()).isEqualTo(200);
+        long before = myNotices(owner, false).size();
+        actions.warnAboutOffersEnding();
+        awaitJobs();
+        JsonNode n = myNotices(owner, false);
+        assertThat(n.size()).isEqualTo(before + 1);
+        assertThat(n.at("/0/title").asText()).startsWith("The special price for").contains("ends on");
+        actions.warnAboutOffersEnding();
+        awaitJobs();
+        assertThat(myNotices(owner, false).size()).as("told once").isEqualTo(before + 1);
+    }
+
+    @Test
+    void aPausedBusinessStillShowsInTheSwitcherWithItsReason() {
+        JsonNode s = signup("retail");
+        String owner = paid(s, "LITE", 13, 30);
+        assertThat(post("/admin/tenants/" + id(s) + "/suspend", admin("ADMIN"), with("reason", "Chargeback")).status()).isEqualTo(200);
+        JsonNode list = get("/businesses", owner).at("/businesses");
+        assertThat(list).hasSize(1);
+        assertThat(list.at("/0/paused").asBoolean()).isTrue();
+        assertThat(list.at("/0/pausedReason").asText()).isEqualTo("Chargeback");
     }
 }

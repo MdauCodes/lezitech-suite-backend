@@ -530,7 +530,7 @@ class ClearPlansTest extends IntegrationTest {
         post("/billing/plan-change", ownerTok, Map.of("plan", "GROWTH"));
         var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + "/api/platform/tenants/" + tenant + "/activate"))
                 .header("Content-Type", "application/json").header("X-Operator-Key", "local-operator-key")
-                .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"plan\":\"GROWTH\",\"months\":1}")).build();
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString("{\"plan\":\"GROWTH\",\"months\":1,\"reason\":\"Paid at the office\"}")).build();
         assertThat(java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM bill_lines WHERE tenant_id = ?::uuid AND paid_at IS NULL", Long.class, tenant)).isEqualTo(0);
     }
