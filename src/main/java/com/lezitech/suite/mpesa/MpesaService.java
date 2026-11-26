@@ -635,10 +635,22 @@ public class MpesaService {
             return;
         }
         if ("SUBSCRIPTION".equals(r.get("purpose"))) {
+            boolean[] applied = {true};
             tx.executeWithoutResult(s -> {
-                plans.activate((UUID) r.get("subscription_request_id"), "MPESA", receipt);
-                jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+                Map<String, Object> done = plans.activate((UUID) r.get("subscription_request_id"), "MPESA", receipt);
+                if (Boolean.TRUE.equals(done.get("notApplied"))) {
+                    applied[0] = false;
+                    jdbc.update("UPDATE mpesa_requests SET status = 'UNAPPLIED', result_desc = ? WHERE id = ?",
+                            "Paid, but the plan request was already closed; the team checks it", id);
+                } else {
+                    jdbc.update("UPDATE mpesa_requests SET status = 'PAID' WHERE id = ?", id);
+                }
             });
+            if (!applied[0]) {
+                log.warn("M-Pesa {} for tenant {} was not applied: the plan request was closed", receipt, tenant);
+                announce(r, "UNAPPLIED");
+                return;
+            }
             log.info("Plan activated by M-Pesa {} for tenant {}", receipt, tenant);
             return;
         }

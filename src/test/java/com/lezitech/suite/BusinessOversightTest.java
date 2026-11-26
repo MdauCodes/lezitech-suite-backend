@@ -845,4 +845,17 @@ class BusinessOversightTest extends IntegrationTest {
         assertThat(post("/admin/tenants/" + id(s) + "/note", adm, with("note", "   ")).status()).isEqualTo(400);
         assertThat(post("/admin/tenants/" + id(s) + "/note", adm, with("note", "Called them")).status()).isEqualTo(200);
     }
+
+    @Test
+    void pausingIsOneStepAndASecondPauseIsRefused() {
+        JsonNode s = signup("retail");
+        paid(s, "LITE", 10, 30);
+        String t = id(s), admin = admin("ADMIN");
+        assertThat(post("/admin/tenants/" + t + "/suspend", admin, with("reason", "Chargeback")).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT suspended_from FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("ACTIVE");
+        Res again = post("/admin/tenants/" + t + "/suspend", admin, with("reason", "Twice"));
+        assertThat(again.status()).isIn(400, 409);
+        assertThat(jdbc.queryForObject("SELECT suspended_from FROM tenants WHERE id = ?::uuid", String.class, t)).as("the old status is kept").isEqualTo("ACTIVE");
+        assertThat(audited(t, "workspace.suspend")).isEqualTo(1);
+    }
 }

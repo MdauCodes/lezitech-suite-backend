@@ -149,4 +149,19 @@ class MpesaTest extends IntegrationTest {
         String other = token(signup("retail"));
         assertThat(get("/mpesa/till-payments?status=ALL", other).body()).isEmpty();
     }
+
+    @Test
+    void moneyForAClosedPlanRequestIsNotAppliedAndIsFlaggedForTheTeam() throws Exception {
+        JsonNode session = signup("retail");
+        String owner = token(session);
+        Res start = post("/billing/mpesa", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY", "phone", "0722000111"));
+        assertThat(start.status()).isEqualTo(200);
+        // The request is closed (replaced by a hand-recorded payment) before the money arrives.
+        jdbc.update("UPDATE subscription_requests SET status = 'SUPERSEDED' WHERE id = ?::uuid", start.at("/subscriptionRequestId").asText());
+        assertThat(waitFor(start.at("/id").asText(), owner).get("status").asText()).isEqualTo("UNAPPLIED");
+        Map<String, Object> t = jdbc.queryForMap("SELECT status, plan FROM tenants WHERE id = ?::uuid", session.at("/tenant/id").asText());
+        assertThat(t.get("status")).isNotEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT status FROM subscription_requests WHERE id = ?::uuid", String.class, start.at("/subscriptionRequestId").asText())).isEqualTo("SUPERSEDED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tenant_notes WHERE tenant_id = ?::uuid AND note LIKE '%not already recorded by hand%'", Long.class, session.at("/tenant/id").asText())).isEqualTo(1);
+    }
 }

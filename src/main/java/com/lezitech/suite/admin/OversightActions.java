@@ -406,8 +406,14 @@ public class OversightActions {
         if ("SUSPENDED".equals(t.get("status"))) {
             throw ApiException.bad("This business is already suspended");
         }
-        jdbc.update("UPDATE tenants SET status = 'SUSPENDED', suspended_from = ?, suspended_reason = ?, suspended_at = now() WHERE id = ?", t.get("status"), reason, id);
-        admin.audit("workspace.suspend", id, Map.of("reason", reason, "was", String.valueOf(t.get("status"))));
+        // One statement: the status it was is taken from the row itself, and a second pause at the same time finds nothing to change.
+        List<String> was = jdbc.queryForList("""
+                UPDATE tenants SET suspended_from = status, status = 'SUSPENDED', suspended_reason = ?, suspended_at = now()
+                WHERE id = ? AND status <> 'SUSPENDED' RETURNING suspended_from""", String.class, reason, id);
+        if (was.isEmpty()) {
+            throw ApiException.conflict("This business was just paused by someone else");
+        }
+        admin.audit("workspace.suspend", id, Map.of("reason", reason, "was", was.get(0)));
         UUID notice = tell(id, "SUSPENDED", "Your workspace is paused",
                 "LeziTech paused your workspace. The reason we noted: " + reason + ". You can still look at everything and download your reports; your data is safe. "
                         + "Talk to us" + support() + " and we will sort it out together.", by(adminName));

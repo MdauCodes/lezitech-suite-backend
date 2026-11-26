@@ -49,7 +49,7 @@ public class PlanActivation {
         return jdbc.update("UPDATE subscription_requests SET status = 'EXPIRED' WHERE status = 'PENDING' AND created_at < now() - interval '48 hours'");
     }
 
-    /** @return the request row as it was before activation */
+    /** @return the request row as it was before activation; with "notApplied" = true when the request was closed and no paid period was given */
     public Map<String, Object> activate(UUID requestId, String paidVia, String receipt) {
         return activate(requestId, paidVia, receipt, null, null);
     }
@@ -67,8 +67,11 @@ public class PlanActivation {
             jdbc.update("INSERT INTO platform_audit (admin_name, action, tenant_id, detail) VALUES ('System', 'billing.payment_not_applied', ?, jsonb_build_object('request', ?::text, 'status', ?::text, 'receipt', ?::text))",
                     tenant, requestId.toString(), String.valueOf(r.get("status")), receipt);
             jdbc.update("INSERT INTO tenant_notes (tenant_id, admin_name, note) VALUES (?, 'System', ?)", tenant,
-                    "A payment came in for a plan request that was already closed (" + String.valueOf(r.get("status")).toLowerCase() + "). No paid period was given. Check it and record the payment by hand if it is right.");
-            return r;
+                    "A payment came in for a plan request that was already closed (" + String.valueOf(r.get("status")).toLowerCase() + "). No paid period was given. "
+                            + ("SUPERSEDED".equals(r.get("status")) ? "Check it was not already recorded by hand." : "Check it and record the payment by hand if it is right."));
+            Map<String, Object> notApplied = new java.util.LinkedHashMap<>(r);
+            notApplied.put("notApplied", true);
+            return notApplied;
         }
         Integer paidBefore = jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID' AND paid_via IS DISTINCT FROM 'CREDIT'",
                 Integer.class, tenant);
