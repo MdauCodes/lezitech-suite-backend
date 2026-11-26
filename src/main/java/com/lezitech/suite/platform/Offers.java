@@ -277,12 +277,15 @@ public class Offers {
         return out;
     }
 
+    /** A paying business, or one that pays and is paused for now (alias t). */
+    public static final String PAYING = "(t.status = 'ACTIVE' OR (t.status = 'SUSPENDED' AND t.suspended_from = 'ACTIVE'))";
+
     /** Keep every paying business at this plan's old price for its next bill: called when the plan's price goes up. */
     public int holdOldPrice(String plan, long oldMonthly) {
         return jdbc.update("""
                 INSERT INTO tenant_price_holds (tenant_id, plan, monthly, until_bill)
                 SELECT t.id, ?, ?, t.paid_until FROM tenants t
-                WHERE t.status = 'ACTIVE' AND NOT t.is_demo AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)
+                WHERE (t.status = 'ACTIVE' OR (t.status = 'SUSPENDED' AND t.suspended_from = 'ACTIVE')) AND NOT t.is_demo AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)
                 ON CONFLICT (tenant_id, plan) DO UPDATE SET
                     monthly = CASE WHEN tenant_price_holds.until_bill >= (SELECT paid_until FROM tenants WHERE id = tenant_price_holds.tenant_id)
                                    THEN tenant_price_holds.monthly ELSE excluded.monthly END,

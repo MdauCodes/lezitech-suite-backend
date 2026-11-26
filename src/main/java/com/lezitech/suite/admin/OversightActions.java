@@ -289,12 +289,27 @@ public class OversightActions {
         Instant from, to;
         if ("ACTIVE".equals(status)) {
             from = t.get("paid_until") == null ? Instant.now() : ((Timestamp) t.get("paid_until")).toInstant();
-            jdbc.update("UPDATE tenants SET paid_until = greatest(coalesce(paid_until, now()), now()) + make_interval(days => ?) WHERE id = ?", days, id);
-            to = jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?", Timestamp.class, id).toInstant();
+            // One statement: the row is locked, a paused business is left alone, and a price the business was promised moves with the bill date.
+            List<Timestamp> moved = jdbc.queryForList("""
+                    WITH t AS (SELECT id, paid_until AS old_end, greatest(coalesce(paid_until, now()), now()) + make_interval(days => ?) AS new_end
+                               FROM tenants WHERE id = ? AND status = 'ACTIVE' FOR UPDATE),
+                         h AS (UPDATE tenant_price_holds h SET until_bill = h.until_bill + (t.new_end - t.old_end)
+                               FROM t WHERE h.tenant_id = t.id AND t.old_end IS NOT NULL AND h.until_bill >= t.old_end),
+                         u AS (UPDATE tenants SET paid_until = t.new_end FROM t WHERE tenants.id = t.id RETURNING tenants.paid_until)
+                    SELECT paid_until FROM u""", Timestamp.class, days, id);
+            if (moved.isEmpty()) {
+                throw ApiException.conflict("This business changed while you were working. Look at it again and try again");
+            }
+            to = moved.get(0).toInstant();
         } else {
             from = ((Timestamp) t.get("trial_ends_at")).toInstant();
-            jdbc.update("UPDATE tenants SET status = 'TRIAL', trial_ends_at = greatest(trial_ends_at, now()) + make_interval(days => ?) WHERE id = ?", days, id);
-            to = jdbc.queryForObject("SELECT trial_ends_at FROM tenants WHERE id = ?", Timestamp.class, id).toInstant();
+            List<Timestamp> moved = jdbc.queryForList("""
+                    UPDATE tenants SET status = 'TRIAL', trial_ends_at = greatest(trial_ends_at, now()) + make_interval(days => ?)
+                    WHERE id = ? AND status = ? RETURNING trial_ends_at""", Timestamp.class, days, id, status);
+            if (moved.isEmpty()) {
+                throw ApiException.conflict("This business changed while you were working. Look at it again and try again");
+            }
+            to = moved.get(0).toInstant();
         }
         admin.audit("workspace.free_days", id, Map.of("days", days, "reason", reason, "status", status, "from", from.toString(), "to", to.toString()));
         boolean paying = "ACTIVE".equals(status);
@@ -405,12 +420,17 @@ public class OversightActions {
         if (!"SUSPENDED".equals(t.get("status"))) {
             throw ApiException.bad("This business is not suspended");
         }
-        String prev = t.get("suspended_from") != null ? (String) t.get("suspended_from")
-                : t.get("paid_until") != null && ((Timestamp) t.get("paid_until")).toInstant().isAfter(Instant.now()) ? "ACTIVE" : "TRIAL";
-        jdbc.update("""
-                UPDATE tenants SET status = ?, suspended_from = NULL, suspended_reason = NULL, suspended_at = NULL,
-                       trial_ends_at = CASE WHEN ? = 'TRIAL' THEN greatest(trial_ends_at, now() + interval '3 days') ELSE trial_ends_at END
-                WHERE id = ?""", prev, prev, id);
+        // The status to go back to is taken inside the same statement that locks the row, never from the earlier read.
+        List<String> back = jdbc.queryForList("""
+                UPDATE tenants SET status = p.prev, suspended_from = NULL, suspended_reason = NULL, suspended_at = NULL,
+                       trial_ends_at = CASE WHEN p.prev = 'TRIAL' THEN greatest(tenants.trial_ends_at, now() + interval '3 days') ELSE tenants.trial_ends_at END
+                FROM (SELECT id, coalesce(suspended_from, CASE WHEN paid_until > now() THEN 'ACTIVE' ELSE 'TRIAL' END) AS prev
+                      FROM tenants WHERE id = ? AND status = 'SUSPENDED' FOR UPDATE) p
+                WHERE tenants.id = p.id RETURNING p.prev""", String.class, id);
+        if (back.isEmpty()) {
+            throw ApiException.conflict("This business changed while you were working. Look at it again and try again");
+        }
+        String prev = back.get(0);
         admin.audit("workspace.reactivate", id, Map.of("reason", reason, "backTo", prev));
         UUID notice = tell(id, "UNSUSPENDED", "Your workspace is back",
                 "Your workspace is back on. Thank you for sorting it out with us. " + billSentence(id, false), by(adminName));
@@ -466,6 +486,10 @@ public class OversightActions {
             throw ApiException.bad("That email doesn't look right");
         }
         Map<String, Object> o = owner(id);
+        Object person = jdbc.queryForList("SELECT person_id FROM users WHERE id = ?", UUID.class, o.get("id")).stream().findFirst().orElse(null);
+        if (person != null && !person.equals(o.get("id"))) {
+            throw ApiException.conflict("This owner signs in with the email of their main business. Change it on that business instead.");
+        }
         String old = (String) o.get("email");
         if (email.equals(old)) {
             throw ApiException.bad("That is already the owner's email");
@@ -474,9 +498,16 @@ public class OversightActions {
             throw ApiException.conflict("That email is already in use");
         }
         jdbc.update("UPDATE users SET email = ?, email_confirmed_at = NULL WHERE id = ?", email, o.get("id"));
-        tokens.bump((UUID) o.get("id"), false); // whoever is signed in as the owner is signed out
-        jdbc.update("UPDATE login_codes SET used_at = now() WHERE user_id = ? AND used_at IS NULL", o.get("id"));
-        admin.audit("workspace.owner_email", id, Map.of("from", old, "to", email, "reason", reason));
+        // Whoever is signed in as the owner is signed out, in every business linked to this sign-in (V47: a second business has its own row).
+        for (UUID linked : jdbc.queryForList("SELECT id FROM users WHERE id = ? OR person_id = ?", UUID.class, o.get("id"), o.get("id"))) {
+            tokens.bump(linked, false);
+            jdbc.update("UPDATE login_codes SET used_at = now() WHERE user_id = ? AND used_at IS NULL", linked);
+        }
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("from", old);
+        detail.put("to", email);
+        detail.put("reason", reason);
+        admin.audit("workspace.owner_email", id, detail);
         String business = (String) o.get("business");
         String first = ((String) o.get("name")).trim().split("\\s+")[0];
         String text = "Hi " + first + ",\n\nLeziTech changed the email you sign in to " + business + " with, from " + old + " to " + email
@@ -486,20 +517,34 @@ public class OversightActions {
                 + com.lezitech.suite.notify.EmailLayout.p("LeziTech changed the email you sign in to <b>" + Mailer.esc(business) + "</b> with, from <b>" + Mailer.esc(old)
                 + "</b> to <b>" + Mailer.esc(email) + "</b>.")
                 + com.lezitech.suite.notify.EmailLayout.p("If you did not ask for this, talk to us right away" + Mailer.esc(support()) + ".");
-        String oldStatus = mailer.send(old, (String) o.get("name"), "Busynez: your sign-in email was changed", text, html);
-        if ("FAILED".equals(oldStatus)) {
-            oldStatus = mailer.send(old, (String) o.get("name"), "Busynez: your sign-in email was changed", text, html); // one more try
+        String oldStatus = "NO_OLD_ADDRESS";
+        if (old != null && !old.isBlank()) {
+            oldStatus = mailer.send(old, (String) o.get("name"), "Busynez: your sign-in email was changed", text, html);
+            if ("FAILED".equals(oldStatus)) {
+                oldStatus = mailer.send(old, (String) o.get("name"), "Busynez: your sign-in email was changed", text, html); // one more try
+            }
         }
-        if (!"SENT".equals(oldStatus)) {
+        if (old != null && !old.isBlank() && !"SENT".equals(oldStatus)) {
             // The old address was not told: flag it for the team, who tell the owner another way.
             jdbc.update("INSERT INTO tenant_notes (tenant_id, admin_name, note) VALUES (?, 'System', ?)", id,
                     "The owner email was changed from " + old + " to " + email + ", but the email to the old address did not go (" + oldStatus.toLowerCase().replace('_', ' ')
                             + "). Tell the owner another way, for example on the phone.");
-            admin.audit("workspace.owner_email_old_not_told", id, Map.of("old", old, "status", oldStatus));
+            Map<String, Object> notTold = new LinkedHashMap<>();
+            notTold.put("old", old);
+            notTold.put("status", oldStatus);
+            admin.audit("workspace.owner_email_old_not_told", id, notTold);
         }
         UUID notice = tell(id, "OWNER_EMAIL", "Your sign-in email was changed",
                 "LeziTech changed the email you sign in with, from " + old + " to " + email + ". If you did not ask for this, talk to us right away" + support() + ".", by(adminName));
-        return Map.of("ok", true, "oldAddressEmail", oldStatus, "noticeId", String.valueOf(notice));
+        String newStatus = notice == null ? "FAILED"
+                : ov.asTenant(id, () -> jdbc.queryForList("SELECT email_status FROM tenant_notices WHERE id = ?", String.class, notice)).stream().findFirst().orElse("FAILED");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", true);
+        out.put("oldAddressEmail", oldStatus);
+        out.put("newAddressEmail", newStatus);
+        out.put("bothTold", "SENT".equals(oldStatus) && "SENT".equals(newStatus));
+        out.put("noticeId", String.valueOf(notice));
+        return out;
     }
 
     /** A fresh sign-in (set password) code and link for the owner. */
@@ -531,7 +576,8 @@ public class OversightActions {
 
     private List<UUID> onPlan(String code) {
         List<UUID> ids = new java.util.ArrayList<>(jdbc.queryForList("""
-                SELECT id FROM tenants WHERE NOT is_demo AND status = 'ACTIVE' AND paid_until IS NOT NULL AND (plan = ? OR next_plan = ?)""", UUID.class, code, code));
+                SELECT t.id FROM tenants t WHERE NOT t.is_demo AND""" + " " + com.lezitech.suite.platform.Offers.PAYING + """
+                 AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)""", UUID.class, code, code));
         for (UUID trial : jdbc.queryForList("SELECT id FROM tenants WHERE NOT is_demo AND status = 'TRIAL' AND NOT in_setup", UUID.class)) {
             try {
                 if (code.equals(ov.asTenant(trial, () -> billing.billPlan(trial)))) {
@@ -562,7 +608,8 @@ public class OversightActions {
                 offers.holdOldPrice(code, was); // the hold is part of the change itself: it is never left to the background
             }
             jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, by_name) VALUES ('PRICE', ?, ?, ?, ?)", code, was, now, by);
-            queued += jdbc.queryForObject("SELECT count(*) FROM tenants WHERE NOT is_demo AND status = 'ACTIVE' AND paid_until IS NOT NULL AND (plan = ? OR next_plan = ?)", Integer.class, code, code);
+            queued += jdbc.queryForObject("SELECT count(*) FROM tenants t WHERE NOT t.is_demo AND " + com.lezitech.suite.platform.Offers.PAYING
+                    + " AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)", Integer.class, code, code);
             any = true;
         }
         if (any) {
@@ -623,17 +670,21 @@ public class OversightActions {
                     UPDATE notice_jobs SET started_at = now()
                     WHERE id = (SELECT id FROM notice_jobs WHERE done_at IS NULL AND (started_at IS NULL OR started_at < now() - interval '10 minutes')
                                 ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-                    RETURNING id, kind, plan, was, now_price, ends_on, by_name""");
+                    RETURNING id, kind, plan, was, now_price, ends_on, by_name, told""");
             if (job.isEmpty()) {
                 return;
             }
             Map<String, Object> j = job.get(0);
-            int told = 0;
+            int told = ((Number) j.get("told")).intValue();
             try {
                 String code = (String) j.get("plan");
                 long was = ((Number) j.get("was")).longValue(), now = ((Number) j.get("now_price")).longValue();
                 String by = (String) j.get("by_name");
                 for (UUID id : onPlan(code)) {
+                    // A job taken up again (after 10 minutes, or a crash) skips the businesses it already told.
+                    if (jdbc.update("INSERT INTO notice_job_sent (job_id, tenant_id) VALUES (?, ?) ON CONFLICT DO NOTHING", j.get("id"), id) == 0) {
+                        continue;
+                    }
                     try {
                         if ("OFFER_ENDING".equals(j.get("kind"))) {
                             told += offerEndingNotice(id, code, was, now, ((java.sql.Date) j.get("ends_on")).toLocalDate(), by) ? 1 : 0;
@@ -642,7 +693,9 @@ public class OversightActions {
                         }
                     } catch (RuntimeException e) {
                         log.warn("Notice for {} failed: {}", id, e.toString());
+                        jdbc.update("DELETE FROM notice_job_sent WHERE job_id = ? AND tenant_id = ?", j.get("id"), id); // not told: a retry may try again
                     }
+                    jdbc.update("UPDATE notice_jobs SET started_at = now(), told = ? WHERE id = ?", told, j.get("id"));
                 }
             } finally {
                 jdbc.update("UPDATE notice_jobs SET done_at = now(), told = ? WHERE id = ?", told, j.get("id"));
@@ -650,9 +703,14 @@ public class OversightActions {
         }
     }
 
+    /** A paying business, or one that pays and is paused for now. */
+    private static boolean payingOrPaused(Map<String, Object> t) {
+        return t.get("paid_until") != null && ("ACTIVE".equals(t.get("status")) || "SUSPENDED".equals(t.get("status")) && "ACTIVE".equals(t.get("suspended_from")));
+    }
+
     private boolean offerEndingNotice(UUID id, String code, long special, long normal, java.time.LocalDate end, String by) {
         Map<String, Object> t = tenant(id);
-        if (!"ACTIVE".equals(t.get("status")) || t.get("paid_until") == null) {
+        if (!payingOrPaused(t)) {
             return false; // free days: the first bill is at the price then
         }
         String planName = billing.nameOf(id, code);
@@ -666,7 +724,7 @@ public class OversightActions {
     private boolean priceNotice(UUID id, String code, long was, long now, String by) {
         Map<String, Object> t = tenant(id);
         String planName = billing.nameOf(id, code);
-        boolean paying = "ACTIVE".equals(t.get("status")) && t.get("paid_until") != null;
+        boolean paying = payingOrPaused(t);
         if (now > was) {
             if (!paying) {
                 return false; // free days: the first bill is at the price then

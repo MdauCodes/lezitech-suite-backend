@@ -16,6 +16,7 @@ import java.util.UUID;
 /** Turns a paid subscription request into an active plan. Used by the control panel and by M-Pesa. */
 @Component
 public class PlanActivation {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PlanActivation.class);
 
     private final JdbcTemplate jdbc;
     private final MetaConversions meta;
@@ -60,6 +61,15 @@ public class PlanActivation {
             return r;
         }
         UUID tenant = (UUID) r.get("tenant_id");
+        if (!"PENDING".equals(r.get("status")) && !"EXPIRED".equals(r.get("status"))) {
+            // A closed request (replaced, rejected) never gives a paid period. The money is flagged for the team to sort out by hand.
+            log.warn("Payment for request {} ({}) not applied: the request is {}", requestId, tenant, r.get("status"));
+            jdbc.update("INSERT INTO platform_audit (admin_name, action, tenant_id, detail) VALUES ('System', 'billing.payment_not_applied', ?, jsonb_build_object('request', ?::text, 'status', ?::text, 'receipt', ?::text))",
+                    tenant, requestId.toString(), String.valueOf(r.get("status")), receipt);
+            jdbc.update("INSERT INTO tenant_notes (tenant_id, admin_name, note) VALUES (?, 'System', ?)", tenant,
+                    "A payment came in for a plan request that was already closed (" + String.valueOf(r.get("status")).toLowerCase() + "). No paid period was given. Check it and record the payment by hand if it is right.");
+            return r;
+        }
         Integer paidBefore = jdbc.queryForObject("SELECT count(*) FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID' AND paid_via IS DISTINCT FROM 'CREDIT'",
                 Integer.class, tenant);
         int months = "ANNUAL".equals(r.get("billing_cycle")) ? 12 : 1;

@@ -98,6 +98,9 @@ public class AdminController {
     @PutMapping("/platform-settings")
     public Map<String, Object> savePlatformSettings(@RequestBody Map<String, Object> raw) {
         AdminContext.require("system");
+        if (raw.get("plans") instanceof List<?> || raw.get("planOffers") instanceof Map<?, ?>) {
+            AdminContext.require("billing"); // what plans cost is a billing matter: the developer role cannot change it
+        }
         String by = AdminContext.admin().name();
         Map<String, Long> priceBefore = actions.effectivePrices();
         if (raw.containsKey("trialDays")) {
@@ -544,7 +547,10 @@ public class AdminController {
     @PostMapping("/tenants/{id}/note")
     public Map<String, Object> note(@PathVariable UUID id, @RequestBody Map<String, Object> raw) {
         AdminContext.require("notes");
-        String note = new Body(raw).str("note", "");
+        String note = new Body(raw).str("note", "").trim();
+        if (note.isEmpty()) {
+            throw ApiException.bad("Type the note first");
+        }
         oversight.addNote(id, AdminContext.admin().id(), AdminContext.admin().name(), note);
         admin.audit("workspace.note", id, Map.of("note", note.length() > 200 ? note.substring(0, 200) : note));
         return Map.of("ok", true);

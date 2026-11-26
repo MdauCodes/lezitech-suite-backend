@@ -506,6 +506,16 @@ class BusinessOversightTest extends IntegrationTest {
         // An offer for everyone in a kind of business tells each business it reaches.
         Res made = post("/admin/offers", admin, with("kind", "PERCENT", "title", "10% off for retail", "percent", 10, "months", 2, "audience", "ALL", "sector", "retail", "endsOn", tomorrow()));
         assertThat(made.status()).isEqualTo(200);
+        // Many businesses are told in the background (more than 200), so give it a moment.
+        long until = System.currentTimeMillis() + 20_000;
+        while (System.currentTimeMillis() < until && myNotices(trialOwner, true).isEmpty()) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
         assertThat(myNotices(trialOwner, true).at("/0/title").asText()).isEqualTo("Good news: 10% off for retail");
     }
 
@@ -732,5 +742,107 @@ class BusinessOversightTest extends IntegrationTest {
         assertThat(list).hasSize(1);
         assertThat(list.at("/0/paused").asBoolean()).isTrue();
         assertThat(list.at("/0/pausedReason").asText()).isEqualTo("Chargeback");
+    }
+
+    // ---------- review fixes ----------
+
+    @Test
+    void anOwnerLinkedToAMainBusinessIsChangedThereAndEveryLinkedSignInIsSignedOut() {
+        JsonNode main = signup("retail"), second = signup("retail");
+        String mainOwner = token(main), secondOwner = token(second);
+        String admin = admin("ADMIN");
+        UUID mainUser = jdbc.queryForObject("SELECT id FROM users WHERE tenant_id = ?::uuid AND role = 'OWNER'", UUID.class, id(main));
+        jdbc.update("UPDATE users SET person_id = ? WHERE tenant_id = ?::uuid AND role = 'OWNER'", mainUser, id(second));
+        String fresh = "linked-" + UUID.randomUUID().toString().substring(0, 6) + "@test.local";
+        // The second business can't change it: the email belongs to the main business.
+        Res refused = post("/admin/tenants/" + id(second) + "/owner-email", admin, with("email", fresh, "reason", "Typo"));
+        assertThat(refused.status()).isEqualTo(409);
+        assertThat(refused.at("/message").asText()).contains("main business");
+        assertThat(audited(id(second), "workspace.owner_email")).isZero();
+        // On the main business it works, and the linked sign-in is signed out too.
+        Res ok = post("/admin/tenants/" + id(main) + "/owner-email", admin, with("email", fresh, "reason", "Typo"));
+        assertThat(ok.status()).isEqualTo(200);
+        assertThat(ok.at("/bothTold").asBoolean()).isTrue();
+        assertThat(get("/billing/notices", mainOwner).status()).isEqualTo(401);
+        assertThat(get("/billing/notices", secondOwner).status()).as("the second business's sign-in is signed out too").isEqualTo(401);
+    }
+
+    @Test
+    void freeDaysMoveAPromisedOldPriceWithTheBillDateAndNeverTouchAPausedBusiness() {
+        JsonNode s = signup("retail");
+        String owner = paid(s, "LITE", 20, 30);
+        String t = id(s), admin = admin("ADMIN");
+        assertThat(setPlans(admin, 3000, 4500, 9000).status()).isEqualTo(200);
+        assertThat(get("/billing/next-bill", owner).at("/total").asLong()).isEqualTo(2650);
+        assertThat(post("/admin/tenants/" + t + "/free-days", admin, with("days", 5, "reason", "Outage")).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT h.until_bill = t.paid_until FROM tenant_price_holds h JOIN tenants t ON t.id = h.tenant_id WHERE t.id = ?::uuid", Boolean.class, t))
+                .as("the promised price still holds for the next bill").isTrue();
+        assertThat(get("/billing/next-bill", owner).at("/total").asLong()).isEqualTo(2650);
+        // A paused business gets no free days and keeps its status.
+        assertThat(post("/admin/tenants/" + t + "/suspend", admin, with("reason", "Chargeback")).status()).isEqualTo(200);
+        assertThat(post("/admin/tenants/" + t + "/free-days", admin, with("days", 5, "reason", "Again")).status()).isEqualTo(400);
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("SUSPENDED");
+        // Opening again goes back to what the row says it was, even if the paid date has passed.
+        jdbc.update("UPDATE tenants SET paid_until = now() - interval '2 days' WHERE id = ?::uuid", t);
+        assertThat(post("/admin/tenants/" + t + "/reactivate", admin, with("reason", "Sorted")).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, t)).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void aPausedPayingBusinessIsHeldAtItsOldPriceAndToldAboutARise() {
+        JsonNode s = signup("retail");
+        String owner = paid(s, "LITE", 20, 30);
+        String t = id(s), admin = admin("ADMIN");
+        assertThat(post("/admin/tenants/" + t + "/suspend", admin, with("reason", "Chargeback")).status()).isEqualTo(200);
+        assertThat(setPlans(admin, 3000, 4500, 9000).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM tenant_price_holds WHERE tenant_id = ?::uuid", Long.class, t)).isEqualTo(1);
+        assertThat(myNotices(owner, false).toString()).contains("will cost more from");
+    }
+
+    @Test
+    void aClosedPlanRequestNeverGivesAPaidPeriod() {
+        JsonNode s = signup("retail");
+        String owner = paid(s, "LITE", 5, 30);
+        String t = id(s);
+        UUID req = UUID.fromString(post("/billing/subscribe", owner, Map.of("plan", "LITE", "cycle", "MONTHLY")).at("/requestId").asText());
+        jdbc.update("UPDATE subscription_requests SET status = 'SUPERSEDED' WHERE id = ?", req);
+        java.sql.Timestamp before = jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?::uuid", java.sql.Timestamp.class, t);
+        activation.activate(req, "MPESA", "CLOSED0001");
+        assertThat(jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?::uuid", java.sql.Timestamp.class, t)).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT status FROM subscription_requests WHERE id = ?", String.class, req)).isEqualTo("SUPERSEDED");
+        assertThat(audited(t, "billing.payment_not_applied")).isEqualTo(1);
+        // An expired one still counts.
+        UUID late = UUID.fromString(post("/billing/subscribe", owner, Map.of("plan", "LITE", "cycle", "MONTHLY")).at("/requestId").asText());
+        jdbc.update("UPDATE subscription_requests SET status = 'EXPIRED' WHERE id = ?", late);
+        activation.activate(late, "MPESA", "LATE000001");
+        assertThat(jdbc.queryForObject("SELECT paid_until FROM tenants WHERE id = ?::uuid", java.sql.Timestamp.class, t)).isAfter(before);
+    }
+
+    @Test
+    void aNoticeJobTakenUpAgainNeverTellsTheSameBusinessTwice() {
+        JsonNode a = signup("retail"), b = signup("retail");
+        String ownerA = paid(a, "LITE", 20, 30), ownerB = paid(b, "LITE", 20, 30);
+        UUID job = jdbc.queryForObject("""
+                INSERT INTO notice_jobs (kind, plan, was, now_price, by_name, started_at) VALUES ('PRICE', 'LITE', 2650, 3000, 'LeziTech', now() - interval '20 minutes')
+                RETURNING id""", UUID.class);
+        // A crashed run had already told business A.
+        jdbc.update("INSERT INTO notice_job_sent (job_id, tenant_id) VALUES (?, ?::uuid)", job, id(a));
+        actions.runNoticeJobs();
+        assertThat(myNotices(ownerA, false)).as("already told before the crash").isEmpty();
+        assertThat(myNotices(ownerB, false)).hasSize(1);
+        // Taken up again once more: still told once.
+        jdbc.update("UPDATE notice_jobs SET done_at = NULL, started_at = now() - interval '20 minutes' WHERE id = ?", job);
+        actions.runNoticeJobs();
+        assertThat(myNotices(ownerB, false)).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT done_at IS NOT NULL FROM notice_jobs WHERE id = ?", Boolean.class, job)).isTrue();
+    }
+
+    @Test
+    void onlyBillingStaffCanChangePlanPricesAndAnEmptyNoteIsRefused() {
+        String dev = admin("DEVELOPER"), adm = admin("ADMIN");
+        assertThat(setPlans(dev, 3000, 4500, 9000).status()).isEqualTo(403);
+        JsonNode s = signup("retail");
+        assertThat(post("/admin/tenants/" + id(s) + "/note", adm, with("note", "   ")).status()).isEqualTo(400);
+        assertThat(post("/admin/tenants/" + id(s) + "/note", adm, with("note", "Called them")).status()).isEqualTo(200);
     }
 }
