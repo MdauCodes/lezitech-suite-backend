@@ -44,6 +44,7 @@ class RlsCoverageTest extends IntegrationTest {
             Map.entry("plan_changes", "who moved a business to which plan; read by the control panel and the billing job"),
             Map.entry("bill_lines", "extra amounts on the next plan bill; read by the control panel and the reminder job"),
             Map.entry("bill_reminders", "bill reminder job only"),
+            Map.entry("notice_job_sent", "which businesses a background notice job has already told; the notice job only"),
             Map.entry("platform_audit", "LeziTech control panel's own log"),
             Map.entry("platform_offers", "LeziTech's offers to all businesses; not one business's data"),
             Map.entry("integrations", "encrypted payment and SMS keys; read by business id in code"),

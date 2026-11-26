@@ -1,3 +1,5 @@
+SET LOCAL lock_timeout = '5s';
+
 -- V79: oversight of every business from the control panel, and the business always being told.
 
 -- Messages LeziTech sends a business about what it pays or gets (an offer, free days, a plan change, a payment recorded,
@@ -103,3 +105,12 @@ CREATE INDEX ix_notice_jobs_open ON notice_jobs (created_at) WHERE done_at IS NU
 -- A plan offer that ends on its own date is announced once, 7 days before.
 CREATE UNIQUE INDEX ux_notice_jobs_ending ON notice_jobs (plan, ends_on) WHERE kind = 'OFFER_ENDING';
 GRANT SELECT, INSERT, UPDATE, DELETE ON notice_jobs TO suite_app;
+
+-- Which businesses a notice job has already told, so a job taken up again (after 10 minutes or a crash) never tells the same business twice.
+-- Not a business's own data (no fence): the notice job works across businesses.
+CREATE TABLE notice_job_sent (
+    job_id     uuid NOT NULL REFERENCES notice_jobs(id) ON DELETE CASCADE,
+    tenant_id  uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    PRIMARY KEY (job_id, tenant_id)
+);
+GRANT SELECT, INSERT, DELETE ON notice_job_sent TO suite_app;
