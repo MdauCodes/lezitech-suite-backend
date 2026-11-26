@@ -70,20 +70,20 @@ CREATE TABLE tenant_price_holds (
 );
 GRANT SELECT, INSERT, UPDATE, DELETE ON tenant_price_holds TO suite_app;
 
--- One payment code can be recorded for one paid plan payment only. If old data already has the same code twice, the migration does not
--- fail: it lists them in the log and leaves the index out, so the team can look at them first (the app also checks before it saves).
+-- One payment code can be recorded for one paid plan payment only. If old data already has the same code twice, the migration stops
+-- (so the app never runs without this guard) and names the codes, so the team can sort them out first. Checked on 26 Nov 2026:
+-- production had no paid requests with codes, so this creates the index.
 DO $$
 DECLARE dupes text;
 BEGIN
     SELECT string_agg(code || ' (' || n || ' times)', ', ') INTO dupes FROM (
         SELECT upper(mpesa_receipt) AS code, count(*) AS n FROM subscription_requests
         WHERE status = 'PAID' AND mpesa_receipt IS NOT NULL GROUP BY 1 HAVING count(*) > 1) d;
-    IF dupes IS NULL THEN
-        CREATE UNIQUE INDEX ux_subscription_requests_paid_code ON subscription_requests (upper(mpesa_receipt)) WHERE status = 'PAID' AND mpesa_receipt IS NOT NULL;
-    ELSE
-        RAISE WARNING 'Payment codes recorded more than once, so the unique index was NOT created: %', dupes;
+    IF dupes IS NOT NULL THEN
+        RAISE EXCEPTION 'Payment codes recorded more than once; fix these before deploying: %', dupes;
     END IF;
 END $$;
+CREATE UNIQUE INDEX ux_subscription_requests_paid_code ON subscription_requests (upper(mpesa_receipt)) WHERE status = 'PAID' AND mpesa_receipt IS NOT NULL;
 
 -- Notices to send in the background (a price change or an offer ending reaches many businesses; the request that caused it does not wait).
 CREATE TABLE notice_jobs (
