@@ -472,8 +472,8 @@ public class AdminController {
                                     WHEN t.status = 'ACTIVE' AND t.paid_until < now() THEN 'LAPSED' ELSE t.status END AS state
                         FROM tenants t
                         WHERE t.is_demo = ?
-                          AND (cast(? as text) IS NULL OR t.name ILIKE cast(? as text) ESCAPE '\\' OR t.slug ILIKE cast(? as text) ESCAPE '\\'
-                               OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE cast(? as text) ESCAPE '\\'))
+                          AND (cast(? as text) IS NULL OR lower(t.name) LIKE lower(cast(? as text)) ESCAPE '\\' OR lower(t.slug) LIKE lower(cast(? as text)) ESCAPE '\\'
+                               OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND lower(u.email) LIKE lower(cast(? as text)) ESCAPE '\\'))
                           AND (cast(? as text) IS NULL OR t.sector = cast(? as text))
                     ) x
                     WHERE (cast(? as text) IS NULL OR x.state = cast(? as text))""" + cursorSql + """

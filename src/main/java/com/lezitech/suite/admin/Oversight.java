@@ -514,8 +514,8 @@ public class Oversight {
                          coalesce(bool_or(coalesce(r.paid_at, r.created_at) >= ? AND r.paid_via IS DISTINCT FROM 'CREDIT'), false) AS paid_this_month
                   FROM subscription_requests r WHERE r.tenant_id = t.id AND r.status = 'PAID') pay ON true
               WHERE t.is_demo = ?
-                AND (cast(? as text) IS NULL OR t.name ILIKE cast(? as text) ESCAPE '\\' OR t.slug ILIKE cast(? as text) ESCAPE '\\'
-                     OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND u.email ILIKE cast(? as text) ESCAPE '\\'))
+                AND (cast(? as text) IS NULL OR lower(t.name) LIKE lower(cast(? as text)) ESCAPE '\\' OR lower(t.slug) LIKE lower(cast(? as text)) ESCAPE '\\'
+                     OR EXISTS (SELECT 1 FROM users u WHERE u.tenant_id = t.id AND lower(u.email) LIKE lower(cast(? as text)) ESCAPE '\\'))
                 AND (cast(? as text) IS NULL OR t.sector = cast(? as text))
             ), f AS (
               SELECT * FROM base WHERE
