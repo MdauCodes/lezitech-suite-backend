@@ -39,7 +39,10 @@ public class DeliveryConfirmController {
         if (token == null || token.length() != 43 || !token.matches("[A-Za-z0-9_-]+")) {
             throw ApiException.notFound("This delivery link");
         }
-        List<UUID> rows = jdbc.queryForList("SELECT tenant_id FROM delivery_links WHERE token_hash = ? AND expires_at > now()",
+        // A paused business's links stop working, like its other public pages.
+        List<UUID> rows = jdbc.queryForList("""
+                SELECT l.tenant_id FROM delivery_links l JOIN tenants t ON t.id = l.tenant_id
+                WHERE l.token_hash = ? AND l.expires_at > now() AND t.status <> 'SUSPENDED'""",
                 UUID.class, RoundsService.sha(token));
         if (rows.isEmpty()) {
             throw ApiException.notFound("This delivery link");

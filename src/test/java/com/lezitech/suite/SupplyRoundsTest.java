@@ -19,6 +19,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SupplyRoundsTest extends IntegrationTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     private static final String PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
     private static final Pattern LINK = Pattern.compile("/confirm-delivery/([A-Za-z0-9_-]{43})");
     private static final Pattern CODE = Pattern.compile("driver: (\\d{4})");
@@ -161,6 +164,13 @@ class SupplyRoundsTest extends IntegrationTest {
         assertThat(page.at("/noteNo").asText()).isEqualTo("DN-1");
         assertThat(page.at("/driverName").asText()).isEqualTo("Joe Driver");
         assertThat(page.at("/confirmed").isNull()).isTrue();
+        // A paused business's link stops working, and works again once it is opened.
+        String was = jdbc.queryForObject("SELECT status FROM tenants WHERE id = ?::uuid", String.class, s.at("/tenant/id").asText());
+        jdbc.update("UPDATE tenants SET status = 'SUSPENDED' WHERE id = ?::uuid", s.at("/tenant/id").asText());
+        assertThat(get("/public/delivery/" + token, null).status()).isEqualTo(404);
+        assertThat(post("/public/delivery/" + token, null, Map.of("receivedByName", "Clerk")).status()).isEqualTo(404);
+        jdbc.update("UPDATE tenants SET status = ? WHERE id = ?::uuid", was, s.at("/tenant/id").asText());
+        assertThat(get("/public/delivery/" + token, null).status()).isEqualTo(200);
         String lineId = page.at("/lines/0/lineId").asText();
 
         // A line cannot come to more than was sent, and every line must be answered.
