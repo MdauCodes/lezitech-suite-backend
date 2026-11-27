@@ -1,0 +1,879 @@
+<title>Busynez Supply Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a market ledger. One sticky screen picker, then one screen at a time.
+   Phone screens sit in a phone frame beside a note on what each screen stops.
+   The signature element is the chain: Bought, Sorted, Loaded, Delivered, Paid, with a name on every link. */
+:root{
+  --bg:#F4F7F2; --surface:#FFFFFF; --sunk:#EAF0E7; --ink:#15241B; --muted:#56685C; --line:#D5DED2;
+  --leaf:#1E6A3A; --leaf-ink:#FFFFFF; --leaf-soft:#E0EFE3;
+  --gap:#C0331C; --gap-soft:#FBE4DE; --amber:#9A6412; --amber-soft:#F8EDD8;
+  --phone:#1B2A21;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-num:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1712; --surface:#16211A; --sunk:#111B15; --ink:#E4EDE5; --muted:#9CB0A2; --line:#283A2E;
+  --leaf:#63C283; --leaf-ink:#0D1A11; --leaf-soft:#1A3424;
+  --gap:#FF7D60; --gap-soft:#3B1D16; --amber:#E3AE52; --amber-soft:#36290F; --phone:#05090A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1712; --surface:#16211A; --sunk:#111B15; --ink:#E4EDE5; --muted:#9CB0A2; --line:#283A2E;
+  --leaf:#63C283; --leaf-ink:#0D1A11; --leaf-soft:#1A3424;
+  --gap:#FF7D60; --gap-soft:#3B1D16; --amber:#E3AE52; --amber-soft:#36290F; --phone:#05090A; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(1.6rem,3.2vw,2.3rem);font-weight:800;letter-spacing:-.01em}
+h2{font-size:1.3rem;font-weight:700}
+h3{font-size:1.05rem;font-weight:700}
+p{margin:0}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* header + picker */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;flex-direction:column;gap:8px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand b{font-family:var(--f-display);font-size:1.15rem}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;padding:2px 10px;border-radius:99px;background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.chip.ok{background:var(--leaf-soft);color:var(--leaf);border-color:transparent}
+.chip.bad{background:var(--gap-soft);color:var(--gap);border-color:transparent}
+.chip.warn{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+.picker{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.picker button{flex:0 0 auto;font:inherit;font-size:.88rem;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:6px 12px;border-radius:99px;cursor:pointer}
+.picker button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.picker-label{font-size:.82rem;color:var(--muted)}
+
+main{padding-block:24px 64px}
+section.view{display:flex;flex-direction:column;gap:20px}
+.lead{display:flex;flex-direction:column;gap:6px;max-width:70ch}
+
+/* buttons */
+.btn{font:inherit;font-weight:700;font-size:.92rem;border-radius:8px;padding:9px 14px;cursor:pointer;border:1px solid var(--leaf);background:var(--leaf);color:var(--leaf-ink);display:inline-flex;align-items:center;gap:6px;justify-content:center}
+.btn.ghost{background:transparent;color:var(--leaf)}
+.btn.danger{background:var(--gap);border-color:var(--gap);color:#fff}
+.btn.small{padding:5px 10px;font-size:.82rem}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,.picker button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.btn .sw{font-weight:400;opacity:.85;font-size:.78rem}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat .v{font-family:var(--f-num);font-size:1.45rem;font-weight:600}
+.stat .l{font-size:.85rem;color:var(--muted)}
+
+/* alarm band */
+.alarm{background:var(--gap-soft);border:1px solid var(--gap);border-radius:var(--r);padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.alarm .big{font-family:var(--f-display);font-weight:800;font-size:1.5rem;color:var(--gap)}
+
+/* tables */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:700;color:var(--muted);font-size:.82rem;background:var(--sunk)}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+
+/* the chain */
+.chain{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:0;min-width:640px}
+.link{padding:10px 12px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.link:first-child{border-left:0}
+.link .q{font-family:var(--f-num);font-size:1.05rem;font-weight:600}
+.link .who{font-size:.8rem;color:var(--muted)}
+.link.bad{background:var(--gap-soft)}
+.link.bad .q{color:var(--gap)}
+.link.warn{background:var(--amber-soft)}
+.link .step{font-size:.8rem;font-weight:700}
+.gapline{padding:8px 12px;border-top:1px dashed var(--gap);color:var(--gap);font-size:.88rem;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.gapline.warn{color:var(--amber);border-top-color:var(--amber)}
+.prod{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.prod-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--sunk)}
+.prod .scroll{overflow-x:auto}
+
+/* phone frame */
+.stage{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:820px){.stage{grid-template-columns:1fr}}
+.phone{background:var(--phone);border-radius:30px;padding:12px;max-width:380px;width:100%;margin:0 auto;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.screen{background:var(--bg);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;min-height:640px}
+.app-bar{background:var(--leaf);color:var(--leaf-ink);padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.app-bar b{font-family:var(--f-display);font-size:1.05rem}
+.app-bar small{opacity:.9}
+.net{font-size:.75rem;padding:5px 14px;background:var(--amber-soft);color:var(--amber)}
+.net.on{background:var(--leaf-soft);color:var(--leaf)}
+.app-body{padding:12px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:.88rem}
+.field label{font-weight:700}
+input,select{font:inherit;font-size:1rem;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);width:100%;min-width:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.big-btn{width:100%;padding:13px;font-size:1rem;flex-direction:column;gap:0}
+.line-item{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:.92rem}
+.line-item + .line-item{border-top:1px solid var(--line);padding-top:6px}
+.bar{height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--leaf)}
+.stops-note{display:flex;flex-direction:column;gap:14px;max-width:62ch}
+.stops-note ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+.tick{display:flex;gap:10px;align-items:flex-start;font-size:.9rem}
+.tick input{width:20px;height:20px;flex:0 0 auto;margin-top:2px}
+.sign{border:1px dashed var(--muted);border-radius:8px;background:var(--surface);width:100%;height:110px;touch-action:none;display:block}
+.status-pill{font-size:.78rem;font-weight:700;padding:2px 8px;border-radius:99px}
+
+/* cash-up */
+.cash-row{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(90px,.6fr)) minmax(0,1.4fr);gap:12px;align-items:start;padding:14px 0;border-top:1px solid var(--line)}
+.cash-row:first-of-type{border-top:0}
+@media (max-width:820px){.cash-row{grid-template-columns:1fr 1fr}.cash-row > :first-child,.cash-row > :last-child{grid-column:1 / -1}}
+.cash-row .k{font-size:.78rem;color:var(--muted)}
+.settle{display:flex;flex-direction:column;gap:6px;font-size:.86rem}
+.settle label{display:flex;gap:8px;align-items:flex-start}
+.settle input{width:18px;height:18px;flex:0 0 auto;margin-top:2px}
+
+/* chart */
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;font-size:.82rem;color:var(--muted);flex-wrap:wrap}
+.sw-box{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.9rem;max-width:min(92vw,520px);z-index:20;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.sample-note{font-size:.82rem;color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+@media (prefers-reduced-motion: no-preference){.view{animation:in .18s ease-out}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <b>Busynez Supply</b>
+      <span class="chip">Mwangaza Fresh Supplies, Voi</span>
+      <span class="chip warn">Sample data for the demo</span>
+      <span class="chip num">Tue 25 Nov 2026</span>
+    </div>
+    <span class="picker-label" id="pick-label">Pick a screen to see. Each one is a different person's view.</span>
+    <div class="picker" role="tablist" aria-labelledby="pick-label" id="picker"></div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- OWNER DASHBOARD -->
+<section class="view" id="v-owner" data-name="Owner dashboard" hidden>
+  <div class="lead">
+    <h1>Good evening, Salim</h1>
+    <p class="muted">Everything your team did today at Voi Market, in the store, on the two vehicles and at your clients' doors.</p>
+  </div>
+
+  <div class="alarm">
+    <div>
+      <div class="big">5 things don't add up today</div>
+      <p>Goods and cash worth <b class="num">KES 3,990</b> went missing between steps. Each one names who handled it.</p>
+    </div>
+    <button class="btn danger" data-go="gaps">See what doesn't add up</button>
+  </div>
+
+  <div class="grid g4">
+    <div class="panel stat"><span class="l">Sold today</span><span class="v num">141,160</span><span class="l">KES, at each client's price</span></div>
+    <div class="panel stat"><span class="l">Spent today</span><span class="v num">118,800</span><span class="l">Market, fuel, porters, wages</span></div>
+    <div class="panel stat"><span class="l">Profit today</span><span class="v num" style="color:var(--leaf)">22,360</span><span class="l">KES, before gaps are recovered</span></div>
+    <div class="panel stat"><span class="l">Cash still with staff</span><span class="v num">10,200</span><span class="l">2 people not yet released</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h2>Tomatoes today, step by step</h2>
+      <button class="btn ghost small" data-go="gaps">See all products</button>
+    </div>
+    <div class="prod" id="owner-chain"></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="panel">
+      <h2>Deliveries today</h2>
+      <div class="tw"><table>
+        <thead><tr><th>Client</th><th>Vehicle</th><th>Clerk's answer</th></tr></thead>
+        <tbody>
+          <tr><td>Tsavo Gate Hotel</td><td>KDA 412X, Otieno</td><td><span class="chip bad">12 kg tomatoes short</span><br><span class="muted">Grace confirmed 9:42</span></td></tr>
+          <tr><td>Sagala Hills Resort</td><td>KDA 412X, Otieno</td><td><span class="chip warn">20 kg potatoes sent back</span><br><span class="muted">Peter K. confirmed 11:05</span></td></tr>
+          <tr><td>Kasigau Medical Centre</td><td>KDB 077M, Kioko</td><td><span class="chip bad">2 kg beef short</span><br><span class="muted">Sr. Achieng confirmed 10:18</span></td></tr>
+          <tr><td>Mama Neema's Kitchen</td><td>KDA 412X, Otieno</td><td><span class="chip ok">All received</span><br><span class="muted">Paid cash KES 6,800</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h2>Stock in the store now</h2>
+      <div class="tw"><table>
+        <thead><tr><th>Item</th><th class="r">In store</th><th>Counted by</th></tr></thead>
+        <tbody>
+          <tr><td>Potatoes</td><td class="r num">107 kg</td><td>Wanjiku, 17:40</td></tr>
+          <tr><td>Onions</td><td class="r num">10 kg</td><td>Wanjiku, 17:40</td></tr>
+          <tr><td>Eggs</td><td class="r num">0 trays</td><td>Wanjiku, 17:40</td></tr>
+          <tr><td>Tomatoes, grade B</td><td class="r num">0 kg</td><td>Sold to Mama Neema</td></tr>
+        </tbody>
+      </table></div>
+      <div class="row">
+        <button class="btn ghost small" data-go="orders">See tomorrow's buying list</button>
+        <button class="btn ghost small" data-go="cashup">Go to evening cash-up</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between">
+      <h2>Clients who have not yet paid</h2>
+      <button class="btn ghost small" data-go="money">See money and profit</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Client</th><th>Terms</th><th class="r">Not yet paid, KES</th><th>Oldest delivery</th></tr></thead>
+      <tbody>
+        <tr><td>Kasigau Medical Centre</td><td>Pays 45 days after delivery, LPO</td><td class="r num">312,750</td><td>14 Oct</td></tr>
+        <tr><td>Sagala Hills Resort</td><td>Pays 30 days after delivery, LPO</td><td class="r num">184,300</td><td>27 Oct</td></tr>
+        <tr><td>Tsavo Gate Hotel</td><td>Pays every Friday by M-Pesa</td><td class="r num">52,400</td><td>25 Nov</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- WHAT DOESN'T ADD UP -->
+<section class="view" id="v-gaps" data-name="What doesn't add up" hidden>
+  <div class="lead">
+    <h1>What doesn't add up today</h1>
+    <p class="muted">For every item: what was bought, sorted, loaded, delivered and paid for. Where the amount drops without a reason, the row turns red and names who had the goods at that step.</p>
+  </div>
+  <div class="row">
+    <span class="chip bad num">5 gaps, KES 3,990</span>
+    <span class="chip warn">1 explained with a photo</span>
+    <span class="chip ok">3 items fully match</span>
+    <span class="chip">Branch: Voi. Also: Kongowea, Mombasa</span>
+  </div>
+  <h2>Goods</h2>
+  <div id="gap-list" class="grid" style="gap:12px"></div>
+
+  <h2>Cash</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Person</th><th>Given or collected</th><th class="r">Should hand in</th><th class="r">Handed in</th><th class="r">Gap</th><th>What to do</th></tr></thead>
+    <tbody>
+      <tr><td><b>Juma</b>, market buyer</td><td>Float KES 115,000. Receipts for 111,100</td><td class="r num">3,900</td><td class="r num">3,400</td><td class="r num" style="color:var(--gap)">500</td><td><button class="btn small ghost" data-toast="Juma gets a message on his phone asking what the KES 500 was for. His answer shows here.">Ask Juma to explain</button></td></tr>
+      <tr><td><b>Otieno</b>, driver KDA 412X</td><td>Cash from Mama Neema's Kitchen 6,800</td><td class="r num">6,800</td><td class="r num">6,300</td><td class="r num" style="color:var(--gap)">500</td><td><button class="btn small ghost" data-go="cashup">Settle at cash-up</button></td></tr>
+      <tr><td><b>Kioko</b>, driver KDB 077M</td><td>Fuel float 3,500. Fuel receipt 3,500</td><td class="r num">0</td><td class="r num">0</td><td class="r num">0</td><td><span class="chip ok">Matches</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="panel">
+    <h2>This month so far</h2>
+    <p>Gaps worth <b class="num">KES 38,650</b> in 25 days. The table counts gaps on steps each person handled. A name here is a question to ask, not proof.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Person</th><th>Step they handle</th><th class="r">Gaps</th><th class="r">Value, KES</th><th>Pattern</th></tr></thead>
+      <tbody>
+        <tr><td>Otieno</td><td>Driving KDA 412X</td><td class="r num">9</td><td class="r num">17,400</td><td>Mostly tomatoes and cash, mostly Tsavo Gate route</td></tr>
+        <tr><td>Juma</td><td>Buying at the market</td><td class="r num">4</td><td class="r num">9,850</td><td>Prices above other buyers on the same day</td></tr>
+        <tr><td>Kioko</td><td>Driving KDB 077M</td><td class="r num">2</td><td class="r num">4,300</td><td>Meat, hospital route</td></tr>
+        <tr><td>Hassan</td><td>Loading</td><td class="r num">1</td><td class="r num">1,200</td><td>None yet</td></tr>
+        <tr><td>Wanjiku</td><td>Sorting and store</td><td class="r num">0</td><td class="r num">0</td><td>Waste always has a reason and photo</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- MARKET BUYER -->
+<section class="view" id="v-buyer" data-name="Market buyer phone" hidden>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="app-bar"><b>Juma, market buyer</b><small>Voi Market, 5:12 am</small></div>
+      <div class="net" id="buyer-net">No network. Saved on this phone, it sends when the network comes back.</div>
+      <div class="app-body">
+        <div class="card">
+          <div class="line-item"><span>Money in hand</span><b class="num" id="buyer-hand">KES 9,500</b></div>
+          <div class="bar"><i id="buyer-bar" style="width:92%"></i></div>
+          <small class="muted" id="buyer-spent">Spent 105,500 of 115,000 float</small>
+        </div>
+        <div class="card">
+          <h3>Today's list</h3>
+          <div class="line-item"><span>Tomatoes</span><span class="num">0 of 240 kg</span></div>
+          <div class="line-item"><span>Potatoes</span><span class="chip ok num">500 of 500 kg</span></div>
+          <div class="line-item"><span>Sukuma</span><span class="chip ok num">150 of 150 kg</span></div>
+          <div class="line-item"><span>Onions</span><span class="chip ok num">100 of 100 kg</span></div>
+          <div class="line-item"><span>Beef</span><span class="chip ok num">60 of 60 kg</span></div>
+        </div>
+        <form class="card" id="buy-form">
+          <h3>Add a purchase <small class="muted">· Ongeza ununuzi</small></h3>
+          <div class="field"><label for="b-item">Item</label>
+            <select id="b-item"><option>Tomatoes</option><option>Potatoes</option><option>Sukuma</option><option>Onions</option></select></div>
+          <div class="field"><label for="b-seller">Bought from</label><input id="b-seller" value="Mama Rehema, stall 14"></div>
+          <div class="two">
+            <div class="field"><label for="b-qty">How much</label><input id="b-qty" inputmode="decimal" value="4"></div>
+            <div class="field"><label for="b-unit">Unit</label><select id="b-unit"><option value="crate">Crates of 60 kg</option><option value="kg">kg</option><option value="bag">Bags of 50 kg</option></select></div>
+          </div>
+          <div class="field"><label for="b-price">Price per kg, KES</label><input id="b-price" inputmode="decimal" value="68"></div>
+          <p class="chip warn" id="b-alert" style="border-radius:8px">Higher than usual. Other buyers paid 58 to 62 today. Salim will see this price.</p>
+          <div class="field"><label for="b-pay">Paid by</label><select id="b-pay"><option>Cash</option><option>M-Pesa to seller</option></select></div>
+          <button type="button" class="btn ghost" data-toast="The camera opens. The photo is kept with this purchase, even with no network.">Take photo of the receipt</button>
+          <button class="btn big-btn" type="submit">Save purchase <span class="sw">Hifadhi ununuzi</span></button>
+        </form>
+        <div class="card" id="buy-log">
+          <h3>Saved this morning</h3>
+          <div class="line-item"><span>Potatoes 10 bags, Kaloleni Traders</span><span class="num">22,500</span></div>
+          <div class="line-item"><span>Beef 60 kg, Voi slaughterhouse</span><span class="num">36,000</span></div>
+          <div class="line-item"><span>Eggs 40 trays, Mwakio Farm</span><span class="num">15,600</span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="stops-note">
+      <h1>The market buyer's phone</h1>
+      <p>Juma takes the day's list, a cash float and his phone. Every purchase is saved with who sold it, the weight, the price and a photo of the receipt.</p>
+      <h2>What this stops</h2>
+      <ul>
+        <li>Paying 68 a kilo and saying 75. Salim sees today's price next to what other buyers paid and what Juma paid yesterday.</li>
+        <li>Buying less and saying more. The store weighs what arrives and compares it with what Juma saved.</li>
+        <li>Float that disappears. Money in hand goes down with each purchase, so the evening cash-up knows what he should bring back.</li>
+      </ul>
+      <p class="muted">Works with no network at the market. Big buttons and short words for a cheap Android phone. Swahili next to each main button.</p>
+      <div class="row"><button class="btn ghost" data-go="store">Next: the store receives Juma's goods</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- STORE -->
+<section class="view" id="v-store" data-name="Store and sorting phone" hidden>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="app-bar"><b>Wanjiku, store</b><small>Voi store, 6:40 am</small></div>
+      <div class="net on">Online. Everything sent.</div>
+      <div class="app-body">
+        <div class="card">
+          <h3>Goods in from Juma</h3>
+          <div class="line-item"><span>Tomatoes, Juma says</span><b class="num">240 kg</b></div>
+          <div class="field"><label for="s-weigh">You weighed</label><input id="s-weigh" inputmode="decimal" value="240"></div>
+          <p class="chip ok" id="s-weigh-msg" style="border-radius:8px">Matches what Juma bought.</p>
+        </div>
+        <div class="card">
+          <h3>Sort and grade tomatoes</h3>
+          <div class="two">
+            <div class="field"><label for="s-a">Grade A, kg</label><input id="s-a" inputmode="decimal" value="210"></div>
+            <div class="field"><label for="s-b">Grade B, kg</label><input id="s-b" inputmode="decimal" value="18"></div>
+          </div>
+          <div class="field"><label for="s-w">Waste, kg</label><input id="s-w" inputmode="decimal" value="12"></div>
+          <div class="field"><label for="s-why">Why it is waste</label>
+            <select id="s-why"><option value="">Pick a reason</option><option selected>Crushed in the crate</option><option>Rotten</option><option>Too green to sell</option><option>Spilled</option></select></div>
+          <button class="btn ghost" type="button" data-toast="The camera opens. Waste cannot be saved without a photo of it.">Take photo of the waste</button>
+          <p class="muted" id="s-total" style="font-size:.85rem">210 + 18 + 12 = 240 kg. All weighed goods are accounted for.</p>
+          <button class="btn big-btn" id="s-save" type="button" data-toast="Saved. Salim sees 12 kg waste, the reason, the photo and your name.">Save sorting <span class="sw">Hifadhi upangaji</span></button>
+        </div>
+        <div class="card">
+          <h3>Load vehicle KDA 412X</h3>
+          <div class="line-item"><span>Tomatoes A</span><span class="num">210 kg</span></div>
+          <div class="line-item"><span>Tomatoes B</span><span class="num">18 kg</span></div>
+          <div class="line-item"><span>Potatoes</span><span class="num">300 kg</span></div>
+          <div class="line-item"><span>Eggs</span><span class="num">25 trays</span></div>
+          <p class="muted" style="font-size:.85rem">Loaded by Hassan. Otieno must accept the load on his own phone before the vehicle leaves.</p>
+          <span class="chip ok">Otieno accepted the load at 7:18</span>
+        </div>
+      </div>
+    </div></div>
+    <div class="stops-note">
+      <h1>The store and sorting phone</h1>
+      <p>Wanjiku weighs what comes from the market, sorts it into grades, records waste and loads the vehicles.</p>
+      <h2>What this stops</h2>
+      <ul>
+        <li>Goods that vanish between the market and the store. Her weight is compared with Juma's at once.</li>
+        <li>"It went bad" with no proof. Waste needs a reason and a photo, and carries her name.</li>
+        <li>Arguments about what was loaded. Every load has two names: who loaded it and the driver who accepted it. After that, the driver answers for it.</li>
+      </ul>
+      <p class="muted">Sell by weight or by count: tomatoes in kg, eggs in trays, sukuma in kg or bundles, milk in litres.</p>
+      <div class="row"><button class="btn ghost" data-go="driver">Next: the driver takes the load</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- DRIVER -->
+<section class="view" id="v-driver" data-name="Driver phone" hidden>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="app-bar"><b>Otieno, driver</b><small>KDA 412X, 3 stops today</small></div>
+      <div class="net">Weak network. 1 item waiting to send.</div>
+      <div class="app-body">
+        <div class="card">
+          <h3>Load you accepted at 7:18</h3>
+          <div class="line-item"><span>Tomatoes</span><span class="num">228 kg</span></div>
+          <div class="line-item"><span>Potatoes</span><span class="num">300 kg</span></div>
+          <div class="line-item"><span>Eggs</span><span class="num">25 trays</span></div>
+        </div>
+        <div class="card">
+          <div class="line-item"><h3>1. Tsavo Gate Hotel</h3><span class="status-pill chip bad">12 kg short</span></div>
+          <p style="font-size:.88rem">Delivery note DN-1182. Grace at receiving confirmed on her phone at 9:42.</p>
+          <div class="line-item"><span>Tomatoes</span><span class="num">60 sent, 48 received</span></div>
+          <p class="muted" style="font-size:.82rem">You cannot change what the clerk confirmed. Salim will ask about the 12 kg.</p>
+        </div>
+        <div class="card">
+          <div class="line-item"><h3>2. Sagala Hills Resort</h3><span class="status-pill chip warn">20 kg sent back</span></div>
+          <p style="font-size:.88rem">Peter K. sent back 20 kg potatoes: too small. Bring them to the store. Wanjiku will weigh them.</p>
+          <button class="btn ghost small" data-toast="The camera opens. The photo shows the potatoes that were sent back.">Take photo of what was sent back</button>
+        </div>
+        <div class="card" id="stop3">
+          <div class="line-item"><h3>3. Mama Neema's Kitchen</h3><span class="status-pill chip" id="stop3-pill">Waiting</span></div>
+          <p style="font-size:.88rem">This client has no smartphone at the door. Ask the cook for the 4 digit code in the email we sent to the restaurant.</p>
+          <div class="field"><label for="d-code">Code from the client</label><input id="d-code" inputmode="numeric" maxlength="4" placeholder="4 digits" value="7316"></div>
+          <div class="field"><label for="d-cash">Cash you received, KES</label><input id="d-cash" inputmode="numeric" value="6800"></div>
+          <button class="btn big-btn" id="d-confirm" type="button">Save delivery and cash <span class="sw">Hifadhi upelekaji na pesa</span></button>
+        </div>
+        <button class="btn ghost" data-toast="Saved with a photo. The broken tray shows as explained, not missing.">Report broken or damaged goods</button>
+      </div>
+    </div></div>
+    <div class="stops-note">
+      <h1>The driver's phone</h1>
+      <p>Otieno sees his stops in order, what he accepted from the store, and what each client confirmed.</p>
+      <h2>What this stops</h2>
+      <ul>
+        <li>Dropping a crate at a friend's kiosk on the way. The driver accepted 228 kg, the clients confirmed 216 kg, so 12 kg is his to explain.</li>
+        <li>Changing the numbers after the fact. Only the client's clerk confirms what was received. The driver cannot edit it.</li>
+        <li>Keeping some of the cash. Cash he records here must match what he hands in at the evening cash-up.</li>
+      </ul>
+      <p class="muted">Clients without a phone at the door read a 4 digit code from the delivery email instead. Breakages are reported with a photo so honest drivers are protected too.</p>
+      <div class="row"><button class="btn ghost" data-go="confirm">Next: the hotel clerk confirms</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- CLIENT CONFIRM -->
+<section class="view" id="v-confirm" data-name="Hotel clerk confirms" hidden>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="app-bar"><b>Confirm your delivery</b><small>From Mwangaza Fresh Supplies, Voi</small></div>
+      <div class="net on">Opened from an email link. No app or account needed.</div>
+      <div class="app-body" id="confirm-body">
+        <div class="card">
+          <h3>Tsavo Gate Hotel, receiving</h3>
+          <p style="font-size:.88rem">Delivery note <b>DN-1182</b>. LPO 2291. Driver Otieno, vehicle KDA 412X. Arrived 9:31.</p>
+        </div>
+        <div class="card">
+          <h3>Count and weigh, then fill in what you received</h3>
+          <div id="c-items"></div>
+        </div>
+        <div class="card">
+          <div class="field"><label for="c-name">Your name</label><input id="c-name" value="Grace Mwakisha"></div>
+          <label class="field" for="sig"><b>Sign here with your finger</b></label>
+          <canvas class="sign" id="sig" aria-label="Signature box"></canvas>
+          <div class="row"><button class="btn ghost small" type="button" id="sig-clear">Clear signature</button></div>
+          <label class="tick"><input type="checkbox" id="c-ok" checked><span>I counted these myself. When I confirm, Mwangaza Fresh and our accounts office both get this record, and the invoice is made for what I received only.</span></label>
+          <p class="muted" id="c-summary" style="font-size:.88rem"></p>
+          <button class="btn big-btn" id="c-send" type="button">Confirm what we received</button>
+        </div>
+      </div>
+    </div></div>
+    <div class="stops-note">
+      <h1>The client's receiving clerk</h1>
+      <p>The hotel or hospital clerk gets an email with a link when the vehicle arrives. They count, weigh, fill in what they received, sign and confirm.</p>
+      <h2>What this stops</h2>
+      <ul>
+        <li>Short deliveries that nobody notices until the invoice. The gap shows the moment the clerk confirms.</li>
+        <li>Paying for goods that never arrived. The invoice follows what the clerk confirmed, which is why hotels like it too.</li>
+        <li>"The hotel rejected it" stories. Rejects and their reasons are recorded by the client, and the goods must come back to the store.</li>
+      </ul>
+      <p class="muted">Try it: change tomatoes received to 60 and watch the gap close, or reject some potatoes.</p>
+      <div class="row"><button class="btn ghost" data-go="gaps">Next: see the gaps it found</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- MONEY -->
+<section class="view" id="v-money" data-name="Money and profit" hidden>
+  <div class="lead">
+    <h1>Money and profit</h1>
+    <p class="muted">Money in by M-Pesa, cash and bank. Money out on goods, transport, fuel, market fees, porters and wages. Profit per client, per item, per day and month.</p>
+  </div>
+  <div class="grid g4">
+    <div class="panel stat"><span class="l">Sold in November so far</span><span class="v num">3,412,800</span><span class="l">KES</span></div>
+    <div class="panel stat"><span class="l">Spent in November so far</span><span class="v num">2,861,400</span><span class="l">KES</span></div>
+    <div class="panel stat"><span class="l">Profit in November so far</span><span class="v num" style="color:var(--leaf)">551,400</span><span class="l">KES</span></div>
+    <div class="panel stat"><span class="l">Lost to gaps in November</span><span class="v num" style="color:var(--gap)">38,650</span><span class="l">KES, 7% of profit</span></div>
+  </div>
+
+  <div class="panel chart">
+    <h2>Last 7 days</h2>
+    <div class="legend"><span><i class="sw-box" style="background:var(--leaf)"></i>Sold</span><span><i class="sw-box" style="background:var(--muted)"></i>Spent</span><span><i class="sw-box" style="background:var(--gap)"></i>Lost to gaps</span></div>
+    <div id="chart"></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="panel">
+      <h2>Profit per client today</h2>
+      <div class="tw"><table>
+        <thead><tr><th>Client</th><th class="r">Sold</th><th class="r">Profit</th><th class="r">Margin</th></tr></thead>
+        <tbody>
+          <tr><td>Tsavo Gate Hotel</td><td class="r num">52,400</td><td class="r num">9,100</td><td class="r num">17%</td></tr>
+          <tr><td>Sagala Hills Resort</td><td class="r num">44,960</td><td class="r num">7,050</td><td class="r num">16%</td></tr>
+          <tr><td>Kasigau Medical Centre</td><td class="r num">37,000</td><td class="r num">4,410</td><td class="r num">12%</td></tr>
+          <tr><td>Mama Neema's Kitchen</td><td class="r num">6,800</td><td class="r num">1,800</td><td class="r num">26%</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h2>Profit per item today</h2>
+      <div class="tw"><table>
+        <thead><tr><th>Item</th><th class="r">Bought at</th><th class="r">Sold at</th><th class="r">Profit</th></tr></thead>
+        <tbody>
+          <tr><td>Beef</td><td class="r num">600/kg</td><td class="r num">750/kg</td><td class="r num">6,800</td></tr>
+          <tr><td>Potatoes</td><td class="r num">45/kg</td><td class="r num">70/kg</td><td class="r num">4,100</td></tr>
+          <tr><td>Tomatoes</td><td class="r num">60/kg</td><td class="r num">95/kg</td><td class="r num">3,700</td></tr>
+          <tr><td>Sukuma</td><td class="r num">40/kg</td><td class="r num">70/kg</td><td class="r num">3,900</td></tr>
+          <tr><td>Milk</td><td class="r num">60/L</td><td class="r num">90/L</td><td class="r num">2,300</td></tr>
+          <tr><td>Eggs</td><td class="r num">390/tray</td><td class="r num">480/tray</td><td class="r num">1,560</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Clients paying on terms</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Client</th><th class="r">Not yet paid, KES</th><th>Pay by</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr><td>Kasigau Medical Centre</td><td class="r num">312,750</td><td>28 Nov for October deliveries</td><td class="row"><button class="btn small" data-toast="Statement for Kasigau Medical Centre is ready: every delivery note, what their clerk confirmed and every payment.">Make statement</button><button class="btn small ghost" data-toast="A polite reminder goes by email to the accounts office, with the statement attached.">Send reminder</button></td></tr>
+        <tr><td>Sagala Hills Resort</td><td class="r num">184,300</td><td>26 Nov for October deliveries</td><td class="row"><button class="btn small" data-toast="Statement for Sagala Hills Resort is ready.">Make statement</button><button class="btn small ghost" data-toast="Reminder ready for Sagala Hills accounts office.">Send reminder</button></td></tr>
+        <tr><td>Tsavo Gate Hotel</td><td class="r num">52,400</td><td>Friday 28 Nov</td><td><span class="chip ok">Paid 42,000 by M-Pesa today, matched</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="panel">
+      <h2>Spent today</h2>
+      <div class="tw"><table>
+        <tbody>
+          <tr><td>Goods at the market</td><td>Juma, 9 receipts</td><td class="r num">109,700</td></tr>
+          <tr><td>Fuel</td><td>Kioko, receipt</td><td class="r num">3,500</td></tr>
+          <tr><td>Market fees</td><td>Juma, county receipt</td><td class="r num">600</td></tr>
+          <tr><td>Porters</td><td>Juma, 4 porters</td><td class="r num">800</td></tr>
+          <tr><td>Wages for the day</td><td>5 staff</td><td class="r num">4,200</td></tr>
+          <tr><td><b>Total</b></td><td></td><td class="r num"><b>118,800</b></td></tr>
+        </tbody>
+      </table></div>
+      <button class="btn ghost small" data-toast="Pick the kind of expense, the amount, who paid and a photo of the receipt.">Add an expense</button>
+    </div>
+    <div class="panel">
+      <h2>Invoice for Tsavo Gate Hotel</h2>
+      <p style="font-size:.9rem">INV-2025-1182, made from what Grace confirmed: tomatoes 48 kg at 95, potatoes 100 kg at 70, sukuma 40 kg at 70, eggs 15 trays at 480, milk 40 L at 90.</p>
+      <div class="field"><label for="m-pin">Client's KRA PIN (optional)</label><input id="m-pin" value="P051234567X"></div>
+      <label class="tick"><input type="checkbox" id="m-etims"><span>Send this invoice to KRA eTIMS. When ticked, the invoice gets a KRA number and QR code before it goes to the client. Leave it off if you are not on eTIMS yet.</span></label>
+      <button class="btn" data-toast="Invoice sent to Tsavo Gate accounts by email with your logo.">Send invoice to Tsavo Gate</button>
+    </div>
+  </div>
+</section>
+
+<!-- CASH-UP -->
+<section class="view" id="v-cashup" data-name="Evening cash-up" hidden>
+  <div class="lead">
+    <h1>Evening cash-up</h1>
+    <p class="muted">Everyone who carried money today hands it in. Count it, type what you counted, then release them. Nobody goes home until the amount is confirmed or the gap is settled.</p>
+  </div>
+  <div class="panel" id="cash-list"></div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2>Today's team</h2><button class="btn ghost small" data-toast="Add the person, their role, the wage per day and their phone number. They sign in with a PIN.">Add a staff member</button></div>
+    <div class="tw"><table>
+      <thead><tr><th>Name</th><th>Role</th><th>Came in</th><th class="r">Wage per day</th><th class="r">Advances in November</th></tr></thead>
+      <tbody>
+        <tr><td>Juma</td><td>Market buyer</td><td class="num">4:40</td><td class="r num">900</td><td class="r num">2,000</td></tr>
+        <tr><td>Hassan</td><td>Porter and loader</td><td class="num">5:00</td><td class="r num">500</td><td class="r num">500</td></tr>
+        <tr><td>Wanjiku</td><td>Storekeeper and sorter</td><td class="num">6:10</td><td class="r num">800</td><td class="r num">0</td></tr>
+        <tr><td>Otieno</td><td>Driver, KDA 412X</td><td class="num">7:05</td><td class="r num">1,000</td><td class="r num">1,500</td></tr>
+        <tr><td>Kioko</td><td>Driver, KDB 077M</td><td class="num">7:20</td><td class="r num">1,000</td><td class="r num">0</td></tr>
+        <tr><td>Mwende</td><td>Accountant, part time</td><td class="num">9:00</td><td class="r num">Monthly</td><td class="r num">0</td></tr>
+      </tbody>
+    </table></div>
+    <div class="row"><button class="btn ghost small" data-toast="Record an advance: who, how much, and it comes off their next wage automatically.">Give an advance</button><button class="btn ghost small" data-toast="Wages for the week, less advances and settled gaps, ready to pay by M-Pesa.">Prepare this week's wages</button></div>
+  </div>
+</section>
+
+<!-- ORDERS -->
+<section class="view" id="v-orders" data-name="Orders and prices" hidden>
+  <div class="lead">
+    <h1>Orders and prices</h1>
+    <p class="muted">Standing orders repeat on set days. One-off orders come with an LPO. Each client has its own price list.</p>
+  </div>
+  <div class="row"><button class="btn" data-toast="Pick the client, the days, the items and the amounts. It repeats until you stop it.">Add a standing order</button><button class="btn ghost" data-toast="Type the LPO number, take a photo of it and add the items.">Add a one-off order with LPO</button></div>
+  <div class="tw"><table>
+    <thead><tr><th>Client</th><th>Kind</th><th>Days</th><th>Items</th></tr></thead>
+    <tbody>
+      <tr><td>Tsavo Gate Hotel</td><td>Standing order</td><td>Mon to Sat</td><td>Tomatoes 60 kg, potatoes 100 kg, sukuma 40 kg, eggs 15 trays, milk 40 L</td></tr>
+      <tr><td>Sagala Hills Resort</td><td>Standing order</td><td>Mon, Wed, Fri</td><td>Tomatoes 150 kg, potatoes 200 kg, onions 40 kg, sukuma 60 kg</td></tr>
+      <tr><td>Kasigau Medical Centre</td><td>LPO 0457</td><td>Every day this month</td><td>Beef 60 kg, potatoes 100 kg, milk 80 L, eggs 24 trays</td></tr>
+      <tr><td>Mama Neema's Kitchen</td><td>Phone order</td><td>Today only</td><td>Tomatoes grade B 18 kg, onions 10 kg, sukuma 6 kg</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid g2">
+    <div class="panel">
+      <h2>Prices per client</h2>
+      <div class="tw"><table>
+        <thead><tr><th>Item</th><th class="r">Tsavo Gate</th><th class="r">Sagala Hills</th><th class="r">Kasigau Medical</th><th class="r">Mama Neema</th></tr></thead>
+        <tbody>
+          <tr><td>Tomatoes, kg</td><td class="r num">95</td><td class="r num">100</td><td class="r num">90</td><td class="r num">70 (B)</td></tr>
+          <tr><td>Potatoes, kg</td><td class="r num">70</td><td class="r num">72</td><td class="r num">68</td><td class="r num">75</td></tr>
+          <tr><td>Beef, kg</td><td class="r num">780</td><td class="r num">800</td><td class="r num">750</td><td class="r num">800</td></tr>
+          <tr><td>Eggs, tray</td><td class="r num">480</td><td class="r num">490</td><td class="r num">470</td><td class="r num">500</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted" style="font-size:.85rem">When a buying price rises above what a client pays, the item turns amber here so you can talk to the client before you lose money on it.</p>
+    </div>
+    <div class="panel">
+      <h2>Wednesday's buying list for Juma</h2>
+      <p class="muted" style="font-size:.88rem">All orders for Wednesday, less what is already in the store.</p>
+      <div class="tw"><table>
+        <thead><tr><th>Item</th><th class="r">Orders</th><th class="r">In store</th><th class="r">Buy</th></tr></thead>
+        <tbody>
+          <tr><td>Tomatoes</td><td class="r num">210 kg</td><td class="r num">0</td><td class="r num">220 kg</td></tr>
+          <tr><td>Potatoes</td><td class="r num">400 kg</td><td class="r num">107 kg</td><td class="r num">300 kg</td></tr>
+          <tr><td>Onions</td><td class="r num">40 kg</td><td class="r num">10 kg</td><td class="r num">30 kg</td></tr>
+          <tr><td>Beef</td><td class="r num">60 kg</td><td class="r num">0</td><td class="r num">60 kg</td></tr>
+        </tbody>
+      </table></div>
+      <label class="tick"><input type="checkbox" id="o-extra" checked><span>Add 5% extra for sorting waste. When ticked, tomatoes and sukuma are rounded up so waste does not leave a client short.</span></label>
+      <button class="btn" data-toast="The list and a float of KES 98,000 are on Juma's phone for tomorrow morning.">Send list to Juma's phone</button>
+    </div>
+  </div>
+</section>
+
+<p class="sample-note">Every business, person, phone number and amount here is made up for the demo. A real account starts empty: sample data is off at sign-up.</p>
+</main>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+  const views=[...document.querySelectorAll('section.view')];
+  const picker=document.getElementById('picker');
+  views.forEach(v=>{
+    const b=document.createElement('button');
+    b.type='button';b.setAttribute('role','tab');b.textContent=v.dataset.name;b.dataset.go=v.id.slice(2);
+    picker.appendChild(b);
+  });
+  function show(name){
+    if(!document.getElementById('v-'+name)) name='owner';
+    views.forEach(v=>v.hidden=v.id!=='v-'+name);
+    picker.querySelectorAll('button').forEach(b=>{
+      const on=b.dataset.go===name;b.setAttribute('aria-selected',on);
+      if(on) b.scrollIntoView({block:'nearest',inline:'nearest'});
+    });
+    window.scrollTo(0,0);
+  }
+  document.addEventListener('click',e=>{
+    const g=e.target.closest('[data-go]');
+    if(g){e.preventDefault();location.hash=g.dataset.go;return}
+    const t=e.target.closest('[data-toast]');
+    if(t){toast(t.dataset.toast)}
+  });
+  window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+  let tt;function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.hidden=false;clearTimeout(tt);tt=setTimeout(()=>el.hidden=true,3800)}
+  const fmt=n=>Number(n).toLocaleString('en-KE');
+
+  // ---------- chain data ----------
+  const goods=[
+    {item:'Tomatoes',u:'kg',val:95,steps:[
+      {q:240,who:'Juma, Voi Market, 4 sellers'},
+      {q:228,who:'Wanjiku. 12 kg waste, crushed, photo',st:'warnok'},
+      {q:228,who:'Hassan loaded, Otieno accepted'},
+      {q:216,who:'4 clerks confirmed',bad:true},
+      {q:216,who:'Invoiced for 216 kg'}],
+     gap:{bad:true,text:'12 kg missing between the vehicle and Tsavo Gate Hotel. Vehicle KDA 412X, driver Otieno.',value:1140,ask:'Otieno'}},
+    {item:'Potatoes',u:'kg',val:70,steps:[
+      {q:500,who:'Juma, Kaloleni Traders'},
+      {q:492,who:'Wanjiku. 8 kg rotten, photo'},
+      {q:400,who:'Hassan loaded. 92 kg kept in store'},
+      {q:380,who:'Sagala Hills sent back 20 kg',warn:true},
+      {q:380,who:'Invoiced for 380 kg'}],
+     gap:{bad:true,text:'Sagala Hills sent back 20 kg. Only 15 kg came back to the store. 5 kg missing on the return trip, driver Otieno.',value:350,ask:'Otieno'}},
+    {item:'Beef',u:'kg',val:750,steps:[
+      {q:60,who:'Juma, Voi slaughterhouse'},
+      {q:60,who:'Wanjiku, weighed in cold box'},
+      {q:60,who:'Kioko accepted on KDB 077M'},
+      {q:58,who:'Sr. Achieng, Kasigau Medical',bad:true},
+      {q:58,who:'Invoiced for 58 kg'}],
+     gap:{bad:true,text:'2 kg missing between loading and the hospital. Vehicle KDB 077M, driver Kioko.',value:1500,ask:'Kioko'}},
+    {item:'Eggs',u:'trays',val:480,steps:[
+      {q:40,who:'Juma, Mwakio Farm'},
+      {q:40,who:'Wanjiku counted'},
+      {q:40,who:'Split across both vehicles'},
+      {q:39,who:'1 tray broken, photo by Otieno',warn:true},
+      {q:39,who:'Invoiced for 39 trays'}],
+     gap:{warn:true,text:'1 tray broken on the road. Otieno sent a photo at 8:50. Marked as explained.',value:480}},
+    {item:'Sukuma',u:'kg',val:70,steps:[{q:150,who:'Juma'},{q:146,who:'Wanjiku. 4 kg yellow leaves'},{q:146,who:'Hassan, both vehicles'},{q:146,who:'All confirmed'},{q:146,who:'Invoiced'}]},
+    {item:'Onions',u:'kg',val:120,steps:[{q:100,who:'Juma'},{q:100,who:'Wanjiku'},{q:90,who:'10 kg kept in store'},{q:90,who:'All confirmed'},{q:90,who:'Invoiced'}]},
+    {item:'Milk',u:'L',val:90,steps:[{q:120,who:'Juma, Sagala dairy'},{q:120,who:'Wanjiku'},{q:120,who:'Kioko, cool box'},{q:120,who:'All confirmed'},{q:120,who:'Invoiced'}]},
+  ];
+  const stepNames=['Bought','Sorted','Loaded','Delivered','Paid for'];
+  function chainHTML(g){
+    const links=g.steps.map((s,i)=>`<div class="link ${s.bad?'bad':s.warn?'warn':''}"><span class="step">${stepNames[i]}</span><span class="q">${fmt(s.q)} ${g.u}</span><span class="who">${s.who}</span></div>`).join('');
+    let gl='';
+    if(g.gap){
+      gl=`<div class="gapline ${g.gap.warn?'warn':''}"><span>${g.gap.text} <b class="num">KES ${fmt(g.gap.value)}</b></span>${g.gap.ask?`<span class="row"><button class="btn small danger" data-toast="${g.gap.ask} gets a message asking what happened to the missing ${g.item.toLowerCase()}. The answer shows here.">Ask ${g.gap.ask} to explain</button><button class="btn small ghost" data-toast="You choose: take it from ${g.gap.ask}'s wage, or write down why it is fine.">Settle this gap</button></span>`:''}</div>`;
+    }
+    const status=g.gap?(g.gap.bad?'<span class="chip bad">Doesn\'t add up</span>':'<span class="chip warn">Explained</span>'):'<span class="chip ok">Adds up</span>';
+    return `<div class="prod-head"><h3>${g.item}</h3>${status}</div><div class="scroll"><div class="chain">${links}</div></div>${gl}`;
+  }
+  document.getElementById('owner-chain').innerHTML=chainHTML(goods[0]);
+  document.getElementById('gap-list').innerHTML=goods.map(g=>`<div class="prod">${chainHTML(g)}</div>`).join('');
+
+  // ---------- buyer ----------
+  const usual={Tomatoes:[58,62],Potatoes:[42,47],Sukuma:[35,42],Onions:[75,85]};
+  const bItem=document.getElementById('b-item'),bQty=document.getElementById('b-qty'),bUnit=document.getElementById('b-unit'),bPrice=document.getElementById('b-price'),bAlert=document.getElementById('b-alert');
+  let hand=9500;
+  function kg(){const q=parseFloat(bQty.value)||0;return bUnit.value==='crate'?q*60:bUnit.value==='bag'?q*50:q}
+  function checkPrice(){
+    const [lo,hi]=usual[bItem.value];const p=parseFloat(bPrice.value)||0;
+    const total=kg()*p;
+    if(p>hi){bAlert.className='chip warn';bAlert.textContent=`Higher than usual. Other buyers paid ${lo} to ${hi} today. Salim will see this price. Total KES ${fmt(total)}.`}
+    else{bAlert.className='chip ok';bAlert.textContent=`Normal price for today. Total KES ${fmt(total)}.`}
+  }
+  [bItem,bQty,bUnit,bPrice].forEach(el=>el.addEventListener('input',checkPrice));checkPrice();
+  document.getElementById('buy-form').addEventListener('submit',e=>{
+    e.preventDefault();
+    const total=Math.round(kg()*(parseFloat(bPrice.value)||0));
+    if(total<=0){toast('Fill in how much and the price before saving.');return}
+    if(total>hand){toast(`You have KES ${fmt(hand)} in hand. Ask Salim to send more by M-Pesa before buying this.`);return}
+    hand-=total;
+    document.getElementById('buyer-hand').textContent='KES '+fmt(hand);
+    document.getElementById('buyer-spent').textContent=`Spent ${fmt(115000-hand)} of 115,000 float`;
+    document.getElementById('buyer-bar').style.width=Math.round((115000-hand)/1150)+'%';
+    const row=document.createElement('div');row.className='line-item';
+    row.innerHTML=`<span>${bItem.value} ${fmt(kg())} kg, ${document.getElementById('b-seller').value.replace(/</g,'')}</span><span class="num">${fmt(total)}</span>`;
+    document.getElementById('buy-log').insertBefore(row,document.getElementById('buy-log').children[1]);
+    toast('Saved on this phone. It will send when the network comes back.');
+  });
+
+  // ---------- store ----------
+  const sW=document.getElementById('s-weigh'),sA=document.getElementById('s-a'),sB=document.getElementById('s-b'),sX=document.getElementById('s-w'),sWhy=document.getElementById('s-why'),sMsg=document.getElementById('s-weigh-msg'),sTot=document.getElementById('s-total'),sSave=document.getElementById('s-save');
+  function store(){
+    const w=+sW.value||0,a=+sA.value||0,b=+sB.value||0,x=+sX.value||0;
+    if(w<240){sMsg.className='chip bad';sMsg.textContent=`${240-w} kg less than Juma says he bought. Salim and Juma both see this now.`}
+    else{sMsg.className='chip ok';sMsg.textContent='Matches what Juma bought.'}
+    const sum=a+b+x;
+    sTot.textContent= sum===w?`${a} + ${b} + ${x} = ${sum} kg. All weighed goods are accounted for.`:`${a} + ${b} + ${x} = ${sum} kg, but you weighed ${w} kg. ${Math.abs(w-sum)} kg is not accounted for.`;
+    sTot.style.color= sum===w?'':'var(--gap)';
+    const needWhy=x>0&&!sWhy.value;
+    sSave.disabled= sum!==w||needWhy;
+  }
+  [sW,sA,sB,sX,sWhy].forEach(el=>el.addEventListener('input',store));store();
+
+  // ---------- driver ----------
+  document.getElementById('d-confirm').addEventListener('click',()=>{
+    const code=document.getElementById('d-code').value.trim();
+    const pill=document.getElementById('stop3-pill');
+    if(code!=='7316'){pill.className='status-pill chip bad';pill.textContent='Wrong code';toast('That code does not match. Ask the cook to read it again from the email.');return}
+    pill.className='status-pill chip ok';pill.textContent='Confirmed';
+    toast(`Delivery confirmed by code. KES ${fmt(document.getElementById('d-cash').value)} cash recorded. Hand it in at the evening cash-up.`);
+  });
+
+  // ---------- client confirm ----------
+  const lines=[
+    {id:'tom',item:'Tomatoes',u:'kg',ordered:60,sent:60,got:48,rej:0},
+    {id:'pot',item:'Potatoes',u:'kg',ordered:100,sent:100,got:100,rej:0},
+    {id:'suk',item:'Sukuma',u:'kg',ordered:40,sent:40,got:40,rej:0},
+    {id:'egg',item:'Eggs',u:'trays',ordered:15,sent:15,got:15,rej:0},
+    {id:'mlk',item:'Milk',u:'L',ordered:40,sent:40,got:40,rej:0},
+  ];
+  const ci=document.getElementById('c-items');
+  ci.innerHTML=lines.map(l=>`<div class="card" style="padding:10px;gap:6px" id="row-${l.id}">
+    <div class="line-item"><b>${l.item}</b><span class="muted num">On the note: ${l.sent} ${l.u}</span></div>
+    <div class="two">
+      <div class="field"><label for="got-${l.id}">Received, ${l.u}</label><input id="got-${l.id}" inputmode="decimal" value="${l.got}"></div>
+      <div class="field"><label for="rej-${l.id}">Sent back, ${l.u}</label><input id="rej-${l.id}" inputmode="decimal" value="${l.rej}"></div>
+    </div>
+    <div class="field" id="why-wrap-${l.id}" hidden><label for="why-${l.id}">Why sent back</label><select id="why-${l.id}"><option>Poor quality</option><option>Too small</option><option>Wrong item</option><option>Not ordered</option></select></div>
+    <span class="chip" id="msg-${l.id}"></span></div>`).join('');
+  function confirmCalc(){
+    let shorts=[],rejs=[];
+    lines.forEach(l=>{
+      const got=+document.getElementById('got-'+l.id).value||0,rej=+document.getElementById('rej-'+l.id).value||0;
+      const missing=l.sent-got-rej;const m=document.getElementById('msg-'+l.id);
+      document.getElementById('why-wrap-'+l.id).hidden=rej<=0;
+      if(missing>0){m.className='chip bad';m.textContent=`${missing} ${l.u} not delivered`;shorts.push(`${missing} ${l.u} ${l.item.toLowerCase()}`)}
+      else if(missing<0){m.className='chip warn';m.textContent=`${-missing} ${l.u} more than the note`}
+      else if(rej>0){m.className='chip warn';m.textContent=`${rej} ${l.u} going back with the driver`}
+      else{m.className='chip ok';m.textContent='Matches the note'}
+      if(rej>0)rejs.push(`${rej} ${l.u} ${l.item.toLowerCase()}`);
+    });
+    const s=document.getElementById('c-summary');
+    s.textContent= (shorts.length?`Short: ${shorts.join(', ')}. `:'Nothing short. ')+(rejs.length?`Sent back: ${rejs.join(', ')}. `:'')+'You pay only for what you received.';
+  }
+  ci.addEventListener('input',confirmCalc);confirmCalc();
+  document.getElementById('c-send').addEventListener('click',()=>{
+    if(!document.getElementById('c-ok').checked){toast('Tick the box to say you counted the goods yourself.');return}
+    if(!signed){toast('Sign in the box with your finger first.');return}
+    const name=document.getElementById('c-name').value.replace(/</g,'')||'Clerk';
+    document.getElementById('confirm-body').innerHTML=`<div class="card"><h3>Thank you, ${name}</h3><p>Confirmed at 9:42. ${document.getElementById('c-summary').textContent}</p><p class="muted">A copy went to your accounts office by email. The driver's phone now shows what you confirmed and he cannot change it.</p><span class="chip ok">Saved</span></div>`;
+    toast('Delivery confirmed. Mwangaza Fresh sees it now.');
+  });
+  // signature
+  const cv=document.getElementById('sig');let signed=true,drawing=false;
+  function sizeCanvas(){const r=cv.getBoundingClientRect();if(!r.width)return;cv.width=r.width*devicePixelRatio;cv.height=r.height*devicePixelRatio;drawSample()}
+  function ctx(){const c=cv.getContext('2d');c.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);c.lineWidth=2;c.lineCap='round';c.strokeStyle=getComputedStyle(document.body).color;return c}
+  function drawSample(){const c=ctx();c.beginPath();c.moveTo(24,70);c.bezierCurveTo(50,20,70,95,95,55);c.bezierCurveTo(115,25,125,80,150,60);c.lineTo(190,58);c.stroke();signed=true}
+  cv.addEventListener('pointerdown',e=>{drawing=true;const c=ctx();const r=cv.getBoundingClientRect();c.beginPath();c.moveTo(e.clientX-r.left,e.clientY-r.top);cv.setPointerCapture(e.pointerId)});
+  cv.addEventListener('pointermove',e=>{if(!drawing)return;const c=ctx();const r=cv.getBoundingClientRect();c.lineTo(e.clientX-r.left,e.clientY-r.top);c.stroke();signed=true});
+  cv.addEventListener('pointerup',()=>drawing=false);
+  document.getElementById('sig-clear').addEventListener('click',()=>{cv.getContext('2d').setTransform(1,0,0,1,0,0);cv.getContext('2d').clearRect(0,0,cv.width,cv.height);signed=false});
+  window.addEventListener('hashchange',()=>{if(location.hash==='#confirm')requestAnimationFrame(sizeCanvas)});
+
+  // ---------- cash-up ----------
+  const cash=[
+    {who:'Juma',role:'Market buyer',why:'Float 115,000. Receipts for 111,100.',exp:3900,counted:3400},
+    {who:'Otieno',role:'Driver, KDA 412X',why:'Cash from Mama Neema\'s Kitchen.',exp:6800,counted:6300},
+    {who:'Kioko',role:'Driver, KDB 077M',why:'Fuel float 3,500. Fuel receipt 3,500.',exp:0,counted:0},
+  ];
+  const cl=document.getElementById('cash-list');
+  cl.innerHTML='<h2>People holding money</h2>'+cash.map((c,i)=>`<div class="cash-row" id="cr-${i}">
+    <div><b>${c.who}</b> <span class="muted">${c.role}</span><br><span style="font-size:.86rem">${c.why}</span></div>
+    <div><span class="k">Should hand in</span><div class="num">${fmt(c.exp)}</div></div>
+    <div><label class="k" for="cnt-${i}">You counted</label><input id="cnt-${i}" class="num" inputmode="numeric" value="${c.counted}"></div>
+    <div><span class="k">Gap</span><div class="num" id="gap-${i}"></div></div>
+    <div class="settle" id="act-${i}"></div></div>`).join('');
+  function cashRow(i){
+    const c=cash[i];if(c.done)return;
+    const n=+document.getElementById('cnt-'+i).value||0;const gap=c.exp-n;
+    const g=document.getElementById('gap-'+i);g.textContent=fmt(Math.max(gap,0));g.style.color=gap>0?'var(--gap)':'';
+    const a=document.getElementById('act-'+i);
+    if(gap<=0){a.innerHTML=`<button class="btn" data-rel="${i}">Confirm KES ${fmt(n)} and release ${c.who}</button>`}
+    else{a.innerHTML=`<span style="color:var(--gap)">KES ${fmt(gap)} is missing. Choose how it is settled before ${c.who} goes home:</span>
+      <label><input type="radio" name="st-${i}" value="wage" checked> Take KES ${fmt(gap)} from ${c.who}'s next wage. He sees this on his phone.</label>
+      <label><input type="radio" name="st-${i}" value="now"> ${c.who} pays it now by M-Pesa. Release waits for the payment.</label>
+      <label><input type="radio" name="st-${i}" value="ok"> Let it go and write why. It stays on his record.</label>
+      <button class="btn danger" data-rel="${i}">Settle gap and release ${c.who}</button>`}
+  }
+  cash.forEach((c,i)=>{cashRow(i);document.getElementById('cnt-'+i).addEventListener('input',()=>cashRow(i))});
+  cl.addEventListener('click',e=>{
+    const b=e.target.closest('[data-rel]');if(!b)return;const i=+b.dataset.rel;const c=cash[i];
+    const n=+document.getElementById('cnt-'+i).value||0;const gap=c.exp-n;
+    let how='';if(gap>0){const v=(cl.querySelector(`input[name="st-${i}"]:checked`)||{}).value;how=v==='wage'?` KES ${fmt(gap)} comes off his next wage.`:v==='now'?' Waiting for his M-Pesa payment.':' Gap written off with a reason.'}
+    c.done=true;document.getElementById('cnt-'+i).disabled=true;
+    document.getElementById('act-'+i).innerHTML=`<span class="chip ok">${c.who} released at 18:${String(10+i*4)}. ${fmt(n)} confirmed by Salim.</span>${how?`<span class="muted">${how}</span>`:''}`;
+    toast(`${c.who} is released and can go home.${how}`);
+  });
+
+  // ---------- chart ----------
+  const days=[['Wed',128,109,1.2],['Thu',136,114,0],['Fri',152,128,3.4],['Sat',118,101,2.1],['Sun',0,0,0],['Mon',139,117,0.8],['Tue',141,119,4.0]];
+  (function(){
+    const W=640,H=230,pl=44,pb=28,pt=10,max=160;const iw=W-pl-10,ih=H-pb-pt;const bw=iw/days.length;
+    const y=v=>pt+ih-(v/max)*ih;
+    let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sold, spent and lost to gaps, last 7 days, thousands of shillings">`;
+    [0,40,80,120,160].forEach(t=>{s+=`<line x1="${pl}" x2="${W-10}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" fill="none"/><text x="${pl-6}" y="${y(t)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">${t}k</text>`});
+    days.forEach((d,i)=>{const x=pl+i*bw+bw*.15,w=bw*.22;
+      if(d[1]){s+=`<rect x="${x}" y="${y(d[1])}" width="${w}" height="${y(0)-y(d[1])}" fill="var(--leaf)" rx="2"/>`;
+      s+=`<rect x="${x+w+3}" y="${y(d[2])}" width="${w}" height="${y(0)-y(d[2])}" fill="var(--muted)" rx="2"/>`;
+      s+=`<rect x="${x+2*w+6}" y="${y(d[3]*10)}" width="${w}" height="${y(0)-y(d[3]*10)}" fill="var(--gap)" rx="2"/>`}
+      else s+=`<text x="${x+bw*.33}" y="${y(0)-8}" text-anchor="middle" font-size="11" fill="var(--muted)">Closed</text>`;
+      s+=`<text x="${pl+i*bw+bw/2}" y="${H-8}" text-anchor="middle" font-size="12" fill="var(--muted)">${d[0]}</text>`});
+    s+='</svg>';
+    document.getElementById('chart').innerHTML=s+'<p class="muted" style="font-size:.82rem">Red bars are drawn 10 times taller so small losses stay visible. Tuesday lost KES 3,990.</p>';
+  })();
+
+  show(location.hash.slice(1)||'owner');
+  if(location.hash==='#confirm')requestAnimationFrame(sizeCanvas);
+})();
+</script>

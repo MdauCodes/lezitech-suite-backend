@@ -281,7 +281,7 @@ public class PublicController {
 
     /** The restaurant's tables, for choosing the tables of a group order. Only while it takes orders by phone. */
     /** R5: the delivery areas, fees and ways to pay for the menu link. */
-    @GetMapping("/delivery/{slug}")
+    @GetMapping("/delivery/{slug:[a-z0-9-]+}")
     public Map<String, Object> deliveryInfo(@PathVariable String slug) {
         Map<String, Object> t = tenant(slug);
         return as(t, () -> delivery.publicView());

@@ -90,7 +90,7 @@ public class ProfitLossService {
                 SELECT m.item_id, m.reason, sum(m.qty) AS qty, coalesce(max(i.cost), 0) AS cost
                 FROM stock_moves m JOIN items i ON i.id = m.item_id
                 WHERE m.created_at >= :from AND m.created_at < :to AND m.qty < 0
-                  AND m.reason IN ('WASTE', 'GIVE_AWAY', 'EXPIRE', 'ADJUST', 'COUNT', 'USE')
+                  AND m.reason IN ('WASTE', 'GIVE_AWAY', 'EXPIRE', 'ADJUST', 'COUNT', 'USE', 'DELIVERY_SHORT')
                 GROUP BY m.item_id, m.reason""", range)) {
             UUID item = UUID.fromString(m.get("itemId").toString());
             BigDecimal value = n(m.get("qty")).negate().multiply(unit.getOrDefault(item, n(m.get("cost"))));

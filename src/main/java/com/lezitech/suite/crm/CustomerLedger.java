@@ -92,7 +92,7 @@ public class CustomerLedger {
         Object n = l.get("orderNumber");
         return switch (String.valueOf(l.get("kind"))) {
             case "SALE" -> "Sale #" + n + " on account";
-            case "REFUND" -> "Sale #" + n + " cancelled or refunded";
+            case "REFUND" -> l.get("note") != null ? String.valueOf(l.get("note")) : "Sale #" + n + " cancelled or refunded";
             default -> "Payment received" + (l.get("method") == null ? "" : " (" + method(String.valueOf(l.get("method"))) + ")")
                     + (l.get("reference") == null ? "" : " " + l.get("reference"));
         };
