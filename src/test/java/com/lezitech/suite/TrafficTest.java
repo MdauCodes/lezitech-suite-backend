@@ -370,7 +370,7 @@ class TrafficTest extends IntegrationTest {
         jdbc.update(ins + "('website', '/sectors/shops', 'phone', 'direct'), ('website', '/sectors/safaris/lodge', 'phone', 'direct'),"
                 + "('website', '/pricing', 'phone', 'direct'), ('business-page', '/t/" + slug + "', 'phone', 'direct'),"
                 + "('business-page', '/t/nobody-here', 'phone', 'direct')");
-        String sql = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/db/migration/V83__visits_by_kind.sql"));
+        String sql = java.nio.file.Files.readString(java.nio.file.Path.of("src/main/resources/db/migration/V84__visits_by_kind_backfill.sql"));
         try (var c = java.sql.DriverManager.getConnection(jdbc.getDataSource().getConnection().getMetaData().getURL(), "postgres", ""); var st = c.createStatement()) {
             st.execute(sql);
         }

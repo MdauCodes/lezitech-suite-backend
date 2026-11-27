@@ -314,7 +314,7 @@ public class TrafficController {
         }
         for (Map<String, Object> r : jdbc.queryForList("""
                 SELECT sector, sub_sector, count(*) FILTER (WHERE created_at >= ?) AS signups,
-                       count(*) FILTER (WHERE status = 'ACTIVE' AND paid_until > now()) AS paying
+                       count(*) FILTER (WHERE status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now())) AS paying -- same rule as the Overview's money a month
                 FROM tenants WHERE NOT is_demo GROUP BY sector, sub_sector""", since)) {
             String sector = (String) r.get("sector");
             Map<String, Object> m = top.get(sector);
@@ -354,9 +354,10 @@ public class TrafficController {
     private Map<String, Object> businessPages(java.sql.Timestamp since) {
         List<Map<String, Object>> bySector = new ArrayList<>();
         for (Map<String, Object> r : jdbc.queryForList("""
-                SELECT sector, count(*) AS visits, count(DISTINCT visitor_id) AS visitors
-                FROM visits WHERE created_at >= ? AND site = 'business-page' AND path LIKE '/t/%' AND sector IS NOT NULL
-                GROUP BY sector ORDER BY count(*) DESC, sector""", since)) {
+                SELECT v.sector, count(*) AS visits, count(DISTINCT v.visitor_id) AS visitors
+                FROM visits v JOIN tenants t ON t.slug = split_part(v.path, '/', 3)
+                WHERE v.created_at >= ? AND v.site = 'business-page' AND v.path LIKE '/t/%' AND v.sector IS NOT NULL AND NOT t.is_demo
+                GROUP BY v.sector ORDER BY count(*) DESC, v.sector""", since)) {
             String k = (String) r.get("sector");
             if (!sectors.hasSector(k)) {
                 continue;
