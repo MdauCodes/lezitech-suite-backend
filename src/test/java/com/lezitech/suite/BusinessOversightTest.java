@@ -53,6 +53,17 @@ class BusinessOversightTest extends IntegrationTest {
         platform.forget();
     }
 
+    private long endingNotices(String owner) {
+        long n = 0;
+        for (JsonNode x : myNotices(owner, false)) {
+            String title = x.at("/title").asText();
+            if (title.startsWith("The special price for") && title.contains("ends on")) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     /** Notices for a price change or an ending offer are sent by a background job: wait until it has finished. */
     private void awaitJobs() {
         long until = System.currentTimeMillis() + 30_000;
@@ -722,15 +733,13 @@ class BusinessOversightTest extends IntegrationTest {
         String admin = admin("ADMIN");
         Map<String, Object> lite = with("price", 2000, "label", "Launch offer", "startsOn", null, "endsOn", LocalDate.now().plusDays(5).toString(), "on", true);
         assertThat(put("/admin/platform-settings", admin, Map.of("planOffers", Map.of("LITE", lite))).status()).isEqualTo(200);
-        long before = myNotices(owner, false).size();
+        // The app's own timer may send it first; either way the business is told exactly once.
         actions.warnAboutOffersEnding();
         awaitJobs();
-        JsonNode n = myNotices(owner, false);
-        assertThat(n.size()).isEqualTo(before + 1);
-        assertThat(n.at("/0/title").asText()).startsWith("The special price for").contains("ends on");
+        assertThat(endingNotices(owner)).as("told").isEqualTo(1);
         actions.warnAboutOffersEnding();
         awaitJobs();
-        assertThat(myNotices(owner, false).size()).as("told once").isEqualTo(before + 1);
+        assertThat(endingNotices(owner)).as("told once").isEqualTo(1);
     }
 
     @Test
