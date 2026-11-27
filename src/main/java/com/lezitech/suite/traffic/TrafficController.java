@@ -5,6 +5,7 @@ import com.lezitech.suite.common.ApiException;
 import com.lezitech.suite.common.Body;
 import com.lezitech.suite.common.ClientIp;
 import com.lezitech.suite.publicapi.RateLimit;
+import com.lezitech.suite.sector.SectorCatalog;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,10 +41,44 @@ public class TrafficController {
     private static final int KEEP_DAYS = 180;
     private static final String ZONE = "Africa/Nairobi";
 
-    private final JdbcTemplate jdbc;
+    /** The website's page address for each sector, as the marketing site uses it. */
+    private static final Map<String, String> PAGE_ID_TO_KEY = Map.of(
+            "restaurants", "restaurant", "hotels", "hotel", "shops", "retail", "salons", "beauty", "wholesale", "wholesale",
+            "pharmacies", "pharmacy", "services", "services", "safaris", "tours", "property", "property");
+    private static final Pattern BUSINESS_PAGE = Pattern.compile("^/t/([^/]+)(/.*)?$");
 
-    public TrafficController(JdbcTemplate jdbc) {
+    private final JdbcTemplate jdbc;
+    private final SectorCatalog sectors;
+
+    public TrafficController(JdbcTemplate jdbc, SectorCatalog sectors) {
         this.jdbc = jdbc;
+        this.sectors = sectors;
+    }
+
+    /** A sector key from a website page address or a key; null when it is neither (never stored raw). */
+    private String sectorKey(String text) {
+        String t = cut(text, 30);
+        if (t == null) {
+            return null;
+        }
+        t = t.toLowerCase(java.util.Locale.ROOT);
+        String key = PAGE_ID_TO_KEY.getOrDefault(t, t);
+        return sectors.hasSector(key) ? key : null;
+    }
+
+    /** The sector and sub-sector key a visit belongs to: a business page takes them from the business itself, other pages from the client (checked). */
+    private String[] kindOf(String path, Body b) {
+        var m = path == null ? null : BUSINESS_PAGE.matcher(path);
+        if (m != null && m.matches()) {
+            List<Map<String, Object>> t = jdbc.queryForList("SELECT sector, sub_sector FROM tenants WHERE slug = ?", m.group(1));
+            if (t.isEmpty()) {
+                return new String[]{null, null};
+            }
+            String sector = sectorKey((String) t.get(0).get("sector"));
+            return new String[]{sector, sector == null ? null : sectors.subKey(sector, (String) t.get(0).get("sub_sector"))};
+        }
+        String sector = sectorKey(b.str("sector", ""));
+        return new String[]{sector, sector == null ? null : sectors.subKey(sector, cut(b.str("sub", ""), 60))};
     }
 
     private static String cut(String s, int max) {
@@ -87,12 +122,13 @@ public class TrafficController {
             visitor = null;
         }
         var src = VisitSource.classify(referrer, utmSource, utmMedium, gclid, fbclid);
+        String[] kind = kindOf(path, b);
         jdbc.update("""
                 INSERT INTO visits (site, path, referrer_host, utm_source, utm_medium, utm_campaign, has_gclid, has_fbclid, device,
-                                    visitor_id, first_visit, source, source_detail)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                    visitor_id, first_visit, source, source_detail, sector, sub_sector)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 site, path, referrer, utmSource, utmMedium, utmCampaign, gclid, fbclid, device, visitor,
-                b.bool("first", false), src.key(), src.detail());
+                b.bool("first", false), src.key(), src.detail(), kind[0], kind[1]);
         return ResponseEntity.noContent().build();
     }
 
@@ -227,6 +263,128 @@ public class TrafficController {
         out.put("referrers", referrers.subList(0, Math.min(10, referrers.size())));
         out.put("devices", devices);
         out.put("perDay", perDay);
+        out.put("byKind", byKind(since));
+        out.put("businessPages", businessPages(since));
+        return out;
+    }
+
+    private static long n(Object o) {
+        return o == null ? 0 : ((Number) o).longValue();
+    }
+
+    private Map<String, Object> kindRow(String key, String name) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("key", key);
+        m.put("name", name);
+        m.put("websiteVisits", 0L);
+        m.put("websiteVisitors", 0L);
+        m.put("signupPageOpens", 0L);
+        m.put("signups", 0L);
+        m.put("payingNow", 0L);
+        m.put("rate", 0.0);
+        return m;
+    }
+
+    /** Per business type (and its sub-types): website visits, sign-up page opens, sign-ups in the range and paying now. */
+    private List<Map<String, Object>> byKind(java.sql.Timestamp since) {
+        Map<String, Map<String, Object>> top = new LinkedHashMap<>();
+        Map<String, Map<String, Map<String, Object>>> subs = new LinkedHashMap<>();
+        for (String k : sectors.keys()) {
+            top.put(k, kindRow(k, sectors.get(k).path("name").asText(k)));
+            subs.put(k, new LinkedHashMap<>());
+            for (var s : sectors.subList(k)) {
+                subs.get(k).put(s.get("key").asText(), kindRow(s.get("key").asText(), s.get("name").asText()));
+            }
+        }
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT sector, sub_sector, GROUPING(sub_sector) AS g_sub,
+                       count(*) FILTER (WHERE site = 'website') AS web_visits,
+                       count(DISTINCT visitor_id) FILTER (WHERE site = 'website') AS web_visitors,
+                       count(*) FILTER (WHERE site = 'app') AS opens
+                FROM visits
+                WHERE created_at >= ? AND sector IS NOT NULL AND (site = 'website' OR (site = 'app' AND path = '/start'))
+                GROUP BY GROUPING SETS ((sector), (sector, sub_sector))""", since)) {
+            Map<String, Object> m = ((Number) r.get("g_sub")).intValue() == 1 ? top.get((String) r.get("sector"))
+                    : subs.getOrDefault((String) r.get("sector"), Map.of()).get((String) r.get("sub_sector"));
+            if (m != null) {
+                m.put("websiteVisits", n(r.get("web_visits")));
+                m.put("websiteVisitors", n(r.get("web_visitors")));
+                m.put("signupPageOpens", n(r.get("opens")));
+            }
+        }
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT sector, sub_sector, count(*) FILTER (WHERE created_at >= ?) AS signups,
+                       count(*) FILTER (WHERE status = 'ACTIVE' AND paid_until > now()) AS paying
+                FROM tenants WHERE NOT is_demo GROUP BY sector, sub_sector""", since)) {
+            String sector = (String) r.get("sector");
+            Map<String, Object> m = top.get(sector);
+            if (m == null) {
+                continue;
+            }
+            for (String f : new String[]{"signups", "payingNow"}) {
+                long add = n(r.get(f.equals("signups") ? "signups" : "paying"));
+                m.put(f, n(m.get(f)) + add);
+                String subKey = sectors.subKey(sector, (String) r.get("sub_sector"));
+                if (subKey != null && subs.get(sector).containsKey(subKey)) {
+                    Map<String, Object> sm = subs.get(sector).get(subKey);
+                    sm.put(f, n(sm.get(f)) + add);
+                }
+            }
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String k : top.keySet()) {
+            Map<String, Object> m = top.get(k);
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (Map<String, Object> s : subs.get(k).values()) {
+                if (n(s.get("websiteVisits")) + n(s.get("signupPageOpens")) + n(s.get("signups")) + n(s.get("payingNow")) > 0) {
+                    s.put("rate", rate(n(s.get("signups")), n(s.get("websiteVisitors"))));
+                    list.add(s);
+                }
+            }
+            m.put("rate", rate(n(m.get("signups")), n(m.get("websiteVisitors"))));
+            list.sort((a, c) -> Long.compare(n(c.get("websiteVisits")), n(a.get("websiteVisits"))));
+            m.put("subs", list);
+            out.add(m);
+        }
+        out.sort((a, c) -> Long.compare(n(c.get("websiteVisits")), n(a.get("websiteVisits"))));
+        return out;
+    }
+
+    /** Visits to businesses' own pages (/t/...), per business type, and the ten businesses with the most. */
+    private Map<String, Object> businessPages(java.sql.Timestamp since) {
+        List<Map<String, Object>> bySector = new ArrayList<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT sector, count(*) AS visits, count(DISTINCT visitor_id) AS visitors
+                FROM visits WHERE created_at >= ? AND site = 'business-page' AND path LIKE '/t/%' AND sector IS NOT NULL
+                GROUP BY sector ORDER BY count(*) DESC, sector""", since)) {
+            String k = (String) r.get("sector");
+            if (!sectors.hasSector(k)) {
+                continue;
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("key", k);
+            m.put("name", sectors.get(k).path("name").asText(k));
+            m.put("visits", n(r.get("visits")));
+            m.put("visitors", n(r.get("visitors")));
+            bySector.add(m);
+        }
+        List<Map<String, Object>> topBusinesses = new ArrayList<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT t.name, t.sector, count(*) AS visits, count(DISTINCT v.visitor_id) AS visitors
+                FROM visits v JOIN tenants t ON t.slug = split_part(v.path, '/', 3)
+                WHERE v.created_at >= ? AND v.site = 'business-page' AND v.path LIKE '/t/%' AND NOT t.is_demo
+                GROUP BY t.id, t.name, t.sector ORDER BY count(*) DESC, t.name LIMIT 10""", since)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", r.get("name"));
+            String k = (String) r.get("sector");
+            m.put("sector", sectors.hasSector(k) ? sectors.get(k).path("name").asText(k) : k);
+            m.put("visits", n(r.get("visits")));
+            m.put("visitors", n(r.get("visitors")));
+            topBusinesses.add(m);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("bySector", bySector);
+        out.put("top", topBusinesses);
         return out;
     }
 

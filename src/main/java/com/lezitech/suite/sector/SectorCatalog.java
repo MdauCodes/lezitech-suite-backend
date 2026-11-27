@@ -64,6 +64,39 @@ public class SectorCatalog {
         }
     }
 
+    /** Every sector key, in catalogue order. */
+    public java.util.Set<String> keys() {
+        return java.util.Collections.unmodifiableSet(packs.keySet());
+    }
+
+    /** A sector's sub-sector definitions (each has key and name); empty when it has none. */
+    public List<JsonNode> subList(String key) {
+        return subSectors.getOrDefault(key, List.of());
+    }
+
+    /** The sub-sector KEY for a key, a name or the website address (the slug of the name); null when it is none of the sector's own. */
+    public String subKey(String key, String text) {
+        if (text == null || text.isBlank() || !hasSector(key)) {
+            return null;
+        }
+        JsonNode found = findSub(key, text);
+        if (found != null) {
+            return found.get("key").asText();
+        }
+        String want = slug(text);
+        for (JsonNode s : subList(key)) {
+            if (slug(s.get("name").asText()).equals(want)) {
+                return s.get("key").asText();
+            }
+        }
+        return null;
+    }
+
+    private static String slug(String text) {
+        return java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+    }
+
     /** True when this is a sector key. */
     public boolean hasSector(String key) {
         return key != null && packs.containsKey(key);
