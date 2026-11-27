@@ -55,6 +55,21 @@ public class SettingsController {
     private List<Map<String, Object>> plansForTenant() {
         java.util.UUID t = TenantContext.tenantId();
         String sector = jdbc.queryForList("SELECT sector FROM tenants WHERE id = ?", String.class, t).stream().findFirst().orElse(null);
+        Map<String, Object> kind = platform.kindPlan(t);
+        if (kind != null) {
+            // One plan, made for this kind of business: its name, its price, and the offer taken off.
+            Map<String, Object> m = platform.kindPlanView(kind);
+            m.remove("parts");
+            m.remove("items");
+            m.put("tools", platform.planFeatures((String) kind.get("plan")));
+            var ctx1 = offers.context(t);
+            var month = offers.price(ctx1, (String) kind.get("plan"), "MONTHLY");
+            var year = offers.price(ctx1, (String) kind.get("plan"), "ANNUAL");
+            m.put("pay", month.amount());
+            m.put("payYear", year.amount());
+            m.put("offer", month.offerTitle() != null ? month.offerTitle() : year.offerTitle());
+            return List.of(m);
+        }
         var ctx = offers.context(t);
         return plansWithTools(sector).stream().map(p -> {
             Map<String, Object> m = new java.util.LinkedHashMap<>(p);
@@ -88,6 +103,7 @@ public class SettingsController {
         out.put("full", price.full());
         out.put("offer", price.offerTitle());
         out.put("needs", planFeatures.needed(t));
+        out.put("onePlan", platform.kindPlan(t) != null);
         out.put("offers", offers.forTenant(t));
         return out;
     }
@@ -244,6 +260,10 @@ public class SettingsController {
         Body b = new Body(raw);
         String plan = b.str("plan").toUpperCase();
         String cycle = b.str("cycle", "MONTHLY").toUpperCase();
+        Map<String, Object> kindPlan = platform.kindPlan(TenantContext.tenantId());
+        if (kindPlan != null && !plan.equals(kindPlan.get("plan"))) {
+            throw ApiException.bad("Your plan is " + kindPlan.get("name") + ". It is the only plan for your kind of business, so choose that one.");
+        }
         platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
                 .orElseThrow(() -> ApiException.bad("Unknown plan"));
         // A paid business moves to another plan through the plan sheet first, so the bill has the right lines.

@@ -483,7 +483,7 @@ public class AuthController {
         tenant.put("trialDaysLeft", "TRIAL".equals(status) ? daysLeft : null);
         tenant.put("locked", TrialGuard.isLocked(status, trialEnds, paidUntil));
         // The name this business sees for its plan, and the days of grace after a bill date (a banner, then the lock).
-        tenant.put("planName", t.get("plan") == null ? null : platform.planName((String) t.get("sector"), (String) t.get("plan")));
+        tenant.put("planName", t.get("plan") == null ? null : platform.planName((String) t.get("sector"), (String) t.get("sub_sector"), (String) t.get("plan")));
         boolean pastBill = "ACTIVE".equals(status) && paidUntil != null && paidUntil.toInstant().isBefore(Instant.now());
         tenant.put("inGrace", pastBill && !TrialGuard.isLocked(status, trialEnds, paidUntil));
         tenant.put("graceEndsAt", pastBill ? paidUntil.toInstant().plus(TrialGuard.GRACE_DAYS, java.time.temporal.ChronoUnit.DAYS).toString() : null);

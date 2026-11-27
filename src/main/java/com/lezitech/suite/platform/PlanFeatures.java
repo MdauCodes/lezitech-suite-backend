@@ -199,6 +199,14 @@ public class PlanFeatures {
 
     /** The same with more tools, staff or branches added: what the setup would be after switching something on. */
     public Map<String, Object> fittingPlan(UUID tenant, Set<String> moreTools, int moreStaff, int moreBranches) {
+        Map<String, Object> kind = platform.kindPlan(tenant);
+        if (kind != null) {
+            // A kind of business has one plan of its own: that is the plan its setup fits, at the kind plan's price.
+            Map<String, Object> only = new LinkedHashMap<>(platform.plan((String) kind.get("plan")));
+            only.put("name", kind.get("name"));
+            only.put("monthly", kind.get("monthly"));
+            return only;
+        }
         Set<String> need = new java.util.LinkedHashSet<>(needed(tenant));
         need.addAll(moreTools);
         long users = jdbc.queryForObject("SELECT count(*) FROM users WHERE tenant_id = ? AND active", Long.class, tenant) + moreStaff;

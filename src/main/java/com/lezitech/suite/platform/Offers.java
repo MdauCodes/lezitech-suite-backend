@@ -280,17 +280,40 @@ public class Offers {
     /** A paying business, or one that pays and is paused for now (alias t). */
     public static final String PAYING = "(t.status = 'ACTIVE' OR (t.status = 'SUSPENDED' AND t.suspended_from = 'ACTIVE'))";
 
-    /** Keep every paying business at this plan's old price for its next bill: called when the plan's price goes up. */
+    /**
+     * Keep every paying business at this plan's old price for its next bill: called when the plan's price goes up.
+     * Businesses with a plan of their own for their kind are left out: the platform price is not theirs.
+     */
     public int holdOldPrice(String plan, long oldMonthly) {
+        return holdOldPrice(plan, oldMonthly, null);
+    }
+
+    /** The same for one kind of business only (kind id), when that kind's own plan price went up. */
+    public int holdOldPriceForKind(String plan, long oldMonthly, String kind) {
+        return holdOldPrice(plan, oldMonthly, kind);
+    }
+
+    private int holdOldPrice(String plan, long oldMonthly, String kind) {
+        List<UUID> ids = new ArrayList<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT t.id, t.sector, t.sub_sector FROM tenants t
+                WHERE (t.status = 'ACTIVE' OR (t.status = 'SUSPENDED' AND t.suspended_from = 'ACTIVE')) AND NOT t.is_demo AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)""", plan, plan)) {
+            if (platform.inScope(platform.kindOf((String) r.get("sector"), (String) r.get("sub_sector")), kind)) {
+                ids.add((UUID) r.get("id"));
+            }
+        }
+        if (ids.isEmpty()) {
+            return 0;
+        }
         return jdbc.update("""
                 INSERT INTO tenant_price_holds (tenant_id, plan, monthly, until_bill)
                 SELECT t.id, ?, ?, t.paid_until FROM tenants t
-                WHERE (t.status = 'ACTIVE' OR (t.status = 'SUSPENDED' AND t.suspended_from = 'ACTIVE')) AND NOT t.is_demo AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)
+                WHERE t.id = ANY (?)
                 ON CONFLICT (tenant_id, plan) DO UPDATE SET
                     monthly = CASE WHEN tenant_price_holds.until_bill >= (SELECT paid_until FROM tenants WHERE id = tenant_price_holds.tenant_id)
                                    THEN tenant_price_holds.monthly ELSE excluded.monthly END,
                     until_bill = CASE WHEN tenant_price_holds.until_bill >= (SELECT paid_until FROM tenants WHERE id = tenant_price_holds.tenant_id)
-                                      THEN tenant_price_holds.until_bill ELSE excluded.until_bill END""", plan, oldMonthly, plan, plan);
+                                      THEN tenant_price_holds.until_bill ELSE excluded.until_bill END""", plan, oldMonthly, (Object) ids.toArray(new UUID[0]));
     }
 
     /**
@@ -307,19 +330,20 @@ public class Offers {
     }
 
     /** What one price calculation needs about a business: its live offers, discount and credit. Load once, price many plans. */
-    public record Context(UUID tenant, List<Map<String, Object>> offers, int mall, long credit) {
+    public record Context(UUID tenant, List<Map<String, Object>> offers, int mall, long credit, Map<String, Object> kind) {
     }
 
     /** Loads the business's offers and tenant row once, so a caller looping over plans does not repeat the queries. */
     public Context context(UUID tenant) {
-        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit FROM tenants WHERE id = ?", tenant);
-        return new Context(tenant, forTenant(tenant), ((Number) own.get("mall_discount")).intValue(), ((Number) own.get("billing_credit")).longValue());
+        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit, sector, sub_sector FROM tenants WHERE id = ?", tenant);
+        return new Context(tenant, forTenant(tenant), ((Number) own.get("mall_discount")).intValue(), ((Number) own.get("billing_credit")).longValue(),
+                platform.kindPlan((String) own.get("sector"), (String) own.get("sub_sector")));
     }
 
     /** Same as {@link #price(UUID, String, String)} using an already loaded {@link Context}. */
     public Price price(Context ctx, String plan, String cycle) {
         Map<String, Long> held = heldFor(List.of(ctx.tenant())).get(ctx.tenant());
-        return choose(plan, cycle, ctx.offers(), held == null ? null : held.get(plan), ctx.mall(), ctx.credit());
+        return choose(plan, cycle, ctx.offers(), held == null ? null : held.get(plan), ctx.mall(), ctx.credit(), ctx.kind());
     }
 
     /**
@@ -335,7 +359,7 @@ public class Offers {
         Map<UUID, List<Map<String, Object>>> offers = offersFor(ids);
         Map<UUID, Map<String, Long>> held = heldFor(ids);
         Map<UUID, Map<String, Object>> own = new java.util.HashMap<>();
-        for (Map<String, Object> r : jdbc.queryForList("SELECT id, mall_discount, billing_credit FROM tenants WHERE id = ANY (?)", (Object) ids.toArray(new UUID[0]))) {
+        for (Map<String, Object> r : jdbc.queryForList("SELECT id, mall_discount, billing_credit, sector, sub_sector FROM tenants WHERE id = ANY (?)", (Object) ids.toArray(new UUID[0]))) {
             own.put((UUID) r.get("id"), r);
         }
         for (UUID t : ids) {
@@ -345,22 +369,23 @@ public class Offers {
             }
             String plan = planOf.get(t);
             out.put(t, choose(plan, cycle, offers.getOrDefault(t, List.of()), held.getOrDefault(t, Map.of()).get(plan),
-                    ((Number) o.get("mall_discount")).intValue(), ((Number) o.get("billing_credit")).longValue()));
+                    ((Number) o.get("mall_discount")).intValue(), ((Number) o.get("billing_credit")).longValue(),
+                    platform.kindPlan((String) o.get("sector"), (String) o.get("sub_sector"))));
         }
         return out;
     }
 
-    private Price choose(String plan, String cycle, List<Map<String, Object>> mine, Long held, int mall, long billingCredit) {
+    private Price choose(String plan, String cycle, List<Map<String, Object>> mine, Long held, int mall, long billingCredit, Map<String, Object> kind) {
         Map<String, Object> p = platform.plan(plan);
         if (p == null) {
             throw ApiException.bad("Unknown plan");
         }
-        long listed = ((Number) p.get("monthly")).longValue();
+        long listed = ((Number) (kind != null ? kind : p).get("monthly")).longValue(); // a kind of business has a price of its own, whatever plan code is asked
         long monthly = held != null ? Math.min(held, listed) : listed; // a held price only protects against a rise
         boolean annual = "ANNUAL".equals(cycle);
         long full = annual ? monthly * 10 : monthly;
         Price best = new Price(full, full, null, null);
-        Map<String, Object> planOffer = platform.liveOffer(plan);
+        Map<String, Object> planOffer = kind != null ? platform.liveKindOffer(kind) : platform.liveOffer(plan);
         if (planOffer != null) {
             long m = Math.max(0, ((Number) planOffer.get("price")).longValue());
             String label = String.valueOf(planOffer.getOrDefault("label", "")).trim();

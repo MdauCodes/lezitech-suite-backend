@@ -3,6 +3,7 @@ package com.lezitech.suite.platform;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lezitech.suite.common.ApiException;
+import com.lezitech.suite.sector.SectorCatalog;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -47,13 +48,15 @@ public class PlatformSettings {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
+    private final SectorCatalog sectors;
     private final int defaultTrialDays;
     private volatile Map<String, String> cache;
     private volatile long cachedAt;
 
-    public PlatformSettings(JdbcTemplate jdbc, ObjectMapper json, @Value("${suite.trial-days}") int defaultTrialDays) {
+    public PlatformSettings(JdbcTemplate jdbc, ObjectMapper json, SectorCatalog sectors, @Value("${suite.trial-days}") int defaultTrialDays) {
         this.jdbc = jdbc;
         this.json = json;
+        this.sectors = sectors;
         this.defaultTrialDays = defaultTrialDays;
     }
 
@@ -61,7 +64,7 @@ public class PlatformSettings {
         Map<String, String> c = cache;
         if (c == null || System.currentTimeMillis() - cachedAt > 30_000) {
             Map<String, String> fresh = new LinkedHashMap<>();
-            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'planOffers', 'sectorPlanNames', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
+            jdbc.queryForList("SELECT key, value::text AS value FROM platform_settings WHERE key IN ('trialDays', 'plans', 'planFeatures', 'planOffers', 'sectorPlanNames', 'kindPlans', 'minClientRelease', 'latestClientRelease', 'reloadMessage')").forEach(r -> fresh.put((String) r.get("key"), (String) r.get("value")));
             cache = c = fresh;
             cachedAt = System.currentTimeMillis();
         }
@@ -187,8 +190,14 @@ public class PlatformSettings {
 
     /** The name this business sees for a plan code (its own kind of business decides). */
     public String planName(java.util.UUID tenant, String code) {
-        List<String> s = jdbc.queryForList("SELECT sector FROM tenants WHERE id = ?", String.class, tenant);
-        return planName(s.isEmpty() ? null : s.get(0), code);
+        List<Map<String, Object>> s = jdbc.queryForList("SELECT sector, sub_sector FROM tenants WHERE id = ?", tenant);
+        return s.isEmpty() ? planName((String) null, code) : planName((String) s.get(0).get("sector"), (String) s.get(0).get("sub_sector"), code);
+    }
+
+    /** The name a business of this sector and sub-sector sees: its kind plan's own name when it has one, else the sector's name. */
+    public String planName(String sector, String subSector, String code) {
+        Map<String, Object> kp = kindPlan(sector, subSector);
+        return kp != null ? String.valueOf(kp.get("name")) : planName(sector, code);
     }
 
     /** All three names for a kind of business, in plan order. */
@@ -232,6 +241,233 @@ public class PlatformSettings {
             throw new IllegalStateException(e);
         }
         return result;
+    }
+
+    // ---------- a plan of its own for one kind of business ----------
+
+    /** What a kind of business pays until LeziTech saves its own: Busynez Supply for suppliers to hotels and hospitals. */
+    public static final Map<String, Map<String, Object>> DEFAULT_KIND_PLANS = Map.of(
+            "wholesale/hotelSupplier", kindPlanOf("PRO", "Busynez Supply", 4500,
+                    "Everything a supplier to hotels and hospitals needs: orders, deliveries, invoices, stock and reports. Unlimited staff and branches",
+                    kindOffer(3000, "Launch price", null, null, true)));
+
+    private static Map<String, Object> kindOffer(int price, String label, String startsOn, String endsOn, boolean on) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("price", price);
+        o.put("label", label);
+        o.put("startsOn", startsOn);
+        o.put("endsOn", endsOn);
+        o.put("on", on);
+        return o;
+    }
+
+    private static Map<String, Object> kindPlanOf(String plan, String name, int monthly, String blurb, Map<String, Object> offer) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("plan", plan);
+        m.put("name", name);
+        m.put("monthly", monthly);
+        m.put("blurb", blurb);
+        m.put("offer", offer);
+        return m;
+    }
+
+    /** The kind plans, by kind id ("sectorKey/subSectorKey"): what LeziTech saved, or the built-in ones until it saves its own. */
+    public Map<String, Map<String, Object>> kindPlans() {
+        String v = all().get("kindPlans");
+        if (v == null) {
+            return DEFAULT_KIND_PLANS;
+        }
+        try {
+            return json.readValue(v, new TypeReference<Map<String, Map<String, Object>>>() { });
+        } catch (Exception e) {
+            return DEFAULT_KIND_PLANS;
+        }
+    }
+
+    /** The kind id for a sector and a sub-sector (its name or key), or null when the catalogue does not know the sub-sector. */
+    public String kindOf(String sector, String subSector) {
+        if (sector == null || subSector == null || !sectors.hasSector(sector)) {
+            return null;
+        }
+        com.fasterxml.jackson.databind.JsonNode sub = sectors.findSub(sector, subSector);
+        return sub == null ? null : sector + "/" + sub.get("key").asText();
+    }
+
+    public String kindOf(java.util.UUID tenant) {
+        List<Map<String, Object>> r = jdbc.queryForList("SELECT sector, sub_sector FROM tenants WHERE id = ?", tenant);
+        return r.isEmpty() ? null : kindOf((String) r.get(0).get("sector"), (String) r.get(0).get("sub_sector"));
+    }
+
+    /** This kind's plan, or null when it has none. */
+    public Map<String, Object> kindPlan(String sector, String subSector) {
+        String kind = kindOf(sector, subSector);
+        return kind == null ? null : kindPlans().get(kind);
+    }
+
+    /** This business's kind plan, or null when its kind has none (most businesses). */
+    public Map<String, Object> kindPlan(java.util.UUID tenant) {
+        String kind = kindOf(tenant);
+        return kind == null ? null : kindPlans().get(kind);
+    }
+
+    /**
+     * Whether a business of kind {@code tenantKind} is reached by a change meant for {@code scopeKind}: with a kind id, only that kind's
+     * businesses; with null (the platform's own plans), every business that has no plan of its own for its kind.
+     */
+    public boolean inScope(String tenantKind, String scopeKind) {
+        if (scopeKind != null) {
+            return scopeKind.equals(tenantKind);
+        }
+        return tenantKind == null || kindPlans().get(tenantKind) == null;
+    }
+
+    /** The kind plan's offer if it is on, has started, has not ended and is lower than its price; otherwise null. Dates are Nairobi days. */
+    public Map<String, Object> liveKindOffer(Map<String, Object> kindPlan) {
+        return liveKindOffer(kindPlan, java.time.LocalDate.now(NAIROBI));
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> liveKindOffer(Map<String, Object> kindPlan, java.time.LocalDate today) {
+        Object raw = kindPlan == null ? null : kindPlan.get("offer");
+        if (!(raw instanceof Map<?, ?>)) {
+            return null;
+        }
+        Map<String, Object> o = (Map<String, Object>) raw;
+        if (!Boolean.TRUE.equals(o.get("on"))) {
+            return null;
+        }
+        try {
+            long price = ((Number) o.get("price")).longValue();
+            if (price < 1 || price >= ((Number) kindPlan.get("monthly")).longValue()) {
+                return null;
+            }
+            String start = (String) o.get("startsOn"), end = (String) o.get("endsOn");
+            if (start != null && !start.isBlank() && today.isBefore(java.time.LocalDate.parse(start))) {
+                return null;
+            }
+            if (end != null && !end.isBlank() && today.isAfter(java.time.LocalDate.parse(end))) {
+                return null;
+            }
+            return o;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** What each kind of business pays a month now: its offer's price while one is live, else its plan's price. By kind id. */
+    public Map<String, Long> kindEffectivePrices() {
+        Map<String, Long> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Object>> e : kindPlans().entrySet()) {
+            Map<String, Object> live = liveKindOffer(e.getValue());
+            out.put(e.getKey(), live != null ? ((Number) live.get("price")).longValue() : ((Number) e.getValue().get("monthly")).longValue());
+        }
+        return out;
+    }
+
+    /** A short stand-in for a kind id that fits the notice jobs' 20-letter plan column (no new table needed). */
+    public static String kindToken(String kind) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("MD5").digest(kind.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "K:" + java.util.HexFormat.of().formatHex(d).substring(0, 17);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** The kind id a token stands for, among the kinds that have a plan now; null when none (or not a token). */
+    public String kindForToken(String token) {
+        if (token == null || !token.startsWith("K:")) {
+            return null;
+        }
+        return kindPlans().keySet().stream().filter(k -> kindToken(k).equals(token)).findFirst().orElse(null);
+    }
+
+    /** The kind plan as its businesses see it: its name, normal price, price now, and the offer's label and last day. */
+    public Map<String, Object> kindPlanView(Map<String, Object> kp) {
+        Map<String, Object> plan = new LinkedHashMap<>(plan((String) kp.get("plan")));
+        plan.put("name", kp.get("name"));
+        plan.put("monthly", kp.get("monthly"));
+        plan.put("blurb", kp.get("blurb"));
+        Map<String, Object> o = liveKindOffer(kp);
+        long normal = ((Number) kp.get("monthly")).longValue();
+        plan.put("price", normal);
+        plan.put("priceNow", o != null ? ((Number) o.get("price")).longValue() : normal);
+        plan.put("offerLabel", o == null ? null : (String.valueOf(o.getOrDefault("label", "")).isBlank() ? "Offer" : o.get("label")));
+        String end = o == null ? null : (String) o.get("endsOn");
+        plan.put("offerEnds", end == null || end.isBlank() ? null : end);
+        return plan;
+    }
+
+    /**
+     * Save the kind plans (the whole map). Every kind id must be a known "sector/subSector"; the plan code LITE, GROWTH or PRO;
+     * the price 0 or more; an offer's price 1 or more and under the price. Returns what was saved.
+     */
+    public Map<String, Map<String, Object>> setKindPlans(Map<String, Map<String, Object>> plans, String by) {
+        Map<String, Map<String, Object>> clean = new LinkedHashMap<>();
+        java.time.LocalDate today = java.time.LocalDate.now(NAIROBI);
+        for (Map.Entry<String, Map<String, Object>> e : (plans == null ? Map.<String, Map<String, Object>>of() : plans).entrySet()) {
+            String[] parts = e.getKey() == null ? new String[0] : e.getKey().split("/");
+            com.fasterxml.jackson.databind.JsonNode sub = parts.length == 2 && sectors.hasSector(parts[0]) ? sectors.findSub(parts[0], parts[1]) : null;
+            if (sub == null) {
+                throw ApiException.bad("Choose a kind of business that Busynez knows");
+            }
+            String kind = parts[0] + "/" + sub.get("key").asText();
+            Map<String, Object> p = e.getValue();
+            if (p == null) {
+                continue;
+            }
+            String code = String.valueOf(p.get("plan"));
+            if (!Set.of("LITE", "GROWTH", "PRO").contains(code)) {
+                throw ApiException.bad("The plan for " + sub.get("name").asText() + " must be Lite, Growth or Pro");
+            }
+            String name = String.valueOf(p.getOrDefault("name", "")).trim();
+            if (name.isEmpty() || name.length() > 30) {
+                throw ApiException.bad("Give the plan for " + sub.get("name").asText() + " a short name");
+            }
+            int monthly = num(p.get("monthly"), "the price for " + name);
+            if (monthly < 0) {
+                throw ApiException.bad("The price for " + name + " can't be below 0");
+            }
+            String blurb = String.valueOf(p.getOrDefault("blurb", "")).trim();
+            Map<String, Object> offer = null;
+            if (p.get("offer") instanceof Map<?, ?> om && !om.isEmpty()) {
+                boolean on = Boolean.TRUE.equals(om.get("on")) || "true".equals(String.valueOf(om.get("on")));
+                Object rawPrice = om.get("price");
+                if (rawPrice == null || String.valueOf(rawPrice).isBlank()) {
+                    if (on) {
+                        throw ApiException.bad("Type the offer price for " + name);
+                    }
+                } else {
+                    int price = num(rawPrice, "the offer price for " + name);
+                    if (price < 1) {
+                        throw ApiException.bad("The offer price for " + name + " must be at least KES 1");
+                    }
+                    if (price >= monthly) {
+                        throw ApiException.bad("The offer price for " + name + " must be lower than its normal price of KES " + String.format("%,d", monthly));
+                    }
+                    String label = String.valueOf(om.get("label") == null ? "" : om.get("label")).trim();
+                    if (label.length() > 40) {
+                        throw ApiException.bad("Keep the offer label for " + name + " to 40 letters or fewer");
+                    }
+                    java.time.LocalDate start = day(om.get("startsOn"), "the start date for " + name);
+                    java.time.LocalDate end = day(om.get("endsOn"), "the end date for " + name);
+                    if (start != null && end != null && end.isBefore(start)) {
+                        throw ApiException.bad("The offer for " + name + " can't end before it starts");
+                    }
+                    if (on && end != null && end.isBefore(today)) {
+                        throw ApiException.bad("The end date for " + name + " has already passed");
+                    }
+                    offer = kindOffer(price, label, start == null ? null : start.toString(), end == null ? null : end.toString(), on);
+                }
+            }
+            clean.put(kind, kindPlanOf(code, name, monthly, blurb.length() > 200 ? blurb.substring(0, 200) : blurb, offer));
+        }
+        try {
+            put("kindPlans", json.writeValueAsString(clean), by);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
+        return clean;
     }
 
     // ---------- plan offers: a crossed-out normal price and a lower price for a while ----------

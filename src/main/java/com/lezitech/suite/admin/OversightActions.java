@@ -580,17 +580,33 @@ public class OversightActions {
         return out;
     }
 
-    private List<UUID> onPlan(String code) {
-        List<UUID> ids = new java.util.ArrayList<>(jdbc.queryForList("""
-                SELECT t.id FROM tenants t WHERE NOT t.is_demo AND""" + " " + com.lezitech.suite.platform.Offers.PAYING + """
-                 AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)""", UUID.class, code, code));
-        for (UUID trial : jdbc.queryForList("SELECT id FROM tenants WHERE NOT is_demo AND status = 'TRIAL' AND NOT in_setup", UUID.class)) {
+    /** The businesses a change to this plan's price reaches: with a kind id only that kind's, else every business without a plan of its own for its kind. */
+    private List<UUID> onPlan(String code, String kind) {
+        List<UUID> ids = new java.util.ArrayList<>(payingOn(code, kind));
+        for (Map<String, Object> trial : jdbc.queryForList("SELECT id, sector, sub_sector FROM tenants WHERE NOT is_demo AND status = 'TRIAL' AND NOT in_setup")) {
+            UUID id = (UUID) trial.get("id");
+            if (!platform.inScope(platform.kindOf((String) trial.get("sector"), (String) trial.get("sub_sector")), kind)) {
+                continue;
+            }
             try {
-                if (code.equals(ov.asTenant(trial, () -> billing.billPlan(trial)))) {
-                    ids.add(trial);
+                if (code.equals(ov.asTenant(id, () -> billing.billPlan(id)))) {
+                    ids.add(id);
                 }
             } catch (RuntimeException e) {
-                log.debug("No plan for {}: {}", trial, e.toString());
+                log.debug("No plan for {}: {}", id, e.toString());
+            }
+        }
+        return ids;
+    }
+
+    /** Paying (or paused paying) businesses on this plan, now or at their next bill, in scope as for {@link #onPlan}. */
+    private List<UUID> payingOn(String code, String kind) {
+        List<UUID> ids = new java.util.ArrayList<>();
+        for (Map<String, Object> r : jdbc.queryForList("""
+                SELECT t.id, t.sector, t.sub_sector FROM tenants t WHERE NOT t.is_demo AND""" + " " + com.lezitech.suite.platform.Offers.PAYING + """
+                 AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)""", code, code)) {
+            if (platform.inScope(platform.kindOf((String) r.get("sector"), (String) r.get("sub_sector")), kind)) {
+                ids.add((UUID) r.get("id"));
             }
         }
         return ids;
@@ -614,8 +630,34 @@ public class OversightActions {
                 offers.holdOldPrice(code, was); // the hold is part of the change itself: it is never left to the background
             }
             jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, by_name) VALUES ('PRICE', ?, ?, ?, ?)", code, was, now, by);
-            queued += jdbc.queryForObject("SELECT count(*) FROM tenants t WHERE NOT t.is_demo AND " + com.lezitech.suite.platform.Offers.PAYING
-                    + " AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)", Integer.class, code, code);
+            queued += payingOn(code, null).size();
+            any = true;
+        }
+        if (any) {
+            startNoticeJobs();
+        }
+        return queued;
+    }
+
+    /**
+     * LeziTech saved the plans for kinds of business. A kind whose price went up keeps its paying businesses at the old price until their
+     * bill after next, exactly as for a platform price change, and only that kind's businesses are told. Returns how many were told.
+     */
+    public int kindPriceChanged(Map<String, Long> before, String by) {
+        Map<String, Long> after = platform.kindEffectivePrices();
+        int queued = 0;
+        boolean any = false;
+        for (String kind : after.keySet()) {
+            long was = before.getOrDefault(kind, after.get(kind)), now = after.get(kind);
+            if (was == now) {
+                continue;
+            }
+            String code = (String) platform.kindPlans().get(kind).get("plan");
+            if (now > was) {
+                offers.holdOldPriceForKind(code, was, kind);
+            }
+            jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, by_name) VALUES ('PRICE', ?, ?, ?, ?)", PlatformSettings.kindToken(kind), was, now, by);
+            queued += payingOn(code, kind).size();
             any = true;
         }
         if (any) {
@@ -664,6 +706,20 @@ public class OversightActions {
             any |= jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, ends_on, by_name) VALUES ('OFFER_ENDING', ?, ?, ?, ?, 'LeziTech') ON CONFLICT DO NOTHING",
                     e.getKey(), ((Number) live.get("price")).longValue(), ((Number) plan.get("monthly")).longValue(), java.sql.Date.valueOf(end)) > 0;
         }
+        for (Map.Entry<String, Map<String, Object>> e : platform.kindPlans().entrySet()) {
+            Map<String, Object> live = platform.liveKindOffer(e.getValue(), today);
+            Object endsOn = live == null ? null : live.get("endsOn");
+            if (live == null || endsOn == null || String.valueOf(endsOn).isBlank()) {
+                continue;
+            }
+            java.time.LocalDate end = java.time.LocalDate.parse(String.valueOf(endsOn));
+            long days = java.time.temporal.ChronoUnit.DAYS.between(today, end);
+            if (days < 0 || days > 7) {
+                continue;
+            }
+            any |= jdbc.update("INSERT INTO notice_jobs (kind, plan, was, now_price, ends_on, by_name) VALUES ('OFFER_ENDING', ?, ?, ?, ?, 'LeziTech') ON CONFLICT DO NOTHING",
+                    PlatformSettings.kindToken(e.getKey()), ((Number) live.get("price")).longValue(), ((Number) e.getValue().get("monthly")).longValue(), java.sql.Date.valueOf(end)) > 0;
+        }
         if (any) {
             startNoticeJobs();
         }
@@ -686,7 +742,14 @@ public class OversightActions {
                 String code = (String) j.get("plan");
                 long was = ((Number) j.get("was")).longValue(), now = ((Number) j.get("now_price")).longValue();
                 String by = (String) j.get("by_name");
-                for (UUID id : onPlan(code)) {
+                String kind = platform.kindForToken(code);
+                if (code.startsWith("K:") && kind == null) {
+                    continue; // that kind has no plan of its own any more: nothing to tell
+                }
+                if (kind != null) {
+                    code = (String) platform.kindPlans().get(kind).get("plan");
+                }
+                for (UUID id : onPlan(code, kind)) {
                     // A job taken up again (after 10 minutes, or a crash) skips the businesses it already told.
                     if (jdbc.update("INSERT INTO notice_job_sent (job_id, tenant_id) VALUES (?, ?) ON CONFLICT DO NOTHING", j.get("id"), id) == 0) {
                         continue;
@@ -743,7 +806,8 @@ public class OversightActions {
                             + " a month. Your next bill on " + PlanBilling.day(next) + " stays at the old price. " + billSentence(id, false)
                             + " We are telling you well ahead so you can plan.", by);
         } else {
-            Map<String, Object> live = platform.liveOffer(code);
+            Map<String, Object> own = platform.kindPlan(id);
+            Map<String, Object> live = own != null ? platform.liveKindOffer(own) : platform.liveOffer(code);
             String until = live != null && live.get("endsOn") != null && !String.valueOf(live.get("endsOn")).isBlank()
                     ? ", until " + PlanBilling.day(java.time.LocalDate.parse(String.valueOf(live.get("endsOn"))).plusDays(1).atStartOfDay(Oversight.NAIROBI).toInstant().minusSeconds(60)) : "";
             tell(id, "PRICE_DOWN", "Good news: " + planName + " costs less",

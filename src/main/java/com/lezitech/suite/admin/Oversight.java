@@ -240,11 +240,12 @@ public class Oversight {
                        coalesce(paid_at, created_at) AS paid_at, period_from, period_to, lines::text AS lines
                 FROM subscription_requests WHERE tenant_id = ? AND status = 'PAID' ORDER BY coalesce(paid_at, created_at) DESC""", id);
         String sector = jdbc.queryForObject("SELECT sector FROM tenants WHERE id = ?", String.class, id);
+        String subSector = jdbc.queryForObject("SELECT sub_sector FROM tenants WHERE id = ?", String.class, id);
         List<Map<String, Object>> out = new ArrayList<>();
         Map<Integer, Long> byYear = new TreeMap<>(Comparator.reverseOrder());
         for (Map<String, Object> r : rows) {
             Map<String, Object> m = row(r);
-            m.put("planName", platform.planName(sector, (String) r.get("plan")));
+            m.put("planName", platform.planName(sector, subSector, (String) r.get("plan")));
             m.put("method", methodLabel((String) r.get("paid_via")));
             m.put("activatedBy", r.get("activated_by") != null ? r.get("activated_by") : "MANUAL".equals(r.get("paid_via")) ? "LeziTech" : "Automatic (M-Pesa)");
             out.add(m);
@@ -269,7 +270,7 @@ public class Oversight {
     public Map<String, Object> receipt(UUID id, UUID requestId) {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT r.id, r.plan, r.billing_cycle, r.amount, r.mpesa_phone, r.paid_via, r.mpesa_receipt, r.activated_by, coalesce(r.paid_at, r.created_at) AS paid_at,
-                       r.period_from, r.period_to, r.lines::text AS lines, t.name AS business, t.sector
+                       r.period_from, r.period_to, r.lines::text AS lines, t.name AS business, t.sector, t.sub_sector
                 FROM subscription_requests r JOIN tenants t ON t.id = r.tenant_id WHERE r.id = ? AND r.tenant_id = ? AND r.status = 'PAID'""", requestId, id);
         if (rows.isEmpty()) {
             throw ApiException.notFound("Payment");
@@ -277,7 +278,7 @@ public class Oversight {
         Map<String, Object> r = rows.get(0);
         Map<String, Object> m = row(r);
         m.put("receiptNo", "BZ-" + r.get("id").toString().substring(0, 8).toUpperCase());
-        m.put("planName", platform.planName((String) r.get("sector"), (String) r.get("plan")));
+        m.put("planName", platform.planName((String) r.get("sector"), (String) r.get("sub_sector"), (String) r.get("plan")));
         m.put("method", methodLabel((String) r.get("paid_via")));
         return m;
     }
@@ -307,13 +308,14 @@ public class Oversight {
     /** Payment requests (waiting, paid, expired, refused), plan changes, offers given and used, free days and trial extensions. */
     public Map<String, Object> requests(UUID id) {
         String sector = jdbc.queryForObject("SELECT sector FROM tenants WHERE id = ?", String.class, id);
+        String subSector = jdbc.queryForObject("SELECT sub_sector FROM tenants WHERE id = ?", String.class, id);
         List<Map<String, Object>> reqs = new ArrayList<>();
         for (Map<String, Object> r : jdbc.queryForList("""
                 SELECT r.id, r.plan, r.billing_cycle, r.amount, r.mpesa_phone, r.status, r.created_at, r.note, r.lines::text AS lines, o.title AS offer_title
                 FROM subscription_requests r LEFT JOIN platform_offers o ON o.id = r.offer_id
                 WHERE r.tenant_id = ? ORDER BY r.created_at DESC LIMIT 200""", id)) {
             Map<String, Object> m = row(r);
-            m.put("planName", platform.planName(sector, (String) r.get("plan")));
+            m.put("planName", platform.planName(sector, subSector, (String) r.get("plan")));
             reqs.add(m);
         }
         Map<String, Object> out = new LinkedHashMap<>();
@@ -661,7 +663,7 @@ public class Oversight {
             m.put("logoUrl", r.get("logo_url"));
             m.put("isDemo", r.get("is_demo"));
             m.put("plan", plan);
-            m.put("planName", platform.planName((String) r.get("sector"), plan));
+            m.put("planName", platform.planName((String) r.get("sector"), (String) r.get("sub_sector"), plan));
             m.put("pricePerMonth", p.amount() + p.credit());
             m.put("status", status);
             boolean paying = "ACTIVE".equals(r.get("status"));
@@ -817,11 +819,11 @@ public class Oversight {
         }
         out.put("bySector", sectorRows);
         out.put("last30", jdbc.queryForList("""
-                SELECT r.id, r.tenant_id, t.name AS business, t.sector, r.plan, r.amount, r.paid_via, r.mpesa_receipt, coalesce(r.paid_at, r.created_at) AS paid_at, r.activated_by
+                SELECT r.id, r.tenant_id, t.name AS business, t.sector, t.sub_sector, r.plan, r.amount, r.paid_via, r.mpesa_receipt, coalesce(r.paid_at, r.created_at) AS paid_at, r.activated_by
                 FROM subscription_requests r JOIN tenants t ON t.id = r.tenant_id
                 WHERE r.status = 'PAID' AND r.paid_via IS DISTINCT FROM 'CREDIT' ORDER BY coalesce(r.paid_at, r.created_at) DESC LIMIT 30""").stream().map(r -> {
             Map<String, Object> m = row(r);
-            m.put("planName", platform.planName((String) r.get("sector"), (String) r.get("plan")));
+            m.put("planName", platform.planName((String) r.get("sector"), (String) r.get("sub_sector"), (String) r.get("plan")));
             m.put("method", methodLabel((String) r.get("paid_via")));
             return m;
         }).toList());

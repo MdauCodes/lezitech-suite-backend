@@ -64,6 +64,11 @@ public class SectorCatalog {
         }
     }
 
+    /** True when this is a sector key. */
+    public boolean hasSector(String key) {
+        return key != null && packs.containsKey(key);
+    }
+
     /** The plain sector pack. */
     public JsonNode get(String key) {
         JsonNode pack = packs.get(key);

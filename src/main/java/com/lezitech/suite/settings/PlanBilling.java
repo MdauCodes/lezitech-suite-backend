@@ -121,6 +121,14 @@ public class PlanBilling {
         return tenantRow(tenant, false);
     }
 
+    /** A business with a plan of its own for its kind has no other plan to move to. */
+    private void onlyKindPlan(UUID tenant, String target) {
+        Map<String, Object> kind = platform.kindPlan(tenant);
+        if (kind != null && target != null && !target.equals(kind.get("plan"))) {
+            throw ApiException.bad("Your plan is " + kind.get("name") + ". It is the only plan for your kind of business, so there is no other plan to move to.");
+        }
+    }
+
     /** The business's billing row; locked when a change is about to be made, so two taps cannot both go through. */
     private Map<String, Object> tenantRow(UUID tenant, boolean lock) {
         return jdbc.queryForMap("""
@@ -260,6 +268,7 @@ public class PlanBilling {
         String from = paid ? (String) t.get("plan") : (String) features.fittingPlan(tenant).get("code");
         String reason = null;
         String target = toPlan == null ? null : toPlan.toUpperCase(Locale.ROOT);
+        onlyKindPlan(tenant, target);
         if (target != null && platform.plan(target) == null) {
             throw ApiException.bad("Unknown plan");
         }
@@ -428,6 +437,7 @@ public class PlanBilling {
     @Transactional
     public Map<String, Object> change(String toPlan, String reason) {
         TenantContext.requireRole("OWNER");
+        onlyKindPlan(TenantContext.tenantId(), toPlan == null ? null : toPlan.toUpperCase(Locale.ROOT));
         return apply(TenantContext.tenantId(), toPlan, reason, null);
     }
 

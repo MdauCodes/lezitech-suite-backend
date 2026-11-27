@@ -62,7 +62,13 @@ public class AdminController {
     @GetMapping("/platform-settings")
     public Map<String, Object> platformSettings() {
         AdminContext.require("read");
+        Map<String, String> kindNames = new java.util.LinkedHashMap<>();
+        platform.kindPlans().keySet().forEach(k -> {
+            var sub = sectors.findSub(k.substring(0, k.indexOf('/')), k.substring(k.indexOf('/') + 1));
+            kindNames.put(k, sub == null ? k : sub.get("name").asText());
+        });
         return Map.of("trialDays", platform.trialDays(), "plans", platform.plans().stream().map(platform::withPriceNow).toList(), "planOffers", platform.planOffers(), "tools", planFeatures.describe(),
+                "kindPlans", platform.kindPlans(), "kindNames", kindNames,
                 "minTrial", com.lezitech.suite.platform.PlatformSettings.MIN_TRIAL, "maxTrial", com.lezitech.suite.platform.PlatformSettings.MAX_TRIAL);
     }
 
@@ -98,11 +104,12 @@ public class AdminController {
     @PutMapping("/platform-settings")
     public Map<String, Object> savePlatformSettings(@RequestBody Map<String, Object> raw) {
         AdminContext.require("system");
-        if (raw.get("plans") instanceof List<?> || raw.get("planOffers") instanceof Map<?, ?>) {
+        if (raw.get("plans") instanceof List<?> || raw.get("planOffers") instanceof Map<?, ?> || raw.get("kindPlans") instanceof Map<?, ?>) {
             AdminContext.require("billing"); // what plans cost is a billing matter: the developer role cannot change it
         }
         String by = AdminContext.admin().name();
         Map<String, Long> priceBefore = actions.effectivePrices();
+        Map<String, Long> kindPriceBefore = platform.kindEffectivePrices();
         if (raw.containsKey("trialDays")) {
             int before = platform.trialDays();
             int days;
@@ -129,6 +136,15 @@ public class AdminController {
                 admin.audit("platform.plan_offers", null, Map.of("from", before.toString(), "to", saved.toString()));
             }
         }
+        if (raw.get("kindPlans") instanceof Map<?, ?> kp) {
+            @SuppressWarnings("unchecked")
+            Map<String, Map<String, Object>> k = (Map<String, Map<String, Object>>) kp;
+            Map<String, Map<String, Object>> before = platform.kindPlans();
+            Map<String, Map<String, Object>> saved = platform.setKindPlans(k, by);
+            if (!saved.equals(before)) {
+                admin.audit("platform.kind_plans", null, Map.of("from", before.toString(), "to", saved.toString()));
+            }
+        }
         if (raw.get("planTools") instanceof Map<?, ?> tools) {
             @SuppressWarnings("unchecked")
             Map<String, List<String>> t = (Map<String, List<String>>) tools;
@@ -136,8 +152,8 @@ public class AdminController {
             admin.audit("platform.plan_tools", null, Map.of("tools", t.toString()));
         }
         int told = 0;
-        if (raw.get("plans") instanceof List<?> || raw.get("planOffers") instanceof Map<?, ?>) {
-            told = actions.priceChanged(priceBefore, by);
+        if (raw.get("plans") instanceof List<?> || raw.get("planOffers") instanceof Map<?, ?> || raw.get("kindPlans") instanceof Map<?, ?>) {
+            told = actions.priceChanged(priceBefore, by) + actions.kindPriceChanged(kindPriceBefore, by);
             if (told > 0) {
                 admin.audit("platform.price_notices", null, Map.of("told", told, "reason", String.valueOf(raw.getOrDefault("reason", ""))));
             }
@@ -378,9 +394,10 @@ public class AdminController {
         out.put("demoWorkspaces", c.get("demos"));
         // Monthly recurring revenue from paying workspaces at list price.
         long mrr = 0;
-        for (Map<String, Object> r : jdbc.queryForList("SELECT plan, count(*) AS n" + real + "AND status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now()) GROUP BY plan")) {
+        for (Map<String, Object> r : jdbc.queryForList("SELECT plan, sector, sub_sector, count(*) AS n" + real + "AND status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now()) GROUP BY plan, sector, sub_sector")) {
+            Map<String, Object> own = platform.kindPlan((String) r.get("sector"), (String) r.get("sub_sector")); // a kind of business has a price of its own
             mrr += platform.plans().stream().filter(p -> p.get("code").equals(r.get("plan")))
-                    .mapToLong(p -> ((Number) p.get("monthly")).longValue() * ((Number) r.get("n")).longValue()).sum();
+                    .mapToLong(p -> ((Number) (own != null ? own : p).get("monthly")).longValue() * ((Number) r.get("n")).longValue()).sum();
         }
         out.put("mrr", mrr);
         out.put("signupsByDay", jdbc.queryForList("""
@@ -516,7 +533,7 @@ public class AdminController {
                 .stream().map(this::clean).toList());
         t.put("usage", TenantContext.runAs(id, null, usage::usage));
         if (t.get("plan") != null) {
-            t.put("planName", platform.planName((String) rows.get(0).get("sector"), (String) t.get("plan")));
+            t.put("planName", platform.planName((String) rows.get(0).get("sector"), (String) rows.get(0).get("sub_sector"), (String) t.get("plan")));
         }
         t.put("nextBill", TenantContext.runAs(id, null, () -> billing.nextBill(id, "MONTHLY")));
         t.put("planChanges", billing.changes(id));
@@ -687,7 +704,7 @@ public class AdminController {
     public List<Map<String, Object>> requests(@RequestParam(defaultValue = "PENDING") String status) {
         AdminContext.require("read");
         return jdbc.queryForList("""
-                SELECT r.id, r.tenant_id, t.name AS tenant_name, t.sector, r.plan, r.billing_cycle, r.amount, r.mpesa_phone, r.status, r.created_at,
+                SELECT r.id, r.tenant_id, t.name AS tenant_name, t.sector, t.sub_sector, r.plan, r.billing_cycle, r.amount, r.mpesa_phone, r.status, r.created_at,
                        r.lines::text AS lines
                 FROM subscription_requests r JOIN tenants t ON t.id = r.tenant_id
                 WHERE (? = 'ALL' OR r.status = ?) ORDER BY r.created_at DESC LIMIT 200""", status, status).stream().map(r -> withPlanName(r)).map(this::clean).toList();
@@ -964,7 +981,7 @@ public class AdminController {
     /** A payment request with the name this business sees for its plan next to the code. */
     private Map<String, Object> withPlanName(Map<String, Object> r) {
         Map<String, Object> m = new LinkedHashMap<>(r);
-        m.put("plan_name", platform.planName((String) r.get("sector"), (String) r.get("plan")));
+        m.put("plan_name", platform.planName((String) r.get("sector"), (String) r.get("sub_sector"), (String) r.get("plan")));
         return m;
     }
 
