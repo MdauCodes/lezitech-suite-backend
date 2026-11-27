@@ -122,10 +122,10 @@ public class PlanBilling {
     }
 
     /** A business with a plan of its own for its kind has no other plan to move to. */
-    private void onlyKindPlan(UUID tenant, String target) {
+    public void onlyKindPlan(UUID tenant, String target) {
         Map<String, Object> kind = platform.kindPlan(tenant);
-        if (kind != null && target != null && !target.equals(kind.get("plan"))) {
-            throw ApiException.bad("Your plan is " + kind.get("name") + ". It is the only plan for your kind of business, so there is no other plan to move to.");
+        if (kind != null && target != null && !target.equals(kind.get("plan")) && !target.equals(platform.payingPlan(tenant))) {
+            throw ApiException.bad("Your kind of business has its own plan, " + kind.get("name") + ". Choose that one.");
         }
     }
 
@@ -437,7 +437,6 @@ public class PlanBilling {
     @Transactional
     public Map<String, Object> change(String toPlan, String reason) {
         TenantContext.requireRole("OWNER");
-        onlyKindPlan(TenantContext.tenantId(), toPlan == null ? null : toPlan.toUpperCase(Locale.ROOT));
         return apply(TenantContext.tenantId(), toPlan, reason, null);
     }
 
@@ -449,6 +448,7 @@ public class PlanBilling {
 
     private Map<String, Object> apply(UUID tenant, String toPlan, String reason, String actor) {
         String to = toPlan == null ? "" : toPlan.toUpperCase(Locale.ROOT);
+        onlyKindPlan(tenant, to);
         if (platform.plan(to) == null) {
             throw ApiException.bad("Choose a plan");
         }

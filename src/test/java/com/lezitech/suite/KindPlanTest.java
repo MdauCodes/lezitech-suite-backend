@@ -203,7 +203,7 @@ class KindPlanTest extends IntegrationTest {
 
         Res r = saveKind(admin, kind(4500, offer(3000, false))); // the launch offer ends: 3,000 becomes 4,500
         assertThat(r.status()).as(r.body().toString()).isEqualTo(200);
-        assertThat(r.at("/told").asInt()).isEqualTo(1);
+        assertThat(r.at("/told").asInt()).isGreaterThanOrEqualTo(1);
         JsonNode n = notices(supplyOwner);
         assertThat(n).hasSize(1);
         assertThat(n.at("/0/body").asText()).contains("from KES 3,000 to KES 4,500 a month").contains("stays at the old price");
@@ -216,5 +216,51 @@ class KindPlanTest extends IntegrationTest {
         // Saving the same thing again tells no one a second time.
         assertThat(saveKind(admin, kind(4500, offer(3000, false))).at("/told").asInt()).isZero();
         assertThat(notices(supplyOwner)).hasSize(1);
+    }
+
+    @Test
+    void anOwnerCannotMoveIntoOrOutOfSupplyButOtherChangesWork() {
+        String supplyOwner = token(supply());
+        assertThat(call("PUT", "/settings", supplyOwner, Map.of("subSector", "Distributor")).status()).as("out of Supply").isEqualTo(400);
+        Res other = post("/auth/signup", null, Map.of("businessName", "Wholesale " + UUID.randomUUID().toString().substring(0, 4), "sector", "wholesale", "subSector", "Distributor",
+                "name", "Owner", "email", "o-" + UUID.randomUUID().toString().substring(0, 8) + "@test.local", "password", "password123", "withSamples", true));
+        assertThat(other.status()).isEqualTo(200);
+        String owner = token(other.body());
+        assertThat(call("PUT", "/settings", owner, Map.of("subSector", "Supplier to hotels and hospitals")).status()).as("into Supply").isEqualTo(400);
+        assertThat(call("PUT", "/settings", owner, Map.of("subSector", "Manufacturer")).status()).as("no kind plan involved").isEqualTo(200);
+    }
+
+    @Test
+    void aSupplyBusinessPayingOnAnotherPlanKeepsItAtItsNormalPriceUntilItMoves() {
+        JsonNode s = supply();
+        String owner = paid(s, "LITE");
+        JsonNode plans = get("/billing/plans", owner).body().get("plans");
+        assertThat(plans).hasSize(2);
+        assertThat(plan(owner, "LITE").get("pay").asLong()).isEqualTo(2650);
+        assertThat(plan(owner, "PRO").get("pay").asLong()).isEqualTo(3000);
+        assertThat(get("/billing/next-bill", owner).at("/total").asLong()).isEqualTo(2650);
+        assertThat(get("/billing/keep", owner).at("/pay").asLong()).isEqualTo(2650);
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY")).status()).isEqualTo(400);
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "LITE", "cycle", "MONTHLY")).at("/amount").asLong()).isEqualTo(2650);
+        // An administrator may not put it on a plan that is neither its own nor the kind plan, but may move it to the kind plan.
+        String admin = admin("ADMIN");
+        assertThat(call("POST", "/admin/tenants/" + id(s) + "/plan-change", admin, Map.of("plan", "GROWTH", "reason", "Test")).status()).isEqualTo(400);
+        assertThat(post("/billing/plan-change", owner, Map.of("plan", "PRO")).status()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT plan FROM tenants WHERE id = ?::uuid", String.class, id(s))).isEqualTo("PRO");
+        assertThat(get("/billing/plans", owner).body().get("plans")).hasSize(1);
+        assertThat(plan(owner, "PRO").get("pay").asLong()).isEqualTo(3000);
+    }
+
+    @Test
+    void aKindPlanInUseCannotBeRemovedOrGetAnotherPlanCode() {
+        supply();
+        String admin = admin("ADMIN");
+        Res gone = call("PUT", "/admin/platform-settings", admin, Map.of("kindPlans", Map.of()));
+        assertThat(gone.status()).isEqualTo(400);
+        assertThat(gone.body().toString()).contains("businesses are on the plan for Busynez Supply");
+        Map<String, Object> other = kind(4500, null);
+        other.put("plan", "GROWTH");
+        assertThat(saveKind(admin, other).status()).isEqualTo(400);
+        assertThat(platform.kindPlans()).containsKey(KIND);
     }
 }

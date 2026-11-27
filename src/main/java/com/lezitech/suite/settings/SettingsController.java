@@ -68,7 +68,20 @@ public class SettingsController {
             m.put("pay", month.amount());
             m.put("payYear", year.amount());
             m.put("offer", month.offerTitle() != null ? month.offerTitle() : year.offerTitle());
-            return List.of(m);
+            String own = platform.payingPlan(t);
+            if (own == null || own.equals(kind.get("plan"))) {
+                return List.of(m);
+            }
+            // Paying on another plan: it keeps that plan (at its normal price) next to its kind's plan.
+            var mine = plansWithTools(sector).stream().filter(p -> own.equals(p.get("code"))).findFirst();
+            if (mine.isEmpty()) {
+                return List.of(m);
+            }
+            Map<String, Object> cur = new java.util.LinkedHashMap<>(mine.get());
+            cur.put("pay", offers.price(ctx1, own, "MONTHLY").amount());
+            cur.put("payYear", offers.price(ctx1, own, "ANNUAL").amount());
+            cur.put("offer", offers.price(ctx1, own, "MONTHLY").offerTitle());
+            return List.of(cur, m);
         }
         var ctx = offers.context(t);
         return plansWithTools(sector).stream().map(p -> {
@@ -132,6 +145,14 @@ public class SettingsController {
     public Map<String, Object> update(@RequestBody Map<String, Object> raw) throws Exception {
         TenantContext.requireRole("OWNER");
         Body b = new Body(raw);
+        if (b.str("subSector", null) != null) {
+            var cur = jdbc.queryForMap("SELECT sector, sub_sector FROM tenants WHERE id = ?", TenantContext.tenantId());
+            String before = platform.kindOf((String) cur.get("sector"), (String) cur.get("sub_sector")), after = platform.kindOf((String) cur.get("sector"), b.str("subSector", null));
+            boolean differ = before == null ? after != null : !before.equals(after);
+            if (differ && (before != null && platform.kindPlans().containsKey(before) || after != null && platform.kindPlans().containsKey(after))) {
+                throw ApiException.bad("To move your business to or from Busynez Supply, ask LeziTech.");
+            }
+        }
         String color = b.str("brandColor", null);
         if (color != null && !color.matches("^#[0-9a-fA-F]{6}$")) {
             throw ApiException.bad("Brand colour must look like #0f766e");
@@ -261,8 +282,8 @@ public class SettingsController {
         String plan = b.str("plan").toUpperCase();
         String cycle = b.str("cycle", "MONTHLY").toUpperCase();
         Map<String, Object> kindPlan = platform.kindPlan(TenantContext.tenantId());
-        if (kindPlan != null && !plan.equals(kindPlan.get("plan"))) {
-            throw ApiException.bad("Your plan is " + kindPlan.get("name") + ". It is the only plan for your kind of business, so choose that one.");
+        if (kindPlan != null && !plan.equals(kindPlan.get("plan")) && !plan.equals(platform.payingPlan(TenantContext.tenantId()))) {
+            throw ApiException.bad("Your kind of business has its own plan, " + kindPlan.get("name") + ". Choose that one.");
         }
         platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
                 .orElseThrow(() -> ApiException.bad("Unknown plan"));

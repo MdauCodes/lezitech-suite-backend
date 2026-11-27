@@ -200,6 +200,10 @@ public class PlanFeatures {
     /** The same with more tools, staff or branches added: what the setup would be after switching something on. */
     public Map<String, Object> fittingPlan(UUID tenant, Set<String> moreTools, int moreStaff, int moreBranches) {
         Map<String, Object> kind = platform.kindPlan(tenant);
+        String paying = kind == null ? null : platform.payingPlan(tenant);
+        if (kind != null && paying != null && !paying.equals(kind.get("plan")) && platform.plan(paying) != null) {
+            return platform.plan(paying); // paying on another plan: it keeps that plan until it moves to its kind's plan
+        }
         if (kind != null) {
             // A kind of business has one plan of its own: that is the plan its setup fits, at the kind plan's price.
             Map<String, Object> only = new LinkedHashMap<>(platform.plan((String) kind.get("plan")));

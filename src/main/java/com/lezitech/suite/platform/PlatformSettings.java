@@ -197,7 +197,7 @@ public class PlatformSettings {
     /** The name a business of this sector and sub-sector sees: its kind plan's own name when it has one, else the sector's name. */
     public String planName(String sector, String subSector, String code) {
         Map<String, Object> kp = kindPlan(sector, subSector);
-        return kp != null ? String.valueOf(kp.get("name")) : planName(sector, code);
+        return kp != null && code != null && code.equals(kp.get("plan")) ? String.valueOf(kp.get("name")) : planName(sector, code);
     }
 
     /** All three names for a kind of business, in plan order. */
@@ -273,15 +273,44 @@ public class PlatformSettings {
 
     /** The kind plans, by kind id ("sectorKey/subSectorKey"): what LeziTech saved, or the built-in ones until it saves its own. */
     public Map<String, Map<String, Object>> kindPlans() {
-        String v = all().get("kindPlans");
-        if (v == null) {
-            return DEFAULT_KIND_PLANS;
+        Map<String, String> now = all();
+        KindCache c = kindCache;
+        if (c != null && c.from == now) {
+            return c.plans;
         }
-        try {
-            return json.readValue(v, new TypeReference<Map<String, Map<String, Object>>>() { });
-        } catch (Exception e) {
-            return DEFAULT_KIND_PLANS;
+        Map<String, Map<String, Object>> parsed = DEFAULT_KIND_PLANS;
+        String v = now.get("kindPlans");
+        if (v != null) {
+            try {
+                parsed = json.readValue(v, new TypeReference<Map<String, Map<String, Object>>>() { });
+            } catch (Exception e) {
+                parsed = DEFAULT_KIND_PLANS;
+            }
         }
+        kindCache = new KindCache(now, parsed);
+        return parsed;
+    }
+
+    /** The parsed kind plans, kept for as long as the settings read from the database are kept. */
+    private record KindCache(Map<String, String> from, Map<String, Map<String, Object>> plans) {
+    }
+
+    private volatile KindCache kindCache;
+
+    /** The plan a business pays on now, or null while it is on free days or not paying. */
+    public String payingPlan(java.util.UUID tenant) {
+        List<Map<String, Object>> r = jdbc.queryForList("SELECT plan, status, suspended_from FROM tenants WHERE id = ?", tenant);
+        if (r.isEmpty() || r.get(0).get("plan") == null) {
+            return null;
+        }
+        Map<String, Object> t = r.get(0);
+        boolean paying = "ACTIVE".equals(t.get("status")) || "SUSPENDED".equals(t.get("status")) && "ACTIVE".equals(t.get("suspended_from"));
+        return paying ? (String) t.get("plan") : null;
+    }
+
+    /** Whether the kind price applies to a plan asked for by a business paying on {@code ownPlan} (null: not paying yet). Paying on another plan keeps it and its normal price. */
+    public static boolean kindPriceApplies(Map<String, Object> kind, String ownPlan, String asked) {
+        return kind != null && (ownPlan == null || ownPlan.equals(kind.get("plan")) || asked.equals(kind.get("plan")));
     }
 
     /** The kind id for a sector and a sub-sector (its name or key), or null when the catalogue does not know the sub-sector. */
@@ -314,11 +343,12 @@ public class PlatformSettings {
      * Whether a business of kind {@code tenantKind} is reached by a change meant for {@code scopeKind}: with a kind id, only that kind's
      * businesses; with null (the platform's own plans), every business that has no plan of its own for its kind.
      */
-    public boolean inScope(String tenantKind, String scopeKind) {
+    public boolean inScope(String tenantKind, String scopeKind, String code) {
         if (scopeKind != null) {
             return scopeKind.equals(tenantKind);
         }
-        return tenantKind == null || kindPlans().get(tenantKind) == null;
+        Map<String, Object> own = tenantKind == null ? null : kindPlans().get(tenantKind);
+        return own == null || !own.get("plan").equals(code); // paying on another plan keeps it, with its normal price
     }
 
     /** The kind plan's offer if it is on, has started, has not ended and is lower than its price; otherwise null. Dates are Nairobi days. */
@@ -463,6 +493,22 @@ public class PlatformSettings {
             clean.put(kind, kindPlanOf(code, name, monthly, blurb.length() > 200 ? blurb.substring(0, 200) : blurb, offer));
         }
         try {
+            for (Map.Entry<String, Map<String, Object>> old : kindPlans().entrySet()) {
+                Map<String, Object> now = clean.get(old.getKey());
+                if (now != null && now.get("plan").equals(old.getValue().get("plan"))) {
+                    continue;
+                }
+                long n = 0;
+                for (Map<String, Object> t : jdbc.queryForList("SELECT sector, sub_sector FROM tenants WHERE sector = ?", old.getKey().substring(0, old.getKey().indexOf('/')))) {
+                    if (old.getKey().equals(kindOf((String) t.get("sector"), (String) t.get("sub_sector")))) {
+                        n++;
+                    }
+                }
+                if (n > 0) {
+                    throw ApiException.bad(n + (n == 1 ? " business is" : " businesses are") + " on the plan for " + old.getValue().get("name")
+                            + ", so it can't be removed or moved to another plan code. Change its name or price instead.");
+                }
+            }
             put("kindPlans", json.writeValueAsString(clean), by);
         } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
             throw new IllegalStateException(ex);

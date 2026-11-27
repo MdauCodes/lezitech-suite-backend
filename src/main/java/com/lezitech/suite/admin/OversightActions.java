@@ -160,6 +160,9 @@ public class OversightActions {
             throw ApiException.conflict("That code or reference was already recorded for a payment");
         }
         String asked = b.str("plan", "").toUpperCase();
+        if (!asked.isEmpty()) {
+            billing.onlyKindPlan(id, asked); // a kind of business with its own plan: that plan, or the one it already pays on
+        }
         if (!asked.isEmpty() && platform.plan(asked) == null) {
             throw ApiException.bad("Choose the plan");
         }
@@ -381,6 +384,7 @@ public class OversightActions {
         if (platform.plan(plan) == null) {
             throw ApiException.bad("Choose the plan");
         }
+        billing.onlyKindPlan(id, plan);
         int months = b.integer("months", 1);
         if (months != 1 && months != 12) {
             throw ApiException.bad("Months must be 1 or 12");
@@ -585,7 +589,7 @@ public class OversightActions {
         List<UUID> ids = new java.util.ArrayList<>(payingOn(code, kind));
         for (Map<String, Object> trial : jdbc.queryForList("SELECT id, sector, sub_sector FROM tenants WHERE NOT is_demo AND status = 'TRIAL' AND NOT in_setup")) {
             UUID id = (UUID) trial.get("id");
-            if (!platform.inScope(platform.kindOf((String) trial.get("sector"), (String) trial.get("sub_sector")), kind)) {
+            if (!platform.inScope(platform.kindOf((String) trial.get("sector"), (String) trial.get("sub_sector")), kind, code)) {
                 continue;
             }
             try {
@@ -605,7 +609,7 @@ public class OversightActions {
         for (Map<String, Object> r : jdbc.queryForList("""
                 SELECT t.id, t.sector, t.sub_sector FROM tenants t WHERE NOT t.is_demo AND""" + " " + com.lezitech.suite.platform.Offers.PAYING + """
                  AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)""", code, code)) {
-            if (platform.inScope(platform.kindOf((String) r.get("sector"), (String) r.get("sub_sector")), kind)) {
+            if (platform.inScope(platform.kindOf((String) r.get("sector"), (String) r.get("sub_sector")), kind, code)) {
                 ids.add((UUID) r.get("id"));
             }
         }

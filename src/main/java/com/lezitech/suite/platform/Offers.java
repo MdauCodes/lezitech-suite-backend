@@ -298,7 +298,7 @@ public class Offers {
         for (Map<String, Object> r : jdbc.queryForList("""
                 SELECT t.id, t.sector, t.sub_sector FROM tenants t
                 WHERE (t.status = 'ACTIVE' OR (t.status = 'SUSPENDED' AND t.suspended_from = 'ACTIVE')) AND NOT t.is_demo AND t.paid_until IS NOT NULL AND (t.plan = ? OR t.next_plan = ?)""", plan, plan)) {
-            if (platform.inScope(platform.kindOf((String) r.get("sector"), (String) r.get("sub_sector")), kind)) {
+            if (platform.inScope(platform.kindOf((String) r.get("sector"), (String) r.get("sub_sector")), kind, plan)) {
                 ids.add((UUID) r.get("id"));
             }
         }
@@ -330,20 +330,20 @@ public class Offers {
     }
 
     /** What one price calculation needs about a business: its live offers, discount and credit. Load once, price many plans. */
-    public record Context(UUID tenant, List<Map<String, Object>> offers, int mall, long credit, Map<String, Object> kind) {
+    public record Context(UUID tenant, List<Map<String, Object>> offers, int mall, long credit, Map<String, Object> kind, String ownPlan) {
     }
 
     /** Loads the business's offers and tenant row once, so a caller looping over plans does not repeat the queries. */
     public Context context(UUID tenant) {
-        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit, sector, sub_sector FROM tenants WHERE id = ?", tenant);
+        Map<String, Object> own = jdbc.queryForMap("SELECT mall_discount, billing_credit, sector, sub_sector, plan, status, suspended_from FROM tenants WHERE id = ?", tenant);
         return new Context(tenant, forTenant(tenant), ((Number) own.get("mall_discount")).intValue(), ((Number) own.get("billing_credit")).longValue(),
-                platform.kindPlan((String) own.get("sector"), (String) own.get("sub_sector")));
+                platform.kindPlan((String) own.get("sector"), (String) own.get("sub_sector")), payingPlan(own));
     }
 
     /** Same as {@link #price(UUID, String, String)} using an already loaded {@link Context}. */
     public Price price(Context ctx, String plan, String cycle) {
         Map<String, Long> held = heldFor(List.of(ctx.tenant())).get(ctx.tenant());
-        return choose(plan, cycle, ctx.offers(), held == null ? null : held.get(plan), ctx.mall(), ctx.credit(), ctx.kind());
+        return choose(plan, cycle, ctx.offers(), held == null ? null : held.get(plan), ctx.mall(), ctx.credit(), ctx.kind(), ctx.ownPlan());
     }
 
     /**
@@ -359,7 +359,7 @@ public class Offers {
         Map<UUID, List<Map<String, Object>>> offers = offersFor(ids);
         Map<UUID, Map<String, Long>> held = heldFor(ids);
         Map<UUID, Map<String, Object>> own = new java.util.HashMap<>();
-        for (Map<String, Object> r : jdbc.queryForList("SELECT id, mall_discount, billing_credit, sector, sub_sector FROM tenants WHERE id = ANY (?)", (Object) ids.toArray(new UUID[0]))) {
+        for (Map<String, Object> r : jdbc.queryForList("SELECT id, mall_discount, billing_credit, sector, sub_sector, plan, status, suspended_from FROM tenants WHERE id = ANY (?)", (Object) ids.toArray(new UUID[0]))) {
             own.put((UUID) r.get("id"), r);
         }
         for (UUID t : ids) {
@@ -370,12 +370,19 @@ public class Offers {
             String plan = planOf.get(t);
             out.put(t, choose(plan, cycle, offers.getOrDefault(t, List.of()), held.getOrDefault(t, Map.of()).get(plan),
                     ((Number) o.get("mall_discount")).intValue(), ((Number) o.get("billing_credit")).longValue(),
-                    platform.kindPlan((String) o.get("sector"), (String) o.get("sub_sector"))));
+                    platform.kindPlan((String) o.get("sector"), (String) o.get("sub_sector")), payingPlan(o)));
         }
         return out;
     }
 
-    private Price choose(String plan, String cycle, List<Map<String, Object>> mine, Long held, int mall, long billingCredit, Map<String, Object> kind) {
+    /** The plan a business pays on now (null on free days). */
+    private static String payingPlan(Map<String, Object> t) {
+        boolean paying = "ACTIVE".equals(t.get("status")) || "SUSPENDED".equals(t.get("status")) && "ACTIVE".equals(t.get("suspended_from"));
+        return paying && t.get("plan") != null ? (String) t.get("plan") : null;
+    }
+
+    private Price choose(String plan, String cycle, List<Map<String, Object>> mine, Long held, int mall, long billingCredit, Map<String, Object> kindPlan, String ownPlan) {
+        Map<String, Object> kind = PlatformSettings.kindPriceApplies(kindPlan, ownPlan, plan) ? kindPlan : null;
         Map<String, Object> p = platform.plan(plan);
         if (p == null) {
             throw ApiException.bad("Unknown plan");
