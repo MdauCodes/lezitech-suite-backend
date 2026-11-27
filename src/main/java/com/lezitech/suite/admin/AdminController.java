@@ -395,7 +395,8 @@ public class AdminController {
         // Monthly recurring revenue from paying workspaces at list price.
         long mrr = 0;
         for (Map<String, Object> r : jdbc.queryForList("SELECT plan, sector, sub_sector, count(*) AS n" + real + "AND status = 'ACTIVE' AND (paid_until IS NULL OR paid_until > now()) GROUP BY plan, sector, sub_sector")) {
-            Map<String, Object> own = platform.kindPlan((String) r.get("sector"), (String) r.get("sub_sector")); // a kind of business has a price of its own
+            Map<String, Object> kind = platform.kindPlan((String) r.get("sector"), (String) r.get("sub_sector"));
+            Map<String, Object> own = kind != null && kind.get("plan").equals(r.get("plan")) ? kind : null; // only its own plan has its own price; a business kept on another plan pays that plan
             mrr += platform.plans().stream().filter(p -> p.get("code").equals(r.get("plan")))
                     .mapToLong(p -> ((Number) (own != null ? own : p).get("monthly")).longValue() * ((Number) r.get("n")).longValue()).sum();
         }

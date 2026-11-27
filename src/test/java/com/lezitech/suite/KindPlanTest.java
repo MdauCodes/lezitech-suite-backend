@@ -252,6 +252,15 @@ class KindPlanTest extends IntegrationTest {
     }
 
     @Test
+    void aMoveDownChosenBeforeCanStillBePaid() {
+        JsonNode s = supply();
+        String owner = paid(s, "GROWTH");
+        jdbc.update("UPDATE tenants SET next_plan = 'LITE' WHERE id = ?::uuid", id(s));
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "LITE", "cycle", "MONTHLY")).status()).isEqualTo(200);
+        assertThat(post("/billing/subscribe", owner, Map.of("plan", "GROWTH", "cycle", "MONTHLY")).status()).isNotEqualTo(400);
+    }
+
+    @Test
     void aKindPlanInUseCannotBeRemovedOrGetAnotherPlanCode() {
         supply();
         String admin = admin("ADMIN");

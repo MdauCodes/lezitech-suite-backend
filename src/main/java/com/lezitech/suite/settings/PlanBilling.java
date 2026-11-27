@@ -124,7 +124,8 @@ public class PlanBilling {
     /** A business with a plan of its own for its kind has no other plan to move to. */
     public void onlyKindPlan(UUID tenant, String target) {
         Map<String, Object> kind = platform.kindPlan(tenant);
-        if (kind != null && target != null && !target.equals(kind.get("plan")) && !target.equals(platform.payingPlan(tenant))) {
+        if (kind != null && target != null && !target.equals(kind.get("plan")) && !target.equals(platform.payingPlan(tenant))
+                && !target.equals(jdbc.queryForObject("SELECT next_plan FROM tenants WHERE id = ?", String.class, tenant))) { // a move chosen before can still be paid
             throw ApiException.bad("Your kind of business has its own plan, " + kind.get("name") + ". Choose that one.");
         }
     }

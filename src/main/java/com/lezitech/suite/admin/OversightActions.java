@@ -811,7 +811,7 @@ public class OversightActions {
                             + " We are telling you well ahead so you can plan.", by);
         } else {
             Map<String, Object> own = platform.kindPlan(id);
-            Map<String, Object> live = own != null ? platform.liveKindOffer(own) : platform.liveOffer(code);
+            Map<String, Object> live = own != null && code.equals(own.get("plan")) ? platform.liveKindOffer(own) : platform.liveOffer(code);
             String until = live != null && live.get("endsOn") != null && !String.valueOf(live.get("endsOn")).isBlank()
                     ? ", until " + PlanBilling.day(java.time.LocalDate.parse(String.valueOf(live.get("endsOn"))).plusDays(1).atStartOfDay(Oversight.NAIROBI).toInstant().minusSeconds(60)) : "";
             tell(id, "PRICE_DOWN", "Good news: " + planName + " costs less",

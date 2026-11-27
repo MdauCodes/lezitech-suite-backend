@@ -282,7 +282,8 @@ public class SettingsController {
         String plan = b.str("plan").toUpperCase();
         String cycle = b.str("cycle", "MONTHLY").toUpperCase();
         Map<String, Object> kindPlan = platform.kindPlan(TenantContext.tenantId());
-        if (kindPlan != null && !plan.equals(kindPlan.get("plan")) && !plan.equals(platform.payingPlan(TenantContext.tenantId()))) {
+        if (kindPlan != null && !plan.equals(kindPlan.get("plan")) && !plan.equals(platform.payingPlan(TenantContext.tenantId()))
+                && !plan.equals(jdbc.queryForObject("SELECT next_plan FROM tenants WHERE id = ?", String.class, TenantContext.tenantId()))) {
             throw ApiException.bad("Your kind of business has its own plan, " + kindPlan.get("name") + ". Choose that one.");
         }
         platform.plans().stream().filter(x -> x.get("code").equals(plan)).findFirst()
